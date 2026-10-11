@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="darkcircle-session" content="__SESSION_TOKEN__">
+  <!-- @admin:begin -->
+  <meta name="darkcircle-admin" content="__ADMIN_ENABLED__">
+  <!-- @admin:end -->
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#0b0f14">
+  <title>DarkCircle Console</title>
+  <script src="/theme.js"></script>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <div class="app">
+    <aside class="side" aria-label="Primary">
+      <div class="brand-wrap">
+        <button class="brand" type="button" id="brand-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="color-popover" title="Change the site colour">
+          <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.5" fill="currentColor"/></svg>
+          <span>DarkCircle</span>
+        </button>
+        <div class="color-popover" id="color-popover" role="dialog" aria-label="Site colour" hidden></div>
+      </div>
+      <nav class="nav" id="nav" aria-label="Sections">
+        <a href="#/overview" data-route="overview">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 13h6V4H4zm10 7h6V11h-6zM4 20h6v-5H4zm10-11h6V4h-6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          <span>Overview</span>
+        </a>
+        <a href="#/notes" data-route="notes">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l8 4-8 4-8-4zm-8 9l8 4 8-4M4 16.5l8 4 8-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
+          <span>Notes &amp; events</span><b class="count" id="count-notes" hidden></b>
+        </a>
+        <a href="#/invoices" data-route="invoices">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
+          <span>Invoices</span><b class="count" id="count-invoices" hidden></b>
+        </a>
+        <a href="#/journal" data-route="journal">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3zM5 17a3 3 0 013-3h11M9 8h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
+          <span>Journal</span>
+        </a>
+        <a href="#/agent" data-route="agent">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 11a7 7 0 0014 0M12 18v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span>Voice agent</span><b class="count live" aria-label="live network">LIVE</b>
+        </a>
+      </nav>
+      <div class="side-foot" id="side-foot"></div>
+    </aside>
+
+    <div class="main-col">
+      <div class="live-banner" id="live-banner" role="note" hidden>
+        <strong>Live</strong>
+        <span>Real Quai network and real funds. Nothing moves until you confirm it here and approve it in your own wallet.</span>
+      </div>
+      <div class="sim-banner" id="sim-banner" role="note">
+        <strong>Simulation</strong>
+        <span>In-memory Quai ledger and a simulated shielded pool. No real funds move and no pool contract is deployed.</span>
+      </div>
+
+      <header class="top">
+        <div class="chips" id="chips" aria-label="Environment"></div>
+        <div class="top-tools">
+          <div class="seg" role="group" aria-label="Asset shown below" id="asset-seg"></div>
+          <!-- @admin:begin -->
+          <span id="admin-slot"></span>
+          <!-- @admin:end -->
+          <button class="icon-toggle" id="theme-toggle" type="button" aria-pressed="false" title="Switch theme">
+            <svg class="i-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            <svg class="i-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span class="sr" id="theme-label">Switch to light theme</span>
+          </button>
+          <button class="btn ghost" id="btn-reset" type="button">Reset pools</button>
+        </div>
+      </header>
+
+      <main id="main" tabindex="-1">
+        <section class="view" data-view="overview" aria-labelledby="h-overview">
+          <h1 class="view-title" id="h-overview">Overview</h1>
+          <section class="pools" aria-label="Shielded pools" id="pools"></section>
+          <section class="actions" aria-label="Actions">
+            <button class="btn primary" data-open="shield" type="button"><span class="ic" aria-hidden="true">&#8595;</span> Shield</button>
+            <button class="btn primary" data-open="unshield" type="button"><span class="ic" aria-hidden="true">&#8599;</span> Send</button>
+            <button class="btn" data-open="receive" type="button"><span class="ic" aria-hidden="true">&#8600;</span> Receive</button>
+            <button class="btn" data-open="sweep" type="button"><span class="ic" aria-hidden="true">&#8634;</span> Sweep</button>
+            <button class="btn" data-open="audit" type="button"><span class="ic" aria-hidden="true">&#9636;</span> Audit export</button>
+            <button class="btn ghost" data-open="checklist" type="button"><span class="ic" aria-hidden="true">&#10003;</span> Checklist</button>
+          </section>
+          <section class="stats" aria-label="Balances for the selected asset" id="stats"></section>
+          <section class="panel">
+            <h2 class="panel-title">Recent pool activity</h2>
+            <div id="recent"></div>
+          </section>
+        </section>
+
+        <section class="view" data-view="notes" aria-labelledby="h-notes" hidden>
+          <h1 class="view-title" id="h-notes">Notes &amp; pool events</h1>
+          <section class="panel" id="pane-notes"></section>
+        </section>
+
+        <section class="view" data-view="invoices" aria-labelledby="h-invoices" hidden>
+          <h1 class="view-title" id="h-invoices">Invoices</h1>
+          <section class="panel" id="pane-invoices"></section>
+        </section>
+
+        <section class="view" data-view="journal" aria-labelledby="h-journal" hidden>
+          <h1 class="view-title" id="h-journal">Journal</h1>
+          <section class="panel" id="pane-journal"></section>
+        </section>
+        <section class="view" data-view="agent" aria-labelledby="h-agent" hidden>
+          <h1 class="view-title" id="h-agent">Voice agent</h1>
+          <div id="agent-root"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="modal" aria-labelledby="modal-title">
+    <form method="dialog" class="modal-shell" id="modal-shell" novalidate>
+      <header class="modal-head">
+        <div>
+          <h2 id="modal-title">Title</h2>
+          <p class="lead" id="modal-lead"></p>
+        </div>
+        <button class="icon-btn" type="button" id="modal-close" aria-label="Close dialog">&times;</button>
+      </header>
+      <ol class="steps" id="modal-steps" aria-label="Progress"></ol>
+      <div class="modal-body" id="modal-body"></div>
+      <footer class="modal-foot" id="modal-foot"></footer>
+    </form>
+  </dialog>
+
+  <div id="toasts" role="status" aria-live="polite"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
