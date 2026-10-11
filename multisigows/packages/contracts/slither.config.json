@@ -1,0 +1,8 @@
+{
+  "filter_paths": "node_modules|lib/forge-std|lib\\/forge-std",
+  "detectors_to_exclude": "pragma,solc-version,naming-convention",
+  "exclude_informational": false,
+  "exclude_low": false,
+  "exclude_medium": false,
+  "exclude_high": false
+}

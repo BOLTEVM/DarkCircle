@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      dev-tooling:
+        dependency-type: development
+    # Security-critical runtime deps are exact-pinned; bump them deliberately, one at a time.
+    ignore:
+      - dependency-name: ethers
+        update-types: ['version-update:semver-major']
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  # forge-std (packages/contracts/lib/forge-std) is a pinned git submodule.
+  - package-ecosystem: gitsubmodule
+    directory: /
+    schedule:
+      interval: weekly

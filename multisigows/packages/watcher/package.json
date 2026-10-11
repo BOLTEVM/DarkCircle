@@ -1,0 +1,34 @@
+{
+  "name": "@safebuddy/watcher",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Monitors SafeBuddy v2 vaults and alerts on governance changes, proposals and reorgs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "safebuddy-watch": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "lint": "tsc --noEmit",
+    "clean": "node -e \"const fs=require('fs'); fs.rmSync('dist', { recursive: true, force: true });\""
+  },
+  "dependencies": {
+    "@safebuddy/core": "workspace:*",
+    "ethers": "6.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Redirecting — DarkCircle Suite</title>
+  <script>
+    (function() {
+      var host = window.location.hostname.toLowerCase();
+      var path = window.location.pathname;
+      var search = window.location.search;
+      var hash = window.location.hash;
+
+      // 1. Subdomain matching
+      if (host.startsWith('q0.') || host.startsWith('circleswap.') || host.includes('q0-')) {
+        window.location.replace('/q0/' + search + hash);
+        return;
+      }
+      if (host.startsWith('darksafe.') || host.startsWith('safe.') || host.startsWith('multisig.') || host.includes('darksafe-')) {
+        window.location.replace('/multisigows/' + search + hash);
+        return;
+      }
+      if (host.startsWith('tumbler.') || host.startsWith('privacy.') || host.startsWith('x402.') || host.includes('tumbler-')) {
+        window.location.replace('/x402tumbler/' + search + hash);
+        return;
+      }
+
+      // 2. SPA subpath fallback
+      if (path.indexOf('/q0') !== -1 || path.indexOf('/circleswap') !== -1) {
+        window.location.replace('/q0/' + search + hash);
+        return;
+      }
+      if (path.indexOf('/multisigows') !== -1 || path.indexOf('/darksafe') !== -1) {
+        window.location.replace('/multisigows/' + search + hash);
+        return;
+      }
+      if (path.indexOf('/x402tumbler') !== -1 || path.indexOf('/darkcircle') !== -1) {
+        window.location.replace('/x402tumbler/' + search + hash);
+        return;
+      }
+
+      // Default fallback to portal
+      window.location.replace('/' + search + hash);
+    })();
+  </script>
+</head>
+<body style="background:#07090e;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;">
+  <p>Redirecting to DarkCircle Suite...</p>
+</body>
+</html>

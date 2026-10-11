@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build artifacts
+dist/
+build/
+out/
+.turbo/
+.vite/
+*.tsbuildinfo
+
+# Hardhat & smart contracts
+artifacts/
+cache/
+typechain-types/
+coverage.json
+.coverage_artifacts/
+.coverage_cache/
+.coverage_contracts/
+
+# Foundry (the gas snapshot, .gas-snapshot, is committed)
+cache-forge/
+broadcast/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE & editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Testing & coverage
+coverage/
+.nyc_output/
+
+# Local dev chain (scripts/local-quai-chain.mjs)
+.localchain.json
+
+# Soak runs: only live-network reports are kept as evidence
+packages/contracts/deployments/soak-local-*.json
+packages/contracts/deployments/*.state.json
+packages/contracts/deployments/verification/
+
+# Encrypted keys never belong in the repository
+*.keystore.json
+keystores/

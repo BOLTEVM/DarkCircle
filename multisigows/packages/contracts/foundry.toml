@@ -1,0 +1,61 @@
+# Foundry runs alongside Hardhat. Hardhat compiles the bytecode that is pinned and deployed
+# (artifacts/); the Foundry tests deploy that exact bytecode (see test/foundry/Base.sol) and use
+# Foundry's own compile only for interfaces and test helpers. Run `hardhat compile` first.
+
+[profile.default]
+src = "contracts"
+test = "test/foundry"
+out = "out"
+cache_path = "cache-forge"
+libs = ["lib", "node_modules"]
+remappings = [
+  "forge-std/=lib/forge-std/src/",
+  "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
+]
+# Same compiler settings as hardhat.config.cjs.
+solc_version = "0.8.24"
+evm_version = "paris"
+optimizer = true
+optimizer_runs = 200
+# Tests read the Hardhat artifacts and nothing else.
+fs_permissions = [{ access = "read", path = "./artifacts/contracts" }]
+# The differential suite (test/foundry-differential) shells out to Node, so only its profile enables ffi.
+ffi = false
+
+[profile.default.fuzz]
+runs = 1000
+seed = "0x5afeb0dd"
+
+[profile.default.invariant]
+runs = 128
+depth = 150
+fail_on_revert = true
+
+# Longer campaigns: forge test --profile deep
+[profile.deep]
+
+[profile.deep.fuzz]
+runs = 20000
+
+[profile.deep.invariant]
+runs = 1000
+depth = 400
+fail_on_revert = true
+
+# TypeScript <-> Solidity agreement: forge test --profile differential
+# Needs `pnpm -F @safebuddy/core build` first.
+[profile.differential]
+ffi = true
+test = "test/foundry-differential"
+
+[profile.differential.fuzz]
+runs = 48
+seed = "0x5afeb0dd"
+
+[lint]
+# Test helpers and the ERC-20 mock are not shipped.
+ignore = ["contracts/test/**", "test/**", "lib/**"]
+# A timelock vault compares block.timestamp by design. Its delays and windows are hours to days,
+# far beyond the seconds a block producer can skew a timestamp. Every other finding is either
+# fixed or suppressed inline with its reason (CI runs `forge lint --deny warnings`).
+exclude_lints = ["block-timestamp"]

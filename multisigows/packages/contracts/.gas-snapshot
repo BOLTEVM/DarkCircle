@@ -1,0 +1,7 @@
+GasTest:test_gas_approveReachingQuorum() (gas: 104612)
+GasTest:test_gas_createWallet_threeOwners() (gas: 414671)
+GasTest:test_gas_executeAddOwner() (gas: 163743)
+GasTest:test_gas_executeNativeTransfer() (gas: 143932)
+GasTest:test_gas_executeTokenTransfer() (gas: 148905)
+GasTest:test_gas_proposeNativeTransfer() (gas: 225900)
+GasTest:test_gas_revokeApproval() (gas: 52729)

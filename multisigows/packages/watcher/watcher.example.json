@@ -1,0 +1,10 @@
+{
+  "network": "testnet",
+  "rpc": ["https://orchard.rpc.quai.network/cyprus1"],
+  "vaults": ["0x00..."],
+  "confirmations": 6,
+  "pollSeconds": 60,
+  "stateFile": "./watcher-state.json",
+  "heartbeatMinutes": 60,
+  "largeValueQuai": "100"
+}

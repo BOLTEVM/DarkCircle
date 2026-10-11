@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DarkCircle Suite — Quai Network Privacy, AMM & Vault Ecosystem</title>
+  <meta name="description" content="Decentralized ecosystem on Quai Network (Cyprus-1): DarkCircle x402 Privacy Tumbler, Circleswap AMM DEX & Analytics, and DarkSafe Multi-Sig Vaults.">
+  <link rel="icon" type="image/png" href="./q0/0logov3.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    // Subdomain Router for GitHub Pages / Multi-App Deployments
+    (function() {
+      var host = window.location.hostname.toLowerCase();
+      var path = window.location.pathname;
+      var search = window.location.search;
+      var hash = window.location.hash;
+
+      // Only route if we are at root or haven't already routed into a sub-app
+      if (path === '/' || path.endsWith('/index.html') || path.endsWith('/DarkCircle/')) {
+        if (host.startsWith('q0.') || host.startsWith('circleswap.') || host.includes('q0-')) {
+          window.location.replace('./q0/' + search + hash);
+          return;
+        }
+        if (host.startsWith('darksafe.') || host.startsWith('safe.') || host.startsWith('multisig.') || host.includes('darksafe-')) {
+          window.location.replace('./multisigows/' + search + hash);
+          return;
+        }
+        if (host.startsWith('tumbler.') || host.startsWith('privacy.') || host.startsWith('x402.') || host.includes('tumbler-')) {
+          window.location.replace('./x402tumbler/' + search + hash);
+          return;
+        }
+      }
+    })();
+  </script>
+  <style>
+    :root {
+      --bg: #07090e;
+      --card-bg: rgba(15, 23, 42, 0.65);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-hover-border: rgba(16, 185, 129, 0.35);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-green: #10b981;
+      --accent-cyan: #06b6d4;
+      --accent-purple: #a855f7;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.12) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.10) 0px, transparent 50%),
+        radial-gradient(at 50% 50%, rgba(168, 85, 247, 0.06) 0px, transparent 60%);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 3rem 1.5rem;
+    }
+    .container {
+      width: 100%;
+      max-width: 1200px;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 3.5rem;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.9rem;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--accent-green);
+      margin-bottom: 1.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--accent-green);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-green);
+    }
+    h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(2.5rem, 5vw, 3.75rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 1rem;
+      background: linear-gradient(135deg, #ffffff 40%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 1.15rem;
+      max-width: 680px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 2rem;
+      margin-bottom: 3.5rem;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 1.25rem;
+      padding: 2.25rem;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+      text-decoration: none;
+      color: inherit;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, transparent);
+      transition: background 0.3s ease;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: var(--card-hover-border);
+      box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.5);
+    }
+    .card.card-darkcircle:hover::before { background: linear-gradient(90deg, #10b981, #06b6d4); }
+    .card.card-circleswap:hover::before { background: linear-gradient(90deg, #06b6d4, #a855f7); }
+    .card.card-darksafe:hover::before { background: linear-gradient(90deg, #a855f7, #10b981); }
+
+    .card-icon-wrap {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 1.75rem;
+    }
+    .card h2 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.65rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+    .card p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+    }
+    .card-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.8rem;
+      color: #64748b;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .card-meta-tag {
+      background: rgba(255, 255, 255, 0.04);
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .launch-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.25rem;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: #fff;
+      transition: all 0.2s ease;
+      width: 100%;
+    }
+    .card:hover .launch-btn {
+      background: #10b981;
+      border-color: #10b981;
+      color: #04120c;
+    }
+    .card.card-circleswap:hover .launch-btn {
+      background: #06b6d4;
+      border-color: #06b6d4;
+      color: #03141a;
+    }
+    .card.card-darksafe:hover .launch-btn {
+      background: #a855f7;
+      border-color: #a855f7;
+      color: #130420;
+    }
+    footer {
+      text-align: center;
+      font-size: 0.85rem;
+      color: #64748b;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+    footer a:hover { color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge">
+        <span class="badge-dot"></span> Quai Network • Cyprus-1 (Chain ID 9)
+      </div>
+      <h1>DarkCircle Decentralized Suite</h1>
+      <p class="subtitle">
+        A unified on-chain ecosystem combining zero-knowledge privacy settlement, constant-product AMM liquidity pools, and multi-signature vaults.
+      </p>
+    </header>
+
+    <main class="grid">
+      <!-- DarkCircle App Card -->
+      <a href="./x402tumbler/" class="card card-darkcircle">
+        <div>
+          <div class="card-icon-wrap">???</div>
+          <h2>DarkCircle</h2>
+          <p>
+            x402 payment privacy protocol with dual shielded pools for Wrapped Quai (WQUAI) and Wrapped Qi (WQI). Features stealth payees, private proof of innocence (PPOI) and corporate compliance viewing keys.
+          </p>
+          <div class="card-meta">
+            <span class="card-meta-tag">x402 Privacy</span>
+            <span class="card-meta-tag">Shielded Pools</span>
+            <span class="card-meta-tag">PPOI Compliant</span>
+          </div>
+        </div>
+        <div class="launch-btn">Launch DarkCircle &rarr;</div>
+      </a>
+
+      <!-- Circleswap / Q0 App Card -->
+      <a href="./q0/" class="card card-circleswap">
+        <div>
+          <div class="card-icon-wrap">?</div>
+          <h2>Circleswap</h2>
+          <p>
+            Quai DeFi Protocol & AMM DEX with live Cyprus-1 analytics, holder distribution stats, constant-product swap execution, and Quaiswap Liquidity Pool monitoring for Q0, WQUAI, and BOSS.
+          </p>
+          <div class="card-meta">
+            <span class="card-meta-tag">AMM DEX</span>
+            <span class="card-meta-tag">Live Analytics</span>
+            <span class="card-meta-tag">Quaiswap LPs</span>
+          </div>
+        </div>
+        <div class="launch-btn">Launch Circleswap &rarr;</div>
+      </a>
+
+      <!-- DarkSafe / SafeBuddy App Card -->
+      <a href="./multisigows/" class="card card-darksafe">
+        <div>
+          <div class="card-icon-wrap">??</div>
+          <h2>DarkSafe</h2>
+          <p>
+            Enterprise multi-signature vault dashboard for Quai Network (SafeBuddy). Native timelocks, quorum execution, extension-only signing (Pelagus/Blip), and zero DELEGATECALL vulnerability.
+          </p>
+          <div class="card-meta">
+            <span class="card-meta-tag">Multi-Sig Vault</span>
+            <span class="card-meta-tag">Timelocks</span>
+            <span class="card-meta-tag">Zero DelegateCall</span>
+          </div>
+        </div>
+        <div class="launch-btn">Launch DarkSafe &rarr;</div>
+      </a>
+    </main>
+
+    <footer>
+      <div>BOLTEVM Open Source Monorepo • Accessible via custom subdomains or path routing on GitHub Pages</div>
+      <div>
+        <a href="https://github.com/BOLTEVM/DarkCircle" target="_blank" rel="noopener">GitHub: BOLTEVM/DarkCircle</a>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>
