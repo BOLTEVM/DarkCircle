@@ -61,6 +61,10 @@ jobs:
           cp 404.html _site/404.html
           touch _site/.nojekyll
 
+          # 3D Assets (QRB Containment Chamber Scene)
+          mkdir -p _site/assets/3d
+          cp -r assets/3d/* _site/assets/3d/
+
           # DarkCircle Tumbler UI
           mkdir -p _site/x402tumbler
           cp -r x402tumbler/ui/* _site/x402tumbler/

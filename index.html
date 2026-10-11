@@ -2,22 +2,22 @@
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>DarkCircle Suite — Quai Network Privacy, AMM & Vault Ecosystem</title>
-  <meta name="description" content="Decentralized ecosystem on Quai Network (Cyprus-1): DarkCircle x402 Privacy Tumbler, Circleswap AMM DEX & Analytics, and DarkSafe Multi-Sig Vaults.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>DarkCircle Suite — Quai Network 3D Ecosystem Experience</title>
+  <meta name="description" content="Interactive 3D navigation experience for the DarkCircle decentralized suite on Quai Network: DarkCircle x402 Privacy, Circleswap AMM DEX, and DarkSafe Multi-Sig.">
   <link rel="icon" type="image/png" href="./q0/0logov3.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  
   <script>
-    // Subdomain Router for GitHub Pages / Multi-App Deployments
+    // Immediate Subdomain Auto-Router
     (function() {
       var host = window.location.hostname.toLowerCase();
       var path = window.location.pathname;
       var search = window.location.search;
       var hash = window.location.hash;
 
-      // Only route if we are at root or haven't already routed into a sub-app
       if (path === '/' || path.endsWith('/index.html') || path.endsWith('/DarkCircle/')) {
         if (host.startsWith('q0.') || host.startsWith('circleswap.') || host.includes('q0-')) {
           window.location.replace('./q0/' + search + hash);
@@ -34,277 +34,815 @@
       }
     })();
   </script>
+
   <style>
     :root {
-      --bg: #07090e;
-      --card-bg: rgba(15, 23, 42, 0.65);
-      --card-border: rgba(255, 255, 255, 0.08);
-      --card-hover-border: rgba(16, 185, 129, 0.35);
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
-      --accent-green: #10b981;
+      --bg: #05070a;
+      --accent-red: #ff2a2a;
+      --accent-glow: rgba(255, 42, 42, 0.45);
       --accent-cyan: #06b6d4;
       --accent-purple: #a855f7;
+      --accent-green: #10b981;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --hud-bg: rgba(10, 14, 22, 0.72);
+      --hud-border: rgba(255, 255, 255, 0.1);
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background-color: var(--bg);
-      background-image: 
-        radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.12) 0px, transparent 50%),
-        radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.10) 0px, transparent 50%),
-        radial-gradient(at 50% 50%, rgba(168, 85, 247, 0.06) 0px, transparent 60%);
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--bg);
       color: var(--text);
       font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-      min-height: 100vh;
+    }
+
+    #webgl-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 1;
+      display: block;
+    }
+
+    /* Ambient CRT scanline overlay */
+    .scanlines {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+      background-size: 100% 3px, 3px 100%;
+      pointer-events: none;
+      z-index: 2;
+      opacity: 0.65;
+    }
+
+    /* Vignette */
+    .vignette {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: radial-gradient(circle at center, transparent 45%, rgba(4, 5, 8, 0.82) 100%);
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    /* HUD Layer */
+    .hud {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      z-index: 10;
+      pointer-events: none;
       display: flex;
       flex-direction: column;
-      align-items: center;
       justify-content: space-between;
-      padding: 3rem 1.5rem;
+      padding: 1.5rem 2rem;
     }
-    .container {
-      width: 100%;
-      max-width: 1200px;
-    }
-    header {
-      text-align: center;
-      margin-bottom: 3.5rem;
-    }
-    .badge {
-      display: inline-flex;
+    .hud * { pointer-events: auto; }
+
+    /* Top Navigation Header */
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.35rem 0.9rem;
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      border-radius: 9999px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: var(--accent-green);
-      margin-bottom: 1.25rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      width: 100%;
     }
-    .badge-dot {
-      width: 8px;
-      height: 8px;
-      background: var(--accent-green);
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .brand-logo {
+      width: 38px;
+      height: 38px;
       border-radius: 50%;
-      box-shadow: 0 0 8px var(--accent-green);
+      box-shadow: 0 0 15px var(--accent-glow);
     }
-    h1 {
+    .brand-text h1 {
       font-family: 'Outfit', sans-serif;
-      font-size: clamp(2.5rem, 5vw, 3.75rem);
+      font-size: 1.35rem;
       font-weight: 800;
-      letter-spacing: -0.03em;
+      letter-spacing: -0.02em;
       line-height: 1.1;
-      margin-bottom: 1rem;
-      background: linear-gradient(135deg, #ffffff 40%, #94a3b8 100%);
+      background: linear-gradient(135deg, #fff 50%, #94a3b8);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
-    .subtitle {
-      color: var(--text-muted);
-      font-size: 1.15rem;
-      max-width: 680px;
-      margin: 0 auto;
-      line-height: 1.6;
+    .brand-text .shard-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--accent-red);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
     }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 2rem;
-      margin-bottom: 3.5rem;
-    }
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 1.25rem;
-      padding: 2.25rem;
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      position: relative;
-      overflow: hidden;
-      text-decoration: none;
-      color: inherit;
-    }
-    .card::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 3px;
-      background: linear-gradient(90deg, transparent, transparent);
-      transition: background 0.3s ease;
-    }
-    .card:hover {
-      transform: translateY(-4px);
-      border-color: var(--card-hover-border);
-      box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.5);
-    }
-    .card.card-darkcircle:hover::before { background: linear-gradient(90deg, #10b981, #06b6d4); }
-    .card.card-circleswap:hover::before { background: linear-gradient(90deg, #06b6d4, #a855f7); }
-    .card.card-darksafe:hover::before { background: linear-gradient(90deg, #a855f7, #10b981); }
 
-    .card-icon-wrap {
-      width: 56px;
-      height: 56px;
-      border-radius: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 1.5rem;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      font-size: 1.75rem;
-    }
-    .card h2 {
-      font-family: 'Outfit', sans-serif;
-      font-size: 1.65rem;
-      font-weight: 700;
-      margin-bottom: 0.75rem;
-    }
-    .card p {
-      color: var(--text-muted);
-      font-size: 0.95rem;
-      line-height: 1.6;
-      margin-bottom: 1.5rem;
-    }
-    .card-meta {
+    .top-controls {
       display: flex;
       align-items: center;
       gap: 0.75rem;
-      font-size: 0.8rem;
-      color: #64748b;
-      margin-bottom: 1.5rem;
-      flex-wrap: wrap;
     }
-    .card-meta-tag {
-      background: rgba(255, 255, 255, 0.04);
-      padding: 0.25rem 0.6rem;
-      border-radius: 6px;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-    .launch-btn {
-      display: inline-flex;
+    .btn-icon {
+      background: var(--hud-bg);
+      border: 1px solid var(--hud-border);
+      color: var(--text-muted);
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
       align-items: center;
       justify-content: center;
-      gap: 0.5rem;
-      padding: 0.75rem 1.25rem;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 10px;
-      font-weight: 600;
-      font-size: 0.95rem;
-      color: #fff;
+      cursor: pointer;
+      backdrop-filter: blur(12px);
       transition: all 0.2s ease;
-      width: 100%;
+      font-size: 0.95rem;
     }
-    .card:hover .launch-btn {
-      background: #10b981;
-      border-color: #10b981;
-      color: #04120c;
+    .btn-icon:hover {
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.3);
+      box-shadow: 0 0 12px rgba(255, 255, 255, 0.1);
     }
-    .card.card-circleswap:hover .launch-btn {
-      background: #06b6d4;
-      border-color: #06b6d4;
-      color: #03141a;
+    .btn-icon.active {
+      color: var(--accent-red);
+      border-color: var(--accent-red);
+      box-shadow: 0 0 10px var(--accent-glow);
     }
-    .card.card-darksafe:hover .launch-btn {
-      background: #a855f7;
-      border-color: #a855f7;
-      color: #130420;
-    }
-    footer {
-      text-align: center;
-      font-size: 0.85rem;
-      color: #64748b;
+
+    /* App Nav Pills */
+    .app-selector-pills {
       display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
+      background: var(--hud-bg);
+      border: 1px solid var(--hud-border);
+      border-radius: 9999px;
+      padding: 0.3rem;
+      backdrop-filter: blur(16px);
+      gap: 0.25rem;
     }
-    footer a {
+    .app-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.45rem 1rem;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .app-pill:hover, .app-pill.active {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .app-pill[data-app="darkcircle"]:hover { color: #34d399; background: rgba(16, 185, 129, 0.15); }
+    .app-pill[data-app="circleswap"]:hover { color: #38bdf8; background: rgba(6, 182, 212, 0.15); }
+    .app-pill[data-app="darksafe"]:hover { color: #c084fc; background: rgba(168, 85, 247, 0.15); }
+
+    /* Interactive Holographic Cards (Bottom Floating) */
+    .portal-stations {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      width: 100%;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .station-card {
+      background: var(--hud-bg);
+      border: 1px solid var(--hud-border);
+      border-radius: 14px;
+      padding: 1.25rem;
+      backdrop-filter: blur(20px);
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    .station-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, transparent);
+      transition: background 0.3s ease;
+    }
+    .station-card:hover, .station-card.targeted {
+      transform: translateY(-6px);
+      border-color: rgba(255, 255, 255, 0.3);
+      box-shadow: 0 16px 32px -10px rgba(0, 0, 0, 0.7);
+    }
+    .station-darkcircle:hover::before, .station-darkcircle.targeted::before { background: linear-gradient(90deg, #10b981, #06b6d4); }
+    .station-circleswap:hover::before, .station-circleswap.targeted::before { background: linear-gradient(90deg, #06b6d4, #ff2a2a); }
+    .station-darksafe:hover::before, .station-darksafe.targeted::before { background: linear-gradient(90deg, #a855f7, #10b981); }
+
+    .station-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+    .station-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .station-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+    .badge-green { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-cyan { background: rgba(6, 182, 212, 0.15); color: #38bdf8; border: 1px solid rgba(6, 182, 212, 0.3); }
+    .badge-purple { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
+
+    .station-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+      margin-bottom: 0.85rem;
+    }
+    .station-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      color: #64748b;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .station-warp-hint {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .station-card:hover .station-warp-hint {
+      color: var(--accent-red);
+    }
+
+    /* Bottom Status Bar */
+    .bottom-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      color: #64748b;
+      font-family: 'JetBrains Mono', monospace;
+      width: 100%;
+      margin-top: 1rem;
+    }
+    .bottom-bar a {
       color: var(--text-muted);
       text-decoration: none;
       transition: color 0.2s ease;
     }
-    footer a:hover { color: #fff; }
+    .bottom-bar a:hover { color: #fff; }
+
+    /* Warp Overlay for Cinematic Jump */
+    .warp-flash {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: #fff;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.45s cubic-bezier(0.8, 0, 0.2, 1);
+    }
+    .warp-flash.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    /* 3D Target Reticle */
+    .reticle-tip {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      opacity: 0.85;
+      transition: opacity 0.3s ease;
+    }
+    .reticle-ring {
+      width: 54px; height: 54px;
+      border: 1px dashed rgba(255, 42, 42, 0.6);
+      border-radius: 50%;
+      animation: spinReticle 12s linear infinite;
+    }
+    @keyframes spinReticle { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    @media (max-width: 900px) {
+      .portal-stations {
+        grid-template-columns: 1fr;
+        max-height: 40vh;
+        overflow-y: auto;
+      }
+      .hud { padding: 1rem; }
+    }
   </style>
+
+  <!-- Three.js + PostProcessing Import Map -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div class="badge">
-        <span class="badge-dot"></span> Quai Network • Cyprus-1 (Chain ID 9)
+
+  <!-- WebGL Render Canvas -->
+  <canvas id="webgl-canvas"></canvas>
+  
+  <div class="scanlines"></div>
+  <div class="vignette"></div>
+  <div class="warp-flash" id="warp-flash"></div>
+
+  <!-- Center Crosshair Reticle -->
+  <div class="reticle-tip" id="reticle">
+    <div class="reticle-ring"></div>
+  </div>
+
+  <!-- HUD Interface -->
+  <div class="hud">
+    <header class="header-bar">
+      <div class="brand-title">
+        <img src="./q0/0logov3.png" alt="BOLTEVM Logo" class="brand-logo" onerror="this.style.display='none'">
+        <div class="brand-text">
+          <h1>DarkCircle Suite</h1>
+          <div class="shard-tag">? CYPRUS-1 SHARD [0x00] • CHAIN ID 9</div>
+        </div>
       </div>
-      <h1>DarkCircle Decentralized Suite</h1>
-      <p class="subtitle">
-        A unified on-chain ecosystem combining zero-knowledge privacy settlement, constant-product AMM liquidity pools, and multi-signature vaults.
-      </p>
+
+      <nav class="app-selector-pills">
+        <a class="app-pill" data-app="darkcircle" href="./x402tumbler/">??? DarkCircle</a>
+        <a class="app-pill" data-app="circleswap" href="./q0/">? Circleswap</a>
+        <a class="app-pill" data-app="darksafe" href="./multisigows/">?? DarkSafe</a>
+      </nav>
+
+      <div class="top-controls">
+        <button class="btn-icon" id="sound-btn" title="Toggle Synthesized Sci-Fi Audio" aria-label="Sound Toggle">??</button>
+        <button class="btn-icon" id="fullscreen-btn" title="Toggle Fullscreen" aria-label="Fullscreen Toggle">?</button>
+      </div>
     </header>
 
-    <main class="grid">
-      <!-- DarkCircle App Card -->
-      <a href="./x402tumbler/" class="card card-darkcircle">
-        <div>
-          <div class="card-icon-wrap">???</div>
-          <h2>DarkCircle</h2>
-          <p>
-            x402 payment privacy protocol with dual shielded pools for Wrapped Quai (WQUAI) and Wrapped Qi (WQI). Features stealth payees, private proof of innocence (PPOI) and corporate compliance viewing keys.
-          </p>
-          <div class="card-meta">
-            <span class="card-meta-tag">x402 Privacy</span>
-            <span class="card-meta-tag">Shielded Pools</span>
-            <span class="card-meta-tag">PPOI Compliant</span>
-          </div>
+    <div class="portal-stations">
+      <!-- DarkCircle Station -->
+      <a href="./x402tumbler/" class="station-card station-darkcircle" data-app="darkcircle">
+        <div class="station-header">
+          <div class="station-title">??? DarkCircle</div>
+          <span class="station-badge badge-green">PPOI COMPLIANT</span>
         </div>
-        <div class="launch-btn">Launch DarkCircle &rarr;</div>
+        <p class="station-desc">x402 zero-knowledge payment privacy tumbler with dual WQUAI & WQI shielded pools and stealth payees.</p>
+        <div class="station-footer">
+          <span>PORTAL [1]</span>
+          <span class="station-warp-hint">ENTER POD &rarr;</span>
+        </div>
       </a>
 
-      <!-- Circleswap / Q0 App Card -->
-      <a href="./q0/" class="card card-circleswap">
-        <div>
-          <div class="card-icon-wrap">?</div>
-          <h2>Circleswap</h2>
-          <p>
-            Quai DeFi Protocol & AMM DEX with live Cyprus-1 analytics, holder distribution stats, constant-product swap execution, and Quaiswap Liquidity Pool monitoring for Q0, WQUAI, and BOSS.
-          </p>
-          <div class="card-meta">
-            <span class="card-meta-tag">AMM DEX</span>
-            <span class="card-meta-tag">Live Analytics</span>
-            <span class="card-meta-tag">Quaiswap LPs</span>
-          </div>
+      <!-- Circleswap Station -->
+      <a href="./q0/" class="station-card station-circleswap" data-app="circleswap">
+        <div class="station-header">
+          <div class="station-title">? Circleswap</div>
+          <span class="station-badge badge-cyan">AMM DEX & LPs</span>
         </div>
-        <div class="launch-btn">Launch Circleswap &rarr;</div>
+        <p class="station-desc">Quai DeFi protocol with live Cyprus-1 AMM pools (Q0/WQUAI/BOSS), real-time swap math, and farm rewards.</p>
+        <div class="station-footer">
+          <span>PORTAL [2]</span>
+          <span class="station-warp-hint">WARP CORE &rarr;</span>
+        </div>
       </a>
 
-      <!-- DarkSafe / SafeBuddy App Card -->
-      <a href="./multisigows/" class="card card-darksafe">
-        <div>
-          <div class="card-icon-wrap">??</div>
-          <h2>DarkSafe</h2>
-          <p>
-            Enterprise multi-signature vault dashboard for Quai Network (SafeBuddy). Native timelocks, quorum execution, extension-only signing (Pelagus/Blip), and zero DELEGATECALL vulnerability.
-          </p>
-          <div class="card-meta">
-            <span class="card-meta-tag">Multi-Sig Vault</span>
-            <span class="card-meta-tag">Timelocks</span>
-            <span class="card-meta-tag">Zero DelegateCall</span>
-          </div>
+      <!-- DarkSafe Station -->
+      <a href="./multisigows/" class="station-card station-darksafe" data-app="darksafe">
+        <div class="station-header">
+          <div class="station-title">?? DarkSafe</div>
+          <span class="station-badge badge-purple">MULTI-SIG VAULT</span>
         </div>
-        <div class="launch-btn">Launch DarkSafe &rarr;</div>
+        <p class="station-desc">Browser-based multi-sig vault for Quai Cyprus-1 (SafeBuddy). Native timelocks, quorum checks, zero delegatecall.</p>
+        <div class="station-footer">
+          <span>PORTAL [3]</span>
+          <span class="station-warp-hint">ACCESS VAULT &rarr;</span>
+        </div>
       </a>
-    </main>
+    </div>
 
-    <footer>
-      <div>BOLTEVM Open Source Monorepo • Accessible via custom subdomains or path routing on GitHub Pages</div>
-      <div>
-        <a href="https://github.com/BOLTEVM/DarkCircle" target="_blank" rel="noopener">GitHub: BOLTEVM/DarkCircle</a>
-      </div>
+    <footer class="bottom-bar">
+      <div>ORBIT: Drag Mouse • WARP: Click Node or Press [1], [2], [3]</div>
+      <div><a href="https://github.com/BOLTEVM/DarkCircle" target="_blank" rel="noopener">BOLTEVM/DarkCircle Open Source Monorepo</a></div>
     </footer>
   </div>
+
+  <!-- Real-Time Interactive 3D WebGL Engine -->
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+    // Audio Synthesizer via Web Audio API
+    class SciFiSoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.muted = true;
+        this.humOsc = null;
+        this.humGain = null;
+      }
+      init() {
+        if (this.ctx) return;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        this.ctx = new AudioContext();
+
+        // Ambient reactor hum
+        this.humOsc = this.ctx.createOscillator();
+        this.humOsc.type = 'sawtooth';
+        this.humOsc.frequency.setValueAtTime(55, this.ctx.currentTime); // 55 Hz A1 hum
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(140, this.ctx.currentTime);
+
+        this.humGain = this.ctx.createGain();
+        this.humGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
+
+        this.humOsc.connect(filter);
+        filter.connect(this.humGain);
+        this.humGain.connect(this.ctx.destination);
+        this.humOsc.start();
+      }
+      toggle() {
+        this.init();
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+        this.muted = !this.muted;
+        if (!this.muted) {
+          this.humGain.gain.setTargetAtTime(0.06, this.ctx.currentTime, 0.1);
+        } else {
+          this.humGain.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.1);
+        }
+        return !this.muted;
+      }
+      playHover() {
+        if (this.muted || !this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(320, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(740, this.ctx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.12);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.13);
+      }
+      playWarp() {
+        if (this.muted || !this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(110, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1800, this.ctx.currentTime + 0.45);
+        gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.5);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.52);
+      }
+    }
+
+    const sound = new SciFiSoundEngine();
+    const soundBtn = document.getElementById('sound-btn');
+    soundBtn.addEventListener('click', () => {
+      const active = sound.toggle();
+      soundBtn.textContent = active ? '??' : '??';
+      soundBtn.classList.toggle('active', active);
+    });
+
+    const fullscreenBtn = document.getElementById('fullscreen-btn');
+    fullscreenBtn.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    });
+
+    // Three.js Scene Setup
+    const canvas = document.getElementById('webgl-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x05070a);
+    scene.fog = new THREE.FogExp2(0x05070a, 0.055);
+
+    const camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, -6.6, 3.2);
+
+    const controls = new OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2 + 0.12;
+    controls.minDistance = 3.5;
+    controls.maxDistance = 11.0;
+    controls.target.set(0, 0, 2.85);
+
+    // Post-Processing: UnrealBloomPass
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      1.75,  // strength
+      0.85,  // radius
+      0.18   // threshold
+    );
+    composer.addPass(bloomPass);
+
+    // Procedural Fallback / Core Geometry Elements
+    let coreMesh = null;
+    let plasmaCageGroup = new THREE.Group();
+    scene.add(plasmaCageGroup);
+
+    // Load Blender GLB Model
+    const gltfLoader = new GLTFLoader();
+    gltfLoader.load(
+      './assets/3d/qrb_chamber.glb',
+      (gltf) => {
+        const model = gltf.scene;
+        scene.add(model);
+        model.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            if (child.material) {
+              if (child.name.includes('LightStrip') || child.name.includes('Neon') || child.name.includes('Plasma')) {
+                child.material.emissive = new THREE.Color(0xff1e0a);
+                child.material.emissiveIntensity = 4.5;
+              } else if (child.name.includes('Core')) {
+                child.material.roughness = 0.04;
+                child.material.metalness = 0.98;
+                child.material.color = new THREE.Color(0x050508);
+                coreMesh = child;
+              }
+            }
+          }
+        });
+      },
+      undefined,
+      (error) => {
+        console.warn('GLB load fallback to procedural chamber:', error);
+        buildProceduralChamberFallback();
+      }
+    );
+
+    // Procedural Fallback if GLB is loading or running offline
+    function buildProceduralChamberFallback() {
+      // Octagonal Walls
+      const wallGeo = new THREE.CylinderGeometry(7.5, 7.5, 6.8, 8, 1, true);
+      const wallMat = new THREE.MeshStandardMaterial({
+        color: 0x080a0f,
+        metalness: 0.9,
+        roughness: 0.35,
+        side: THREE.BackSide
+      });
+      const wallMesh = new THREE.Mesh(wallGeo, wallMat);
+      wallMesh.position.y = 3.4;
+      scene.add(wallMesh);
+
+      // Floor Platform
+      const floorGeo = new THREE.CylinderGeometry(7.5, 7.5, 0.4, 32);
+      const floorMat = new THREE.MeshStandardMaterial({
+        color: 0x07080c,
+        metalness: 0.92,
+        roughness: 0.4
+      });
+      const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+      floorMesh.position.y = -0.2;
+      scene.add(floorMesh);
+
+      // Central Orb
+      const sphereGeo = new THREE.SphereGeometry(1.35, 64, 32);
+      const sphereMat = new THREE.MeshStandardMaterial({
+        color: 0x020204,
+        metalness: 0.98,
+        roughness: 0.05
+      });
+      coreMesh = new THREE.Mesh(sphereGeo, sphereMat);
+      coreMesh.position.set(0, 0, 2.85);
+      scene.add(coreMesh);
+    }
+
+    // Dynamic Electric Plasma Energy Ribbons (Direct Shader/Ribbon Mesh)
+    const plasmaArcs = [];
+    const ribbonMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff3b14,
+      wireframe: false
+    });
+
+    const numArcs = 8;
+    for (let i = 0; i < numArcs; i++) {
+      const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(Math.cos(i) * 1.5, Math.sin(i) * 1.5, 2.1),
+        new THREE.Vector3(Math.cos(i + 1.2) * 1.6, Math.sin(i + 1.2) * 1.6, 2.85),
+        new THREE.Vector3(Math.cos(i + 2.5) * 1.45, Math.sin(i + 2.5) * 1.45, 3.6),
+        new THREE.Vector3(Math.cos(i + 3.8) * 1.55, Math.sin(i + 3.8) * 1.55, 2.85)
+      ], true);
+      const tubeGeo = new THREE.TubeGeometry(curve, 32, 0.038, 6, true);
+      const arc = new THREE.Mesh(tubeGeo, ribbonMaterial);
+      plasmaCageGroup.add(arc);
+      plasmaArcs.push(arc);
+    }
+
+    // Interactive 3D Holographic Waypoints
+    const waypointGroup = new THREE.Group();
+    scene.add(waypointGroup);
+
+    const waypoints = [
+      { id: 'darkcircle', title: 'DarkCircle', pos: new THREE.Vector3(-3.2, -0.6, 2.85), color: 0x10b981, url: './x402tumbler/' },
+      { id: 'circleswap', title: 'Circleswap', pos: new THREE.Vector3(0.0, 0.0, 4.45), color: 0x06b6d4, url: './q0/' },
+      { id: 'darksafe',   title: 'DarkSafe',   pos: new THREE.Vector3(3.2, -0.6, 2.85), color: 0xa855f7, url: './multisigows/' }
+    ];
+
+    const waypointObjects = [];
+    waypoints.forEach((wp) => {
+      // Beacon Halo Ring
+      const ringGeo = new THREE.TorusGeometry(0.55, 0.025, 16, 48);
+      const ringMat = new THREE.MeshBasicMaterial({ color: wp.color, wireframe: false });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.position.copy(wp.pos);
+      ring.rotation.x = Math.PI / 2;
+      ring.userData = wp;
+      waypointGroup.add(ring);
+      waypointObjects.push(ring);
+
+      // Inner Core Crystal
+      const octGeo = new THREE.OctahedronGeometry(0.24, 0);
+      const octMat = new THREE.MeshBasicMaterial({ color: wp.color, wireframe: true });
+      const crystal = new THREE.Mesh(octGeo, octMat);
+      crystal.position.copy(wp.pos);
+      waypointGroup.add(crystal);
+      ring.userData.crystal = crystal;
+    });
+
+    // Dynamic Lights
+    const corePointLight = new THREE.PointLight(0xff220a, 4.2, 12, 1.2);
+    corePointLight.position.set(0, 0, 2.85);
+    scene.add(corePointLight);
+
+    const ambientLight = new THREE.AmbientLight(0x1a0505, 0.6);
+    scene.add(ambientLight);
+
+    // Mouse Interaction & Raycasting
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let hoveredWaypoint = null;
+    let isWarping = false;
+
+    window.addEventListener('mousemove', (e) => {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    });
+
+    // Card hover integration
+    const cards = document.querySelectorAll('.station-card');
+    cards.forEach(card => {
+      card.addEventListener('mouseenter', () => {
+        sound.playHover();
+        const app = card.getAttribute('data-app');
+        highlightWaypointById(app);
+      });
+      card.addEventListener('click', (e) => {
+        e.preventDefault();
+        const targetUrl = card.getAttribute('href');
+        executeWarpTransition(targetUrl);
+      });
+    });
+
+    function highlightWaypointById(id) {
+      waypointObjects.forEach(obj => {
+        if (obj.userData.id === id) {
+          obj.scale.set(1.3, 1.3, 1.3);
+          controls.target.lerp(obj.position, 0.08);
+        } else {
+          obj.scale.set(1.0, 1.0, 1.0);
+        }
+      });
+    }
+
+    // Canvas click to warp
+    canvas.addEventListener('click', () => {
+      if (hoveredWaypoint && !isWarping) {
+        executeWarpTransition(hoveredWaypoint.userData.url);
+      }
+    });
+
+    function executeWarpTransition(targetUrl) {
+      if (isWarping) return;
+      isWarping = true;
+      sound.playWarp();
+      const flash = document.getElementById('warp-flash');
+      flash.classList.add('active');
+
+      // Animate camera hyperspace dive
+      const startPos = camera.position.clone();
+      const targetPos = hoveredWaypoint ? hoveredWaypoint.position.clone() : new THREE.Vector3(0, 0, 2.85);
+      let progress = 0;
+
+      function dive() {
+        progress += 0.045;
+        camera.position.lerpVectors(startPos, targetPos, progress);
+        if (progress < 1.0) {
+          requestAnimationFrame(dive);
+        } else {
+          window.location.href = targetUrl;
+        }
+      }
+      dive();
+    }
+
+    // Keyboard Shortcuts: 1, 2, 3
+    window.addEventListener('keydown', (e) => {
+      if (e.key === '1') executeWarpTransition('./x402tumbler/');
+      if (e.key === '2') executeWarpTransition('./q0/');
+      if (e.key === '3') executeWarpTransition('./multisigows/');
+    });
+
+    // Window Resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Render Animation Loop
+    let clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const time = clock.getElapsedTime();
+
+      // Levitating QRB Core Floating
+      if (coreMesh) {
+        coreMesh.position.z = 2.85 + Math.sin(time * 1.8) * 0.12;
+        coreMesh.rotation.y = time * 0.15;
+      }
+
+      // Rotating Plasma Energy Cage
+      plasmaCageGroup.rotation.z = time * 0.65;
+      plasmaCageGroup.rotation.x = Math.sin(time * 0.4) * 0.15;
+      corePointLight.intensity = 3.8 + Math.sin(time * 5.0) * 0.7;
+
+      // Animate Waypoints
+      waypointObjects.forEach((wpObj, idx) => {
+        wpObj.rotation.z = time * (1.2 + idx * 0.3);
+        if (wpObj.userData.crystal) {
+          wpObj.userData.crystal.rotation.x = time * 1.5;
+          wpObj.userData.crystal.rotation.y = time * 2.0;
+        }
+      });
+
+      // Raycasting for interactive waypoints
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(waypointObjects);
+      if (intersects.length > 0) {
+        if (hoveredWaypoint !== intersects[0].object) {
+          hoveredWaypoint = intersects[0].object;
+          canvas.style.cursor = 'pointer';
+          sound.playHover();
+          cards.forEach(c => c.classList.toggle('targeted', c.getAttribute('data-app') === hoveredWaypoint.userData.id));
+        }
+      } else {
+        if (hoveredWaypoint) {
+          canvas.style.cursor = 'default';
+          cards.forEach(c => c.classList.remove('targeted'));
+        }
+        hoveredWaypoint = null;
+      }
+
+      controls.update();
+      composer.render();
+    }
+    animate();
+  </script>
 </body>
 </html>
