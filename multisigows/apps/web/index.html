@@ -13,7 +13,25 @@
     />
   </head>
   <body class="bg-[#0b0f17] text-slate-100 antialiased min-h-screen selection:bg-emerald-500/30 selection:text-emerald-300">
-    <div id="root"></div>
+    <div id="root">
+      <!-- Replaced the moment the app mounts. Inline styles so it shows even if the stylesheet is slow or blocked. -->
+      <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.75rem;color:#94a3b8;font:600 .9rem system-ui,sans-serif;text-align:center;padding:1rem">
+        <div style="width:28px;height:28px;border-radius:50%;border:3px solid rgba(255,255,255,.15);border-top-color:#34d399;animation:boot-spin 1s linear infinite"></div>
+        <div>Loading DarkSafe&hellip;</div>
+        <div id="boot-slow" style="display:none;max-width:22rem;font-weight:500;font-size:.8rem;line-height:1.5">
+          This is taking longer than usual. Check your connection, then
+          <a href="javascript:location.reload()" style="color:#34d399">reload</a>.
+        </div>
+        <noscript>DarkSafe needs JavaScript to read the chain and to talk to your wallet.</noscript>
+      </div>
+      <style>@keyframes boot-spin{to{transform:rotate(360deg)}}</style>
+      <script>
+        setTimeout(function () {
+          var slow = document.getElementById('boot-slow');
+          if (slow) slow.style.display = 'block';
+        }, 10000);
+      </script>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

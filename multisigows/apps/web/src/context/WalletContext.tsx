@@ -11,41 +11,10 @@ import {
   ChainMismatchError,
 } from '@darksafe/core';
 import { ConnectedSigner, SignerMode } from '../types/index.js';
+import { detectInjectedWallet, subscribeProvider, type InjectedWallet } from '../lib/injectedWallet.js';
 import { resolveWebNetworkConfig } from '../config/network.js';
 
 const NETWORK_CONFIG = resolveWebNetworkConfig();
-
-interface InjectedWallet {
-  provider: InjectedProviderLike & {
-    on?: (event: string, handler: (...args: any[]) => void) => void;
-    removeListener?: (event: string, handler: (...args: any[]) => void) => void;
-  };
-  providerName: string;
-  /** Speaks quai_* (Pelagus, Blip) rather than eth_*. */
-  isQuaiNative: boolean;
-}
-
-/**
- * Only wallets that can actually sign Quai transactions are accepted. Pelagus and Blip
- * inject window.pelagus / window.blip / window.quai and speak quai_*; they do not use
- * EIP-6963. window.ethereum is trusted only when it identifies itself as one of them,
- * so a generic Ethereum wallet (which cannot build Quai transactions) is never used.
- */
-function detectInjectedWallet(): InjectedWallet | null {
-  if (typeof window === 'undefined') return null;
-  const w = window as any;
-  if (w.pelagus?.request) return { provider: w.pelagus, providerName: 'Pelagus', isQuaiNative: true };
-  if (w.blip?.request) return { provider: w.blip, providerName: 'Blip', isQuaiNative: true };
-  if (w.quai?.request) {
-    const name = w.quai.isPelagus ? 'Pelagus' : w.quai.isBlip ? 'Blip' : 'Quai Wallet';
-    return { provider: w.quai, providerName: name, isQuaiNative: true };
-  }
-  if (w.boltWallet?.request) return { provider: w.boltWallet, providerName: 'BoltWallet', isQuaiNative: false };
-  if (w.ethereum?.request && (w.ethereum.isPelagus || w.ethereum.isBlip)) {
-    return { provider: w.ethereum, providerName: w.ethereum.isBlip ? 'Blip' : 'Pelagus', isQuaiNative: true };
-  }
-  return null;
-}
 
 async function readAccounts(wallet: InjectedWallet): Promise<string[]> {
   const method = wallet.isQuaiNative ? 'quai_accounts' : 'eth_accounts';
@@ -102,7 +71,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   useEffect(() => {
-    if (!wallet?.provider.on) return;
+    if (!wallet) return;
     const provider = wallet.provider;
 
     const onAccountsChanged = (accounts: unknown) => {
@@ -122,14 +91,12 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setWalletChainId(null);
     };
 
-    provider.on!('accountsChanged', onAccountsChanged);
-    provider.on!('chainChanged', onChainChanged);
-    provider.on!('disconnect', onDisconnect);
-    return () => {
-      provider.removeListener?.('accountsChanged', onAccountsChanged);
-      provider.removeListener?.('chainChanged', onChainChanged);
-      provider.removeListener?.('disconnect', onDisconnect);
-    };
+    // never throws: a provider that rejects an event just gives no live updates for it
+    return subscribeProvider(provider, {
+      accountsChanged: onAccountsChanged,
+      chainChanged: onChainChanged,
+      disconnect: onDisconnect,
+    });
   }, [wallet]);
 
   const connectEip1193 = useCallback(async () => {
