@@ -1867,7 +1867,12 @@ export default function App() {
         <div>
           Circleswap DeFi Protocol &bull; Atomic Router Swaps &bull; Cyprus-1 Shard
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+        <a
+          href="https://boltevm.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'inherit', textDecoration: 'none' }}
+        >
           <span>Powered by</span>
           <img
             src={`${import.meta.env.BASE_URL}Boltfont.png`}
@@ -1876,7 +1881,7 @@ export default function App() {
             height={18}
             style={{ height: '18px', width: 'auto', filter: 'invert(1)', opacity: 0.8 }}
           />
-        </div>
+        </a>
       </footer>
 
       {poolModalOpen && (

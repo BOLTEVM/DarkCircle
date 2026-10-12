@@ -19,6 +19,11 @@ describe('DarkSafe Visual Architecture & Layout Verification', () => {
     const bolt = screen.getByAltText('BOLT');
     expect(bolt.getAttribute('src')).toMatch(/(^|\/)Boltfont\.png$/);
     expect(footer).toContainElement(bolt);
+    const link = bolt.closest('a');
+    expect(link).not.toBeNull();
+    expect(link!.getAttribute('href')).toBe('https://boltevm.com');
+    expect(link!.getAttribute('target')).toBe('_blank');
+    expect(link!.getAttribute('rel')).toBe('noopener noreferrer');
 
     // No vault pre-selected — nothing fabricated
     expect(screen.getAllByText('No Vault Selected').length).toBeGreaterThan(0);

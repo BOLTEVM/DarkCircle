@@ -186,6 +186,6 @@ These are tracked, not hidden:
 
 <sub>Built on **Quai Network** (Cyprus-1, chain id 9) &nbsp;·&nbsp; **BOLTEVM**</sub>
 
-<sub>Powered by</sub> <img src="Boltfont.png" alt="BOLT" height="18" />
+<a href="https://boltevm.com"><sub>Powered by</sub> <img src="Boltfont.png" alt="BOLT" height="18" /></a>
 
 </div>
