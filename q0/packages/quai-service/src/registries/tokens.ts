@@ -14,6 +14,11 @@ export interface TokenInfo {
     rewardRole?: 'DUAL_REWARD_A' | 'DUAL_REWARD_B' | 'GOVERNANCE_ARTIFACT';
     iconUrl?: string;
     description?: string;
+    /**
+     * Found in a live pool rather than curated: its symbol and name are whatever its own contract says, so they can
+     * imitate a listed token. The address is the identity; the picker marks these as unverified.
+     */
+    discovered?: boolean;
 }
 
 export const TOKEN_REGISTRY: Record<string, TokenInfo> = {
@@ -143,4 +148,49 @@ export function getTokenByAddress(address: string): TokenInfo | undefined {
     // Use the live registry object rather than the startup snapshot so the browser can safely register
     // user-imported ERC-20 metadata for pool discovery without changing the generated token list.
     return Object.values(TOKEN_REGISTRY).find(t => t.address.toLowerCase() === clean);
+}
+
+/** Printable, bounded symbol text: a token contract's own string is shown in the page, so no markup or control characters. */
+export function cleanTokenText(raw: string, max: number): string {
+    return raw.replace(/[^\x20-\x7e]/g, '').replace(/[<>"'`\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+export const cleanTokenSymbol = (raw: string): string => cleanTokenText(raw, 12);
+
+/**
+ * Add a token a live pool contains to the registry so the router can use it, and return its entry. The registry is keyed
+ * by symbol and symbols are not unique on-chain (two unrelated "USDT" exist on Cyprus-1), so a token whose symbol is
+ * already taken by a DIFFERENT address gets the key `SYMBOL#abcd` (the last four hex digits of its address, extended
+ * until unique). A token already known by address returns the existing entry untouched, so a curated entry can never be
+ * renamed or re-pointed by a pool. Returns null when the token cannot be used safely (no address, no decimals).
+ */
+export function registerDiscoveredToken(input: { address: string; symbol?: string; name?: string; decimals: number }): TokenInfo | null {
+    const address = input.address;
+    if (!/^0x[0-9a-fA-F]{40}$/.test(address)) return null;
+    if (!Number.isInteger(input.decimals) || input.decimals < 0 || input.decimals > 36) return null;
+    const existing = getTokenByAddress(address);
+    if (existing) return existing;
+
+    const base = cleanTokenSymbol(input.symbol ?? '') || `TOKEN${address.slice(-4)}`.toUpperCase();
+    const taken = (key: string) => Object.keys(TOKEN_REGISTRY).some(k => k.toLowerCase() === key.toLowerCase());
+    let key = base;
+    // 'QUAI' is the native asset's key and is never available to a contract token, whatever case it is spelled in.
+    if (taken(key) || key.toUpperCase() === 'QUAI') {
+        const tail = address.slice(2).toLowerCase();
+        for (let n = 4; ; n += 2) {
+            key = `${base}#${tail.slice(-n)}`;
+            if (!taken(key)) break;
+            if (n >= tail.length) return null;
+        }
+    }
+    const info: TokenInfo = {
+        symbol: key,
+        name: cleanTokenText(input.name ?? '', 48) || base,
+        decimals: input.decimals,
+        address,
+        description: 'Found in a live pool; not curated',
+        discovered: true
+    };
+    TOKEN_REGISTRY[key] = info;
+    return info;
 }

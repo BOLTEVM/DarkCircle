@@ -9,7 +9,17 @@
 // DEXes and cannot settle atomically, so it is not offered; the pool has to be created on one DEX
 // (CANDIDATE_POOLS + the Create Pool modal) and is then routed as a single-DEX pair.
 //
-// Circleswap is a third DEX, our own (packages/contracts/contracts/amm): the same Uniswap-V2 interface, so
+// Quainance also runs two "launch" AMMs, one per curve system, that hold the pools of every token that graduates
+// from its launchpad (CHEEZ, QMON, QCON, COPPER...). They are the same Uniswap-V2 interface with their own factory and
+// router, and the pair for a graduated token exists on THEIR factory only, so a swap routed through the Quainance router
+// finds nothing. Both router/factory pairs below are the ones Quainance's shipped frontend names (www.quainance.com
+// /assets/index-*.js, curveSystem and revenueCurveSystem), checked on-chain 2026-10-12: router.factory() is the factory,
+// router.WETH() is WQUAI, getAmountsOut equals the 0.3% constant-product maths to the wei, and swapExactETHForTokens
+// simulates cleanly:
+//   Quainance Launch   factory 0x004658A5…A9A3 <- router 0x002b6c6B…928e  (CHEEZ, QMON, QCON, QOGE, Q9000, NOAH)
+//   Quainance Launch 2 factory 0x000993E7…96Fe <- router 0x000284FD…E6E1  (COPPER, IBO, CHSW + one more)
+//
+// Circleswap is a fifth DEX, our own (packages/contracts/contracts/amm): the same Uniswap-V2 interface, so
 // the same encoders work, but its factory and router come from the generated deployed.ts and are null until
 // they are deployed. Its pools are created by users, so they are not listed here: the app finds them by
 // asking the factory (see circleswap.ts).
@@ -17,7 +27,7 @@
 import { TOKEN_REGISTRY } from './tokens';
 import { DEPLOYED } from './deployed';
 
-export type DexId = 'QUAISWAP' | 'QUAINANCE' | 'CIRCLESWAP';
+export type DexId = 'QUAISWAP' | 'QUAINANCE' | 'QUAINANCE_CURVE' | 'QUAINANCE_CURVE_V2' | 'CIRCLESWAP';
 
 export interface DexInfo {
     id: DexId;
@@ -25,6 +35,12 @@ export interface DexInfo {
     /** null until the DEX is deployed (only Circleswap can be not-yet-deployed). */
     factory: string | null;
     router: string | null;
+    /**
+     * keccak256 of the runtime code expected at the factory and at the router. A different hash means the contract at
+     * that address is no longer the one this app was written against, so the DEX is switched off (see dexIntegrity.ts).
+     * Absent for Circleswap, which is checked by the deploy tooling against its own compiled output.
+     */
+    codeHash?: { factory: string; router: string };
 }
 
 /** A DEX whose factory and router exist on-chain. */
@@ -33,18 +49,46 @@ export interface LiveDex extends DexInfo {
     router: string;
 }
 
-export const DEXES: { QUAISWAP: LiveDex; QUAINANCE: LiveDex; CIRCLESWAP: DexInfo } = {
+export const DEXES: { QUAISWAP: LiveDex; QUAINANCE: LiveDex; QUAINANCE_CURVE: LiveDex; QUAINANCE_CURVE_V2: LiveDex; CIRCLESWAP: DexInfo } = {
     QUAISWAP: {
         id: 'QUAISWAP',
         label: 'Quaiswap',
         factory: '0x0006112e89ee10615273ed72fe035cc068bc57a9',
-        router: '0x006432Ea8c46cBF981f6e710d2439C941CeBe2d0'
+        router: '0x006432Ea8c46cBF981f6e710d2439C941CeBe2d0',
+        codeHash: {
+            factory: '0x96767bbe38752f02bc30ef9491eb5feb8ac0ff060a9ac29cfd3afe840052b239',
+            router: '0x0c3791a59ffbe3e43a6f6be9f298e593fcbff7ce0ad256031da3ad55f23beab1'
+        }
     },
     QUAINANCE: {
         id: 'QUAINANCE',
         label: 'Quainance',
         factory: '0x0018a110b6ca369dcf5ab062c72f049e93b9ede2',
-        router: '0x000d6795e06eA4F460CA9572a51741342156305A'
+        router: '0x000d6795e06eA4F460CA9572a51741342156305A',
+        codeHash: {
+            factory: '0x0c4393d4bd2486ee81581fdef0cd88df239eebabb3fab7a302715f4c98bab903',
+            router: '0xa44514555cf9e45726ceb5a1434691100c862bdd04f4039cb4af4cf0e66c2ef9'
+        }
+    },
+    QUAINANCE_CURVE: {
+        id: 'QUAINANCE_CURVE',
+        label: 'Quainance Launch',
+        factory: '0x004658A54bFb73Db3cFDc40b0e087dbD9ab1A9A3',
+        router: '0x002b6c6BD946D78307824A7a73DF2207d6B9928e',
+        codeHash: {
+            factory: '0xfe85a9faa97c8eb2335e93ea4ef517886c9cc7c4c51f1631a2964e3e2b317ea6',
+            router: '0x7cd5576ca6e81fab8a5a926be4c8ba18c2f22369e72e3fc71e0be98f3d4f96ea'
+        }
+    },
+    QUAINANCE_CURVE_V2: {
+        id: 'QUAINANCE_CURVE_V2',
+        label: 'Quainance Launch 2',
+        factory: '0x000993E799424EEB1f1d6AdAa0e68006f4C696Fe',
+        router: '0x000284FD8Df039CFF2949b62D854dc43c2Eae6E1',
+        codeHash: {
+            factory: '0x5921f7e274335dc1d0a6076079acf41461927b341702efa8271f0e58bc8c78f1',
+            router: '0x6150c2a53eeccb818146583059319fa94b77c2399705374359eaeeee86ea38c1'
+        }
     },
     CIRCLESWAP: {
         id: 'CIRCLESWAP',
@@ -53,6 +97,12 @@ export const DEXES: { QUAISWAP: LiveDex; QUAINANCE: LiveDex; CIRCLESWAP: DexInfo
         get router() { return DEPLOYED.AMM_ROUTER; }
     }
 };
+
+/** Every constant-product DEX the app can route through, in the order they are listed. */
+export const AMM_DEX_IDS: DexId[] = ['QUAISWAP', 'QUAINANCE', 'QUAINANCE_CURVE', 'QUAINANCE_CURVE_V2', 'CIRCLESWAP'];
+
+/** The DEXes Quainance itself runs (its main AMM and the two launch AMMs): the Quainance side of the aggregate. */
+export const QUAINANCE_DEX_IDS: DexId[] = ['QUAINANCE', 'QUAINANCE_CURVE', 'QUAINANCE_CURVE_V2'];
 
 export function isDexLive(id: DexId): boolean {
     const d: DexInfo = DEXES[id];

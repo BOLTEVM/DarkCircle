@@ -17,7 +17,7 @@ import { ZERO_ADDRESS } from './liquidity';
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
 const defaultFetch: Fetcher = (input, init) => fetch(input, init);
 
-export const DEX_IDS: DexId[] = ['CIRCLESWAP', 'QUAISWAP', 'QUAINANCE'];
+export const DEX_IDS: DexId[] = ['CIRCLESWAP', 'QUAISWAP', 'QUAINANCE', 'QUAINANCE_CURVE', 'QUAINANCE_CURVE_V2'];
 
 /** Below these (in QUAI of value locked) a pool is too thin to trade more than a token amount through. */
 export const TINY_TVL_QUAI = 25;
@@ -44,6 +44,8 @@ export interface PairToken {
     decimals: number;
     /** In the app's token registry, so it can be priced, routed and displayed with confidence. */
     registered: boolean;
+    /** The contract answered decimals(). False means 18 is a placeholder, and nothing may be sized or routed with it. */
+    decimalsRead?: boolean;
 }
 
 export interface PairSnapshot {
@@ -105,35 +107,65 @@ export type BatchResult = { ok: true; value: any } | { ok: false; error: string 
 export type BatchFn = (calls: BatchCall[]) => Promise<BatchResult[]>;
 
 const CHUNK = 40;
+/** HTTP requests one batch function keeps in flight at once, however many callers share it. */
+const MAX_IN_FLIGHT = 4;
 
-/** JSON-RPC batch over fetch: one HTTP request per chunk, results returned in call order. */
-export function createBatch(rpcUrl: string = DEFAULT_RPC, fetcher: Fetcher = defaultFetch): BatchFn {
-    return async calls => {
-        const out: BatchResult[] = new Array(calls.length);
-        for (let start = 0; start < calls.length; start += CHUNK) {
-            const slice = calls.slice(start, start + CHUNK);
-            const body = slice.map((c, i) => ({ jsonrpc: '2.0', id: i, method: c.method, params: c.params }));
-            let json: any;
-            try {
-                const res = await fetcher(rpcUrl, {
-                    method: 'POST',
-                    headers: { 'content-type': 'application/json' },
-                    body: JSON.stringify(body),
-                    signal: AbortSignal.timeout(30_000)
-                });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                json = await res.json();
-            } catch (e: any) {
-                for (let i = 0; i < slice.length; i++) out[start + i] = { ok: false, error: e?.message ?? 'request failed' };
-                continue;
-            }
-            const byId = new Map<number, any>((Array.isArray(json) ? json : [json]).map((r: any) => [r.id, r]));
-            slice.forEach((_, i) => {
-                const r = byId.get(i);
-                out[start + i] = !r ? { ok: false, error: 'no reply' } : r.error ? { ok: false, error: r.error.message ?? 'rpc error' } : { ok: true, value: r.result };
-            });
+/**
+ * JSON-RPC batch over fetch: one HTTP request per chunk of 40 calls, results returned in call order. Chunks of one call
+ * run in parallel but never more than `maxInFlight` requests are outstanding for this function, so several DEXes loading
+ * at once still treat the node politely.
+ */
+export function createBatch(rpcUrl: string = DEFAULT_RPC, fetcher: Fetcher = defaultFetch, maxInFlight: number = MAX_IN_FLIGHT): BatchFn {
+    let active = 0;
+    const waiting: (() => void)[] = [];
+    const acquire = (): Promise<void> => {
+        if (active < maxInFlight) {
+            active++;
+            return Promise.resolve();
         }
-        return out;
+        return new Promise<void>(resolve => waiting.push(() => { active++; resolve(); }));
+    };
+    const release = () => {
+        active--;
+        waiting.shift()?.();
+    };
+
+    const send = async (slice: BatchCall[]): Promise<BatchResult[]> => {
+        const body = slice.map((c, i) => ({ jsonrpc: '2.0', id: i, method: c.method, params: c.params }));
+        let json: any;
+        try {
+            const res = await fetcher(rpcUrl, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(body),
+                signal: AbortSignal.timeout(30_000)
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            json = await res.json();
+        } catch (e: any) {
+            return slice.map(() => ({ ok: false as const, error: e?.message ?? 'request failed' }));
+        }
+        const byId = new Map<number, any>((Array.isArray(json) ? json : [json]).map((r: any) => [r.id, r]));
+        return slice.map((_, i): BatchResult => {
+            const r = byId.get(i);
+            return !r ? { ok: false, error: 'no reply' } : r.error ? { ok: false, error: r.error.message ?? 'rpc error' } : { ok: true, value: r.result };
+        });
+    };
+
+    return async calls => {
+        const slices: BatchCall[][] = [];
+        for (let start = 0; start < calls.length; start += CHUNK) slices.push(calls.slice(start, start + CHUNK));
+        const answered = await Promise.all(
+            slices.map(async slice => {
+                await acquire();
+                try {
+                    return await send(slice);
+                } finally {
+                    release();
+                }
+            })
+        );
+        return answered.flat();
     };
 }
 
@@ -162,19 +194,98 @@ async function loadTokens(addresses: string[], batch: BatchFn, cache: Map<string
     const res = await batch(calls);
     todo.forEach((address, i) => {
         const [s, n, d] = [res[i * 3], res[i * 3 + 1], res[i * 3 + 2]];
-        const reg = getTokenByAddress(address);
+        const found = getTokenByAddress(address);
+        // A token this app found in a pool (not curated) is described by what its own contract says, never by its generated key.
+        const reg = found && !found.discovered ? found : undefined;
         const dec = d.ok && typeof d.value === 'string' && d.value !== '0x' ? Number(BigInt(d.value)) : NaN;
         cache.set(address, {
             address,
             symbol: reg?.symbol ?? (s.ok ? decodeString(s.value).trim() : '') ?? '',
             name: reg?.name ?? (n.ok ? decodeString(n.value).trim() : ''),
-            decimals: Number.isFinite(dec) && dec >= 0 && dec <= 77 ? dec : reg?.decimals ?? 18,
-            registered: Boolean(reg) && reg!.deployed !== false
+            decimals: Number.isFinite(dec) && dec >= 0 && dec <= 77 ? dec : found?.decimals ?? 18,
+            registered: Boolean(reg) && reg!.deployed !== false,
+            decimalsRead: (Number.isFinite(dec) && dec >= 0 && dec <= 77) || Boolean(found)
         });
     });
 }
 
-/** Every pool of the given DEXes, straight from their factories. Not-yet-deployed DEXes are skipped, not errors. */
+interface FactoryRow {
+    index: number;
+    pair: string;
+    t0: string;
+    t1: string;
+    r0: bigint;
+    r1: bigint;
+    supply: bigint;
+    burned: bigint;
+}
+
+/** One factory: how many pairs it has, and the newest `maxPerDex` of them with their reserves. Never throws. */
+async function readFactory(
+    id: DexId,
+    maxPerDex: number,
+    batch: BatchFn
+): Promise<{ id: DexId; total: number | null; rows: FactoryRow[]; errors: string[] }> {
+    const dex = DEXES[id];
+    const factory = dex.factory!;
+    const errors: string[] = [];
+
+    const count = (await batch([callOf(factory, '0x574f2ba3')]))[0];
+    if (!count.ok || !isWord(count.value)) {
+        errors.push(`${dex.label}: could not read the pair count${count.ok ? '' : ` (${count.error})`}`);
+        return { id, total: null, rows: [], errors };
+    }
+    const total = Number(BigInt(count.value));
+    // The newest pools matter most, so if there are more than `maxPerDex` the oldest are the ones left out.
+    const first = Math.max(0, total - maxPerDex);
+    const indices = Array.from({ length: total - first }, (_, k) => first + k);
+    const addrRes = await batch(indices.map(i => callOf(factory, '0x1e3dd18b' + word(i))));
+    const listed = indices
+        .map((index, k) => ({ index, r: addrRes[k] }))
+        .filter(x => {
+            if (!x.r.ok || !isWord(x.r.value)) {
+                errors.push(`${dex.label} pair #${x.index}: address unreadable`);
+                return false;
+            }
+            return true;
+        })
+        .map(x => ({ index: x.index, pair: toAddress((x.r as { ok: true; value: string }).value) }));
+
+    const detailCalls = listed.flatMap(p => [
+        callOf(p.pair, SELECTORS.token0),
+        callOf(p.pair, SELECTORS.token1),
+        callOf(p.pair, SELECTORS.getReserves),
+        callOf(p.pair, SELECTORS.totalSupply),
+        callOf(p.pair, SELECTORS.balanceOf + pad(DEAD_ADDRESS)),
+        callOf(p.pair, SELECTORS.balanceOf + pad(ZERO_ADDRESS))
+    ]);
+    const d = await batch(detailCalls);
+    const rows: FactoryRow[] = [];
+    listed.forEach((p, k) => {
+        const [t0, t1, res, sup, dead, zero] = d.slice(k * 6, k * 6 + 6);
+        if (!t0.ok || !t1.ok || !res.ok || !isWord(t0.value) || !isWord(t1.value) || typeof res.value !== 'string' || res.value.length < 130) {
+            errors.push(`${dex.label} ${p.pair}: not a readable pair`);
+            return;
+        }
+        const r = res.value.slice(2);
+        rows.push({
+            index: p.index,
+            pair: p.pair,
+            t0: toAddress(t0.value),
+            t1: toAddress(t1.value),
+            r0: decodeBigInt(r.slice(0, 64)),
+            r1: decodeBigInt(r.slice(64, 128)),
+            supply: sup.ok ? decodeBigInt(sup.value) : 0n,
+            burned: (dead.ok ? decodeBigInt(dead.value) : 0n) + (zero.ok ? decodeBigInt(zero.value) : 0n)
+        });
+    });
+    return { id, total, rows, errors };
+}
+
+/**
+ * Every pool of the given DEXes, straight from their factories. Not-yet-deployed DEXes are skipped, not errors. The
+ * factories are read at the same time; the shared batch function keeps the number of requests in flight small.
+ */
 export async function loadPairSnapshots(
     dexes: DexId[] = DEX_IDS,
     opts: { maxPerDex?: number; batch?: BatchFn; tokenCache?: Map<string, PairToken> } = {}
@@ -182,82 +293,34 @@ export async function loadPairSnapshots(
     const batch = opts.batch ?? createBatch();
     const tokenCache = opts.tokenCache ?? new Map<string, PairToken>();
     const maxPerDex = opts.maxPerDex ?? 400;
-    const errors: string[] = [];
-    const totals: LoadResult['totals'] = {};
 
     const head = (await batch([{ method: 'quai_blockNumber', params: [] }]))[0];
     const block = head.ok ? Number(BigInt(head.value)) : 0;
 
-    const pairs: PairSnapshot[] = [];
-    for (const id of dexes) {
-        if (!isDexLive(id)) continue;
-        const dex = DEXES[id];
-        const factory = dex.factory!;
-        const count = (await batch([callOf(factory, '0x574f2ba3')]))[0];
-        if (!count.ok || !isWord(count.value)) {
-            errors.push(`${dex.label}: could not read the pair count${count.ok ? '' : ` (${count.error})`}`);
-            continue;
-        }
-        const total = Number(BigInt(count.value));
-        totals[id] = total;
-        // The newest pools matter most, so if there are more than `maxPerDex` the oldest are the ones left out.
-        const first = Math.max(0, total - maxPerDex);
-        const indices = Array.from({ length: total - first }, (_, k) => first + k);
-        const addrRes = await batch(indices.map(i => callOf(factory, '0x1e3dd18b' + word(i))));
-        const listed = indices
-            .map((index, k) => ({ index, r: addrRes[k] }))
-            .filter(x => {
-                if (!x.r.ok || !isWord(x.r.value)) {
-                    errors.push(`${dex.label} pair #${x.index}: address unreadable`);
-                    return false;
-                }
-                return true;
-            })
-            .map(x => ({ index: x.index, pair: toAddress((x.r as { ok: true; value: string }).value) }));
+    const live = dexes.filter(id => isDexLive(id));
+    const reads = await Promise.all(live.map(id => readFactory(id, maxPerDex, batch)));
 
-        const detailCalls = listed.flatMap(p => [
-            callOf(p.pair, SELECTORS.token0),
-            callOf(p.pair, SELECTORS.token1),
-            callOf(p.pair, SELECTORS.getReserves),
-            callOf(p.pair, SELECTORS.totalSupply),
-            callOf(p.pair, SELECTORS.balanceOf + pad(DEAD_ADDRESS)),
-            callOf(p.pair, SELECTORS.balanceOf + pad(ZERO_ADDRESS))
-        ]);
-        const d = await batch(detailCalls);
-        const rows: { index: number; pair: string; t0: string; t1: string; r0: bigint; r1: bigint; supply: bigint; burned: bigint }[] = [];
-        listed.forEach((p, k) => {
-            const [t0, t1, res, sup, dead, zero] = d.slice(k * 6, k * 6 + 6);
-            if (!t0.ok || !t1.ok || !res.ok || !isWord(t0.value) || !isWord(t1.value) || typeof res.value !== 'string' || res.value.length < 130) {
-                errors.push(`${dex.label} ${p.pair}: not a readable pair`);
-                return;
-            }
-            const r = res.value.slice(2);
-            rows.push({
-                index: p.index,
-                pair: p.pair,
-                t0: toAddress(t0.value),
-                t1: toAddress(t1.value),
-                r0: decodeBigInt(r.slice(0, 64)),
-                r1: decodeBigInt(r.slice(64, 128)),
-                supply: sup.ok ? decodeBigInt(sup.value) : 0n,
-                burned: (dead.ok ? decodeBigInt(dead.value) : 0n) + (zero.ok ? decodeBigInt(zero.value) : 0n)
-            });
-        });
-        await loadTokens(rows.flatMap(r => [r.t0, r.t1]), batch, tokenCache);
-        for (const r of rows) {
-            pairs.push({
-                dex: id,
-                pair: r.pair,
-                index: r.index,
-                token0: tokenCache.get(r.t0.toLowerCase())!,
-                token1: tokenCache.get(r.t1.toLowerCase())!,
-                reserve0: r.r0,
-                reserve1: r.r1,
-                totalSupply: r.supply,
-                burned: r.burned
-            });
-        }
+    const errors: string[] = [];
+    const totals: LoadResult['totals'] = {};
+    const flat: (FactoryRow & { dex: DexId })[] = [];
+    for (const r of reads) {
+        errors.push(...r.errors);
+        if (r.total !== null) totals[r.id] = r.total;
+        for (const row of r.rows) flat.push({ ...row, dex: r.id });
     }
+
+    await loadTokens(flat.flatMap(r => [r.t0, r.t1]), batch, tokenCache);
+    const pairs: PairSnapshot[] = flat.map(r => ({
+        dex: r.dex,
+        pair: r.pair,
+        index: r.index,
+        token0: tokenCache.get(r.t0.toLowerCase())!,
+        token1: tokenCache.get(r.t1.toLowerCase())!,
+        reserve0: r.r0,
+        reserve1: r.r1,
+        totalSupply: r.supply,
+        burned: r.burned
+    }));
     return { pairs, totals, errors, block };
 }
 
@@ -412,7 +475,7 @@ export function tvlQuai(p: PairSnapshot, prices: Map<string, { price: number; de
 }
 
 /** Symbols of tokens this app lists: an unlisted token using one of these is imitating it. */
-const registeredSymbols = () => new Set(Object.values(TOKEN_REGISTRY).map(t => t.symbol.toUpperCase()).concat(['QUAI']));
+const registeredSymbols = () => new Set(Object.values(TOKEN_REGISTRY).filter(t => !t.discovered).map(t => t.symbol.toUpperCase()).concat(['QUAI']));
 /** Symbols many unrelated tokens legitimately share; not an accusation, but the address must be checked. */
 const SHARED_SYMBOLS = new Set(['USDT', 'USDC', 'DAI', 'USD']);
 

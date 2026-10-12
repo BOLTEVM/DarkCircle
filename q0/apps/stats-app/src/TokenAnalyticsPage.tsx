@@ -3,6 +3,7 @@ import { ArrowDownUp, Database, ExternalLink, RefreshCw } from 'lucide-react';
 import {
   CONTRACTS,
   DEPLOYED,
+  DEXES,
   TOKEN_REGISTRY,
   formatUnits,
   getTokenDetailV2,
@@ -398,7 +399,7 @@ export default function TokenAnalyticsPage({ latestBlock, pools, poolReserves }:
 }
 
 function dexName(id: DexId): string {
-  return id === 'QUAINANCE' ? 'Quainance' : id === 'QUAISWAP' ? 'Quaiswap' : 'Circleswap';
+  return DEXES[id].label;
 }
 
 function LedgerRow({ transfer, symbol, decimals }: { transfer: TokenTransferV2; symbol: TokenSymbol; decimals: number }) {

@@ -27,7 +27,7 @@ const SCAN_LOOKBACK_BLOCKS = 150_000;
 const PAGE = 60;
 const REFRESH_MS = 90_000;
 
-const DEX_COLOR: Record<DexId, string> = { CIRCLESWAP: 'var(--accent-plasma)', QUAISWAP: 'var(--accent-neon)', QUAINANCE: 'var(--accent-gold)' };
+const DEX_COLOR: Record<DexId, string> = { CIRCLESWAP: 'var(--accent-plasma)', QUAISWAP: 'var(--accent-neon)', QUAINANCE: 'var(--accent-gold)', QUAINANCE_CURVE: 'var(--accent-gold)', QUAINANCE_CURVE_V2: 'var(--accent-gold)' };
 
 const sym = (t: PairToken) => t.symbol || `${t.address.slice(0, 6)}…`;
 
@@ -65,7 +65,7 @@ export default function PairsPage({ onOpenLiquidity }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [updated, setUpdated] = useState<number | null>(null);
 
-  const [dexFilter, setDexFilter] = useState<Record<DexId, boolean>>({ CIRCLESWAP: true, QUAISWAP: true, QUAINANCE: true });
+  const [dexFilter, setDexFilter] = useState<Record<DexId, boolean>>(() => Object.fromEntries(DEX_IDS.map(id => [id, true])) as Record<DexId, boolean>);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<PairSortKey>('tvl');
   const [onlyNew, setOnlyNew] = useState(false);
