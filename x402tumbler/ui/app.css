@@ -96,6 +96,17 @@ a { color: inherit; }
 .brand:hover { background: var(--surface-2); }
 .brand[aria-expanded="true"] { background: var(--accent-soft); }
 .brand span { color: var(--text); }
+/* Same lockup as DarkSafe: the mark in a bordered tile, then "Dark" in the text colour and the product half
+   in the accent (so it follows the chosen site colour). 0.png is black glyphs with white outlines, drawn for
+   dark grounds: reversed on the dark theme so it stays crisp at this size, as drawn on the light theme. */
+.brand-mark {
+  display: inline-flex; align-items: center; justify-content: center; flex: none; width: 40px; height: 34px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: inset 0 0 0 1px var(--accent-soft);
+}
+.brand-mark img { height: 24px; width: auto; filter: invert(1); }
+:root[data-theme="light"] .brand-mark img { filter: none; }
+.brand-word { font-weight: 800; font-size: 18px; letter-spacing: -.02em; }
+.brand-word b { color: var(--accent); font-weight: inherit; }
 
 /* colour popover, opened from the brand button */
 .color-popover {

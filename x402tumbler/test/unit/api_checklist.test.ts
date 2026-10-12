@@ -227,16 +227,22 @@ describe("local API server", () => {
     assert.equal((await raw(api, "GET", "/ui/app.js", { session: false })).status, 404);
   });
 
-  it("serves the footer wordmark byte-for-byte as an image the CSP allows", async () => {
-    const res = await raw(api, "GET", "/Boltfont.png", { session: false });
-    assert.equal(res.status, 200);
-    assert.equal(res.headers["content-type"], "image/png");
-    assert.match(String(res.headers["content-security-policy"]), /img-src 'self'/);
-    const onDisk = fs.readFileSync(new URL("../../ui/Boltfont.png", import.meta.url));
-    assert.ok(res.body.equals(onDisk), "the served bytes must equal the file (no text re-encoding)");
-    assert.deepEqual([...res.body.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-    // and the page actually references it
-    assert.match((await raw(api, "GET", "/", { session: false })).text, /<img src="\.\/Boltfont\.png" alt="BOLT"/);
+  it("serves the brand images byte-for-byte as images the CSP allows", async () => {
+    for (const name of ["Boltfont.png", "0.png"]) {
+      const res = await raw(api, "GET", `/${name}`, { session: false });
+      assert.equal(res.status, 200, name);
+      assert.equal(res.headers["content-type"], "image/png", name);
+      assert.match(String(res.headers["content-security-policy"]), /img-src 'self'/);
+      const onDisk = fs.readFileSync(new URL(`../../ui/${name}`, import.meta.url));
+      assert.ok(res.body.equals(onDisk), `${name}: the served bytes must equal the file (no text re-encoding)`);
+      assert.deepEqual([...res.body.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], name);
+    }
+    // and the page actually references them: the footer wordmark, the sidebar mark and the favicon
+    const page = (await raw(api, "GET", "/", { session: false })).text;
+    assert.match(page, /<img src="\.\/Boltfont\.png" alt="BOLT"/);
+    assert.match(page, /<span class="brand-mark" aria-hidden="true"><img src="\.\/0\.png"/);
+    assert.match(page, /<link rel="icon" href="\.\/0\.png">/);
+    assert.match(page, /<span class="brand-word">Dark<b>Circle<\/b><\/span>/);
   });
 
   it("the UI script contains no inline handlers, innerHTML or third-party URLs", async () => {

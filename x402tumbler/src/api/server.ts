@@ -57,7 +57,9 @@ const STATIC: Record<string, { file: string; type: string; binary?: boolean }> =
   "/theme.js": { file: "theme.js", type: "text/javascript; charset=utf-8" },
   "/agent.js": { file: "agent.js", type: "text/javascript; charset=utf-8" },
   "/wallet.js": { file: "wallet.js", type: "text/javascript; charset=utf-8" },
-  // The "Powered by" wordmark in the page footer. Binary: it must not go through the utf8 path below.
+  // Brand images: the mark in the sidebar (and favicon) and the "Powered by" wordmark in the footer.
+  // Binary: they must not go through the utf8 path below.
+  "/0.png": { file: "0.png", type: "image/png", binary: true },
   "/Boltfont.png": { file: "Boltfont.png", type: "image/png", binary: true }
 };
 
