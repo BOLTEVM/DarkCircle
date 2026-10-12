@@ -121,7 +121,7 @@ export function CrashScreen({ error, title = 'Circleswap hit a problem' }: { err
         </div>
         <details>
           <summary style={{ cursor: 'pointer', color: '#9ca3af', fontSize: '0.8rem' }}>Technical details</summary>
-          <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.5rem', maxHeight: '40vh', overflow: 'auto' }}>{report}</pre>
+          <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.5rem', maxHeight: '18rem', overflow: 'auto' }}>{report}</pre>
         </details>
       </div>
     </div>
