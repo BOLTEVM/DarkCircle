@@ -1,0 +1,138 @@
+name: CI
+
+# Tests for every app in the suite. The Pages workflow only builds and deploys; this one is what says a change is safe.
+# DarkSafe's contracts jobs (Slither, Foundry, coverage) live in multisigows/.github/workflows/ci.yml and run when that
+# folder is its own repository; here DarkSafe's TypeScript packages and web app are covered.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  circleswap:
+    name: Circleswap (q0): types, unit tests, contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: q0
+    steps:
+      # Actions are pinned to full commit SHAs; the tag is a comment only.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install (lockfile only)
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the shared service package
+        run: pnpm --filter quai-service build
+
+      - name: Typecheck the app
+        run: pnpm --filter stats-app exec tsc --noEmit -p .
+
+      - name: Unit tests (token metadata, farm, Quainance, yield, who may see Deploy)
+        working-directory: .
+        run: >
+          node --test
+          q0/packages/quai-service/test/tokenMetadata.test.ts
+          q0/packages/quai-service/test/farmView.test.ts
+          q0/packages/quai-service/test/quainance.test.ts
+          q0/packages/quai-service/test/yield.test.ts
+          q0/apps/stats-app/test/adminAccess.test.ts
+
+      - name: Routing, deploy plan and pair tests
+        run: bun test tests/
+
+      - name: Contract suites (farm client, from-chain verification, boost consistency, AMM, governance)
+        run: pnpm --filter contracts test
+
+      - name: The production build succeeds
+        run: pnpm --filter stats-app build
+
+      - name: Audit runtime dependencies
+        run: pnpm audit --prod --audit-level high
+
+  darksafe:
+    name: DarkSafe (multisigows): types, packages, web app
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: multisigows
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Install (lockfile only, no dependency install scripts)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build all packages (compiles contracts first)
+        run: pnpm build
+
+      - name: Typecheck
+        run: pnpm lint
+
+      - name: Core tests
+        run: pnpm -F @darksafe/core test
+
+      - name: Web tests (wallet detection, security headers, QR round-trip, v2 review flow)
+        run: pnpm -F @darksafe/web test
+
+      - name: Verifier and watcher unit tests
+        run: |
+          pnpm -F @darksafe/verify test
+          pnpm -F @darksafe/watcher test
+
+      - name: Audit runtime dependencies
+        run: pnpm audit --prod --audit-level high
+
+  console:
+    name: DarkCircle console (x402tumbler): types and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: x402tumbler
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Install (lockfile only)
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm lint
+
+      - name: Unit, end-to-end, adversarial and admin suites
+        run: pnpm test
+
+      - name: Audit runtime dependencies
+        run: pnpm audit --prod --audit-level high

@@ -67,6 +67,12 @@ jobs:
       - name: Test LP yield maths (fees and farm rewards)
         run: node --test q0/packages/quai-service/test/yield.test.ts
 
+      # Quainance's launchpad catalog sends no CORS header, so the deployed page reads the snapshot bundled at build time.
+      # Refresh it first so it is as fresh as this deploy. Best effort: if Quainance is down the committed snapshot is used.
+      - name: Refresh the Quainance launchpad snapshot
+        continue-on-error: true
+        run: node q0/apps/stats-app/scripts/refresh-quainance-catalog.mjs
+
       - name: Build Q0 / Circleswap
         run: |
           cd q0
