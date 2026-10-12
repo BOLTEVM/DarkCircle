@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { 
   Activity, 
   ArrowUpDown, 
@@ -74,6 +74,8 @@ import PoolModal from './PoolModal';
 import PairsPage from './PairsPage';
 import TokenPicker from './TokenPicker';
 import TokenBubble, { type TokenBubbleMetadata } from './TokenBubble';
+import { formatUsd } from './TokenPicker';
+import { toBubbleMetadata, useTokenProfiles } from './useTokenProfiles';
 import ImportTokenModal from './ImportTokenModal';
 import TokenAnalyticsPage from './TokenAnalyticsPage';
 import { readImportedTokens, writeImportedTokens } from './customTokens';
@@ -88,35 +90,7 @@ import {
   sendWalletTransaction 
 } from './providerUtils';
 
-const tokenMetadataCache = new Map<string, Promise<TokenBubbleMetadata | null>>();
 const showLegacyAnalytics = (): boolean => false;
-
-function loadTokenBubbleMetadata(token: TokenInfo): Promise<TokenBubbleMetadata | null> {
-  const key = token.address.toLowerCase();
-  const cached = tokenMetadataCache.get(key);
-  if (cached) return cached;
-
-  const request = Promise.allSettled([
-    getTokenMetadata(token.address),
-    getTokenDetailV2(token.address)
-  ]).then(([chainResult, explorerResult]) => {
-    const chainMetadata = chainResult.status === 'fulfilled' ? chainResult.value : null;
-    const explorerToken = explorerResult.status === 'fulfilled' ? explorerResult.value.token : null;
-    if (!chainMetadata && !explorerToken) return null;
-    return {
-      address: explorerToken?.contract_address ?? chainMetadata?.address ?? token.address,
-      name: explorerToken?.name?.trim() || chainMetadata?.name?.trim() || token.name,
-      symbol: explorerToken?.symbol?.trim() || chainMetadata?.symbol?.trim() || token.symbol,
-      decimals: explorerToken?.decimals ?? chainMetadata?.decimals ?? token.decimals,
-      totalSupply: chainMetadata?.totalSupply ?? explorerToken?.total_supply ?? '0',
-      iconUrl: explorerToken?.icon_url ?? token.iconUrl,
-      website: explorerToken?.website ?? undefined,
-      description: explorerToken?.description ?? token.description
-    } satisfies TokenBubbleMetadata;
-  });
-  tokenMetadataCache.set(key, request);
-  return request;
-}
 
 const isLocalhost = typeof window !== 'undefined' && (
   window.location.hostname === 'localhost' ||
@@ -187,9 +161,8 @@ export default function App() {
   const [poolModalOpen, setPoolModalOpen] = useState<boolean>(false);
   const [customTokens, setCustomTokens] = useState(() => readImportedTokens());
   const [importTokenOpen, setImportTokenOpen] = useState(false);
-  const [contractMetadata, setContractMetadata] = useState<Record<string, TokenBubbleMetadata>>({});
-  const [contractMetadataStatus, setContractMetadataStatus] = useState<'loading' | 'ready' | 'partial' | 'failed'>('loading');
-  const tokenCatalog = [...REGISTERED_TOKENS, ...customTokens];
+  const [importPrefill, setImportPrefill] = useState<string | undefined>(undefined);
+  const tokenCatalog = useMemo(() => [...REGISTERED_TOKENS, ...customTokens], [customTokens]);
   const tokenCatalogRef = useRef(tokenCatalog);
   tokenCatalogRef.current = tokenCatalog;
 
@@ -200,24 +173,29 @@ export default function App() {
     writeImportedTokens(customTokens);
   }, [customTokens]);
 
-  // Read the live ERC-20 metadata so token bubbles stay tied to the deployed contract,
-  // including imported tokens that were not part of the generated registry. The explorer
-  // response fills in the richer display fields (logo/description) when available, while
-  // the chain response remains the source of truth for standard ERC-20 fields.
-  useEffect(() => {
-    let live = true;
-    const readableTokens = tokenCatalog.filter(token => token.deployed !== false && !token.isNative);
-    setContractMetadataStatus(readableTokens.length ? 'loading' : 'ready');
-    Promise.all(readableTokens.map(async token => [token.address.toLowerCase(), await loadTokenBubbleMetadata(token)] as const)).then(entries => {
-      if (!live) return;
-      const resolved = entries.filter((entry): entry is readonly [string, TokenBubbleMetadata] => entry[1] !== null);
-      setContractMetadata(Object.fromEntries(resolved));
-      setContractMetadataStatus(resolved.length === 0 ? 'failed' : resolved.length === readableTokens.length ? 'ready' : 'partial');
-    });
-    return () => {
-      live = false;
-    };
-  }, [customTokens]);
+  // Live token metadata (see quai-service/tokenMetadata.ts): contract fields come from the chain in one
+  // batch and win over everything else; the explorer adds logo, price and holders. Cached profiles paint
+  // immediately, results stream in per token, and a failed source never erases what is already known.
+  const { profiles: tokenProfiles, status: contractMetadataStatus, refreshing: tokenMetadataRefreshing, refresh: refreshTokenMetadata } = useTokenProfiles(tokenCatalog);
+  const contractMetadata = useMemo(() => {
+    const map: Record<string, TokenBubbleMetadata> = {};
+    for (const token of tokenCatalog) {
+      const live = toBubbleMetadata(token, tokenProfiles[token.address.toLowerCase()]);
+      if (live) map[token.address.toLowerCase()] = live;
+    }
+    // Native QUAI has no contract: show the wrapped-Quai logo and price, which is the same asset.
+    const wquai = TOKEN_REGISTRY['WQUAI'];
+    const native = TOKEN_REGISTRY['QUAI'];
+    const wquaiLive = wquai ? map[wquai.address.toLowerCase()] : undefined;
+    if (native && wquaiLive) {
+      map[native.address.toLowerCase()] = {
+        address: native.address, name: native.name, symbol: native.symbol, decimals: native.decimals, totalSupply: '0',
+        iconUrl: wquaiLive.iconUrl, priceUsd: wquaiLive.priceUsd, decimalsVerified: true
+      };
+    }
+    return map;
+  }, [tokenCatalog, tokenProfiles]);
+  const importedAddresses = useMemo(() => new Set(customTokens.map(token => token.address.toLowerCase())), [customTokens]);
 
   const allPools: PoolInfo[] = [...POOL_REGISTRY, ...discoveredPools];
   const allPoolsRef = useRef<PoolInfo[]>(allPools);
@@ -483,7 +461,11 @@ export default function App() {
   const getBalanceForToken = (symbol: string) => {
     const raw = rawBalances[symbol];
     const decimals = TOKEN_REGISTRY[symbol]?.decimals ?? 18;
-    return raw === undefined ? '—' : formatBaseUnits(BigInt(raw), decimals, 6);
+    if (raw === undefined) return '—';
+    // thousands separators on the integer part only: 428191052.577887 -> 428,191,052.577887
+    const [whole, fraction] = formatBaseUnits(BigInt(raw), decimals, 6).split('.');
+    const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return fraction === undefined ? grouped : `${grouped}.${fraction}`;
   };
 
   const quaiBalance = rawBalances['QUAI'] === undefined ? '—' : formatBaseUnits(BigInt(rawBalances['QUAI']), 18, 4);
@@ -604,6 +586,31 @@ export default function App() {
   const routeDexLabels = [...new Set(routeSegments.map(segment => DEXES[segment.dex].label))].join(' → ');
   const fromTokenDecimals = TOKEN_REGISTRY[fromSymbol]?.decimals ?? 18;
   const toTokenDecimals = TOKEN_REGISTRY[toSymbol]?.decimals ?? 18;
+
+  // ---- display helpers (read-only; none of this feeds the quote) ----
+  const pickerTokens = useMemo(() => tokenCatalog.filter(token => token.deployed !== false), [tokenCatalog]);
+  // The decimals the swap maths uses are the registry's; show amounts with the same value so a balance
+  // in the list always matches what the quote will do with it.
+  const pickerDecimalsOf = useCallback((token: TokenInfo) => TOKEN_REGISTRY[token.symbol]?.decimals ?? token.decimals, []);
+  const pickerBalanceOf = useCallback((token: TokenInfo): bigint | undefined => {
+    const raw = rawBalances[token.symbol];
+    return raw === undefined || !walletAddress ? undefined : BigInt(raw);
+  }, [rawBalances, walletAddress]);
+  const openImport = useCallback((address?: string) => {
+    setImportPrefill(address);
+    setImportTokenOpen(true);
+  }, []);
+  /** "≈ $1.23" for an amount of a token the explorer has a price for; empty otherwise. */
+  const usdText = (amount: string, symbol: string): string => {
+    const token = TOKEN_REGISTRY[symbol];
+    if (!token) return '';
+    const priced = token.isNative ? TOKEN_REGISTRY['WQUAI'] : token;
+    const price = priced ? contractMetadata[priced.address.toLowerCase()]?.priceUsd : undefined;
+    const n = Number(amount);
+    if (price === undefined || !Number.isFinite(n) || n <= 0) return '';
+    const text = formatUsd(n * price);
+    return text ? `≈ ${text}` : '';
+  };
 
   let amountInWei: bigint | null = null;
   let amountParseError: string | null = null;
@@ -1105,8 +1112,9 @@ export default function App() {
                   value={swapAmountIn}
                   onChange={(e) => handleAmountInChange(e.target.value)}
                 />
-                <TokenPicker value={fromSymbol} tokens={tokenCatalog.filter(token => token.deployed !== false)} balance={getBalanceForToken(fromSymbol)} metadata={contractMetadata} metadataStatus={contractMetadataStatus} onChange={symbol => selectToken('FROM', symbol)} onImport={() => setImportTokenOpen(true)} />
+                <TokenPicker value={fromSymbol} tokens={pickerTokens} metadata={contractMetadata} metadataStatus={contractMetadataStatus} balanceOf={pickerBalanceOf} decimalsOf={pickerDecimalsOf} importedAddresses={importedAddresses} onRefresh={refreshTokenMetadata} refreshing={tokenMetadataRefreshing} onImport={openImport} onChange={symbol => selectToken('FROM', symbol)} />
               </div>
+              <div className="swap-usd" aria-live="polite">{usdText(swapAmountIn, fromSymbol)}</div>
             </div>
 
             {/* Middle Switch Arrow */}
@@ -1134,8 +1142,9 @@ export default function App() {
                   value={swapAmountOut}
                   readOnly 
                 />
-                <TokenPicker value={toSymbol} tokens={tokenCatalog.filter(token => token.deployed !== false)} balance={getBalanceForToken(toSymbol)} metadata={contractMetadata} metadataStatus={contractMetadataStatus} onChange={symbol => selectToken('TO', symbol)} onImport={() => setImportTokenOpen(true)} />
+                <TokenPicker value={toSymbol} tokens={pickerTokens} metadata={contractMetadata} metadataStatus={contractMetadataStatus} balanceOf={pickerBalanceOf} decimalsOf={pickerDecimalsOf} importedAddresses={importedAddresses} onRefresh={refreshTokenMetadata} refreshing={tokenMetadataRefreshing} onImport={openImport} onChange={symbol => selectToken('TO', symbol)} />
               </div>
+              <div className="swap-usd" aria-live="polite">{usdText(swapAmountOut, toSymbol)}</div>
             </div>
 
             {/* Detail Sheet */}
@@ -1900,7 +1909,8 @@ export default function App() {
       )}
       {importTokenOpen && (
         <ImportTokenModal
-          onClose={() => setImportTokenOpen(false)}
+          initialAddress={importPrefill}
+          onClose={() => { setImportTokenOpen(false); setImportPrefill(undefined); }}
           onImported={handleImportedToken}
         />
       )}

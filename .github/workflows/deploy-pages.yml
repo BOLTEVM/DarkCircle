@@ -52,6 +52,9 @@ jobs:
       - name: Test 404 / subdomain redirect router
         run: node tools/test_404_router.mjs
 
+      - name: Test Circleswap token metadata service
+        run: node --test q0/packages/quai-service/test/tokenMetadata.test.ts
+
       - name: Build Q0 / Circleswap
         run: |
           cd q0

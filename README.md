@@ -162,6 +162,7 @@ The bundle contains `index.html`, `404.html`, the `.glb`, the vendored three.js,
 | Gate | Command | What it catches |
 |---|---|---|
 | Asset structure | `node tools/verify_qrb_assets.mjs` | Wrong up-axis, orb or room scale, lights exported in physical units, a light pointing the wrong way, an animation loop that stalls at the seam, unused UVs, triangle and size budgets |
+| Token metadata | `node --test q0/packages/quai-service/test/tokenMetadata.test.ts` | Decoding of untrusted contract output, chain-first precedence (decimals never from the explorer, never defaulted to 0), icon-URL resolution, TTL and negative caching |
 | Redirect router | `node tools/test_404_router.mjs` | Project-pages prefix loss, subdomain and deep-link redirects |
 | Brand | `bash tools/check_legacy_name.sh` | The retired product name reappearing anywhere in tracked text (the multi-sig app is DarkSafe) |
 | Portal encoding | CI step | Any non-ASCII byte in `index.html` or `404.html` (the first build shipped corrupted dashes and emoji) |
@@ -174,7 +175,7 @@ The bundle contains `index.html`, `404.html`, the `.glb`, the vendored three.js,
 These are tracked, not hidden:
 
 - **DarkCircle on static hosting.** Its UI expects the local API from `pnpm ui` in `x402tumbler/`; on Pages it is a static shell and its `/api/*` calls fail.
-- **Circleswap on static hosting.** The explorer TVL request is blocked by CORS without the dev proxy, and some token icons are requested from the site root (`/token-icons/...`), which 404s under a sub-path.
+- **Circleswap on static hosting.** The Quainance TVL request to `explorer.qu.ai/api/stats/tvl` is blocked by CORS without the dev proxy. Token metadata is unaffected: it uses the CORS-open `/api/token/<address>` endpoint and the RPC.
 - **Portal metrics.** The hover readout shows the Cyprus-1 block height only. Pool TVL and vault status are not wired in.
 - **No licence file yet.** Until one is added, reuse rights are unspecified. The vendored three.js keeps its MIT licence in `assets/3d/vendor/three/LICENSE`.
 
