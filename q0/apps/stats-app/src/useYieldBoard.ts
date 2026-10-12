@@ -5,6 +5,7 @@ import {
   DEX_IDS,
   MAX_LOG_RANGE,
   POOL_REGISTRY,
+  SINGLE_STAKE_POOLS,
   SWAP_TOPIC,
   analyzePairs,
   batchQuaiCall,
@@ -12,9 +13,11 @@ import {
   decodeSwapLogs,
   loadPairSnapshots,
   quaiRpcCall,
+  singleStakeCandidates,
   tokenPricesUsd,
   type FarmState,
   type PairAnalysis,
+  type PairSnapshot,
   type SwapTotals,
   type YieldFarmInput,
   type YieldRow
@@ -31,6 +34,8 @@ const FINAL_AFTER = 120;
 // -------------------------------------------------------------------------------------------------- pools and prices
 
 interface BoardBase {
+  /** Every pair read, as the factories reported it (before analysis): lets one token's price be re-derived from fresh reserves. */
+  snapshots: PairSnapshot[];
   /** The pools to advertise: every Circleswap pair plus the registry pools on the other DEXes. */
   advertised: PairAnalysis[];
   quaiUsd: number | null;
@@ -45,7 +50,10 @@ interface BoardBase {
 let baseCache: { at: number; promise: Promise<BoardBase> } | null = null;
 
 async function loadBase(): Promise<BoardBase> {
-  const [{ pairs }, quaiUsd] = await Promise.all([loadPairSnapshots(DEX_IDS, { maxPerDex: 1000 }), resolveQuaiUsd()]);
+  const [{ pairs, errors }, quaiUsd] = await Promise.all([loadPairSnapshots(DEX_IDS, { maxPerDex: 1000 }), resolveQuaiUsd()]);
+  // Every DEX unreadable is a failed read, not "there are no pools": throwing keeps it out of the shared cache, so the
+  // next caller (or poll) tries again instead of reading an empty board for the whole cache lifetime.
+  if (pairs.length === 0 && errors.length > 0) throw new Error(`Pools could not be read (${errors[0]}).`);
   const analyses = analyzePairs(pairs, { quaiUsd });
   const registry = new Set(POOL_REGISTRY.map(p => p.pair.toLowerCase()));
   const advertised = analyses.filter(a => a.dex === 'CIRCLESWAP' || registry.has(a.pair.toLowerCase()));
@@ -66,17 +74,66 @@ async function loadBase(): Promise<BoardBase> {
   } catch {
     /* unknown: 0.30% is the published fee and the page states the figure it used */
   }
-  return { advertised, quaiUsd, prices: tokenPricesUsd(analyses, quaiUsd), decimals, protocolFeeOn, loadedAt: Date.now() };
+  return { snapshots: pairs, advertised, quaiUsd, prices: tokenPricesUsd(analyses, quaiUsd), decimals, protocolFeeOn, loadedAt: Date.now() };
 }
 
-function getBase(force = false): Promise<BoardBase> {
-  if (!force && baseCache && Date.now() - baseCache.at < REFRESH_MS) return baseCache.promise;
+function getBase(force = false, maxAgeMs = REFRESH_MS): Promise<BoardBase> {
+  if (!force && baseCache && Date.now() - baseCache.at < maxAgeMs) return baseCache.promise;
   const promise = loadBase();
   baseCache = { at: Date.now(), promise };
   promise.catch(() => {
     if (baseCache && baseCache.promise === promise) baseCache = null;
   });
   return promise;
+}
+
+// ------------------------------------------------------------------------------------- one token's price, kept fresh
+
+/** Which pairs exist and what their tokens are changes rarely: a price poll re-reads reserves, not the whole structure. */
+const STRUCTURE_MAX_AGE_MS = 30 * 60_000;
+const GET_RESERVES = '0x0902f1ac';
+
+export interface PoolPriceReading {
+  /** USD per whole token from the deepest pool route, or null when no pool prices it. */
+  priceUsd: number | null;
+  /** When the reserves behind it were read (ms since epoch). */
+  at: number;
+  /** How many pools hold the token. */
+  pools: number;
+}
+
+/**
+ * One token's USD price from its pools, with fresh reserves. The pool list and token metadata come from the same shared
+ * snapshot the yield board uses (so a page that already loaded them costs nothing more); only the reserves of the pools
+ * that hold this token are read again, in one batch, and the route to WQUAI is re-derived from them. All-or-nothing:
+ * a missing reserve or QUAI price throws, so a caller keeps its last good price instead of mixing old and new reserves.
+ */
+export async function readTokenPoolPriceUsd(token: string, opts: { signal?: AbortSignal } = {}): Promise<PoolPriceReading> {
+  const base = await getBase(false, STRUCTURE_MAX_AGE_MS);
+  if (opts.signal?.aborted) throw new Error('Cancelled.');
+  const key = token.toLowerCase();
+  const touching = base.snapshots.filter(p => p.token0.address.toLowerCase() === key || p.token1.address.toLowerCase() === key);
+  if (touching.length === 0) return { priceUsd: null, at: Date.now(), pools: 0 };
+
+  const replies = await batchQuaiCall(touching.map(p => ({ to: p.pair, data: GET_RESERVES })));
+  if (opts.signal?.aborted) throw new Error('Cancelled.');
+  const fresh = new Map<string, { reserve0: bigint; reserve1: bigint }>();
+  touching.forEach((p, i) => {
+    const hex = replies[i];
+    if (typeof hex === 'string' && /^0x[0-9a-fA-F]{128,}$/.test(hex)) {
+      fresh.set(p.pair.toLowerCase(), { reserve0: BigInt('0x' + hex.slice(2, 66)), reserve1: BigInt('0x' + hex.slice(66, 130)) });
+    }
+  });
+  if (fresh.size !== touching.length) throw new Error('The pools’ reserves could not be read.');
+
+  const quaiUsd = await resolveQuaiUsd();
+  if (quaiUsd === null) throw new Error('The QUAI price is unavailable.');
+  const snapshots = base.snapshots.map(p => {
+    const f = fresh.get(p.pair.toLowerCase());
+    return f ? { ...p, reserve0: f.reserve0, reserve1: f.reserve1 } : p;
+  });
+  const prices = tokenPricesUsd(analyzePairs(snapshots, { quaiUsd }), quaiUsd);
+  return { priceUsd: prices.get(key) ?? null, at: Date.now(), pools: touching.length };
 }
 
 // ------------------------------------------------------------------------------------------------ swap history scan
@@ -263,6 +320,11 @@ export interface YieldBoardState {
   prices: Map<string, number>;
   /** Value of the farm's whole emission per day at today's prices, or null when a reward cannot be priced. */
   emissionUsdPerDay: number | null;
+  /**
+   * The farm as the board prices it (pool-derived reward prices), or null without a farm. The single-token rows project
+   * their rewards from this same input, so they and the pair rows above them always agree.
+   */
+  farmInput: YieldFarmInput | null;
 }
 
 /**
@@ -316,7 +378,8 @@ export function useYieldBoard(farm: FarmState | null): YieldBoardState {
       quaiUsd: null,
       updatedAt: null,
       prices: new Map(),
-      emissionUsdPerDay: null
+      emissionUsdPerDay: null,
+      farmInput: null
     };
     if (!base) return empty;
 
@@ -346,6 +409,9 @@ export function useYieldBoard(farm: FarmState | null): YieldBoardState {
       }
     }
 
+    // The single-token pools (Q0, BDELTA) that are not in the farm yet wait to join together with the unfarmed pairs, so a
+    // pair's assumed share counts them: this page and the Farms page's single-token rows assume the same total.
+    const waitingSingles = farm ? singleStakeCandidates(farm, SINGLE_STAKE_POOLS).filter(c => c.state === 'NOT_IN_FARM').length : 0;
     const windowSeconds = scan.windowSeconds ?? WINDOW_BLOCKS * 5;
     const rows = buildYieldRows({
       analyses: base.advertised,
@@ -353,7 +419,8 @@ export function useYieldBoard(farm: FarmState | null): YieldBoardState {
       windowSeconds,
       quaiUsd: base.quaiUsd,
       farm: farmInput,
-      lpFeeBps: { CIRCLESWAP: base.protocolFeeOn ? 25 : 30, QUAISWAP: 30, QUAINANCE: 30 }
+      lpFeeBps: { CIRCLESWAP: base.protocolFeeOn ? 25 : 30, QUAISWAP: 30, QUAINANCE: 30 },
+      extraUnfarmed: waitingSingles
     });
     return {
       rows,
@@ -366,7 +433,8 @@ export function useYieldBoard(farm: FarmState | null): YieldBoardState {
       quaiUsd: base.quaiUsd,
       updatedAt: base.loadedAt,
       prices: base.prices,
-      emissionUsdPerDay: emission
+      emissionUsdPerDay: emission,
+      farmInput
     };
     // `tick` changes on every scan update: the module-level scan state is read fresh each time it does
     // eslint-disable-next-line react-hooks/exhaustive-deps

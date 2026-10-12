@@ -192,6 +192,12 @@ export interface BoardInput {
     farm: YieldFarmInput | null;
     /** LP fee share in bps per DEX (0.30% on all three, less the protocol's cut where it is on). */
     lpFeeBps: Record<YieldDex, number>;
+    /**
+     * Pools that are not pairs on this board but would join the farm alongside the unfarmed pairs (the single-token
+     * pools, Q0 and BDELTA). They count in the "everything not in the farm joins together" assumption, so a pair's
+     * estimated share on this board and a single-token pool's on its own row add up against the same total.
+     */
+    extraUnfarmed?: number;
 }
 
 /** The weight an unfarmed pool is assumed to get: the farm's average weight, or 100 for a farm with no pools. */
@@ -204,7 +210,7 @@ export function assumedWeightOf(farm: YieldFarmInput | null): bigint {
 /** One row per advertised pool, best total yield first, unknown last. */
 export function buildYieldRows(i: BoardInput): YieldRow[] {
     const farmed = new Set((i.farm?.pools ?? []).map(p => p.lpToken.toLowerCase()));
-    const unfarmed = i.analyses.filter(a => !farmed.has(a.pair.toLowerCase())).length;
+    const unfarmed = i.analyses.filter(a => !farmed.has(a.pair.toLowerCase())).length + Math.max(0, Math.floor(i.extraUnfarmed ?? 0));
     const weight = assumedWeightOf(i.farm);
     const windowDays = i.windowSeconds / SECONDS_PER_DAY;
 
@@ -278,6 +284,78 @@ export function tokenPricesUsd(analyses: PairAnalysis[], quaiUsd: number | null)
     return out;
 }
 
+// ------------------------------------------------------------------------------------------ single-token pools
+
+/** The example deposit the single-token rows quote ("$1,000 deposited alone would earn about..."). A stated input, not data. */
+export const EXAMPLE_STAKE_USD = 1_000;
+
+export interface SingleStakeToken {
+    /** Lower-case address of the token that is deposited. */
+    token: string;
+    symbol: string;
+    /** USD per whole token, null when no source prices it. */
+    priceUsd: number | null;
+    /** Whole tokens in existence (total supply / 10^decimals), null when unreadable. */
+    supply: number | null;
+    /** Value of what is staked in the farm for this token now, USD (0 when nobody has), null when unknown. */
+    stakedUsd: number | null;
+}
+
+export interface SingleStakeYield {
+    token: string;
+    symbol: string;
+    reward: RewardYield;
+    /** USD value of the entire supply: what "every token deposited" is measured against. null when unpriced. */
+    supplyUsd: number | null;
+    /** Tokens of each reward this pool receives per day at `reward.sharePct`; null when the rate is unknown. */
+    dailyA: number | null;
+    dailyB: number | null;
+    /** What the whole pool earns in rewards per year at that share, USD; null when a reward cannot be priced. */
+    yearlyUsd: number | null;
+    /** Reward APR in percent for `EXAMPLE_STAKE_USD` deposited when nobody else has; null when unknown. */
+    exampleApr: number | null;
+    /** The same, with the largest Qrb boost. */
+    exampleAprBoosted: number | null;
+}
+
+/**
+ * Reward yield for each single-token pool, using the same maths as every LP pool (projectReward): a pool already in the
+ * farm gets its real share, one that is not gets the assumed average share, and the APR is measured against what is
+ * staked, or, when nobody has deposited, against the token's whole supply ("if every token were deposited": the floor,
+ * which only rises as fewer tokens are deposited). `otherUnfarmed` is how many LP pools are also waiting to join, so the
+ * shares across the page assume the same thing.
+ */
+export function buildSingleStakeYields(i: { farm: YieldFarmInput | null; tokens: SingleStakeToken[]; otherUnfarmed: number }): SingleStakeYield[] {
+    const farmed = new Set((i.farm?.pools ?? []).map(p => p.lpToken.toLowerCase()));
+    const waiting = i.tokens.filter(t => !farmed.has(t.token.toLowerCase())).length;
+    const unfarmed = Math.max(0, Math.floor(i.otherUnfarmed)) + waiting;
+    const weight = assumedWeightOf(i.farm);
+
+    return i.tokens.map<SingleStakeYield>(t => {
+        const supplyUsd = t.priceUsd !== null && t.supply !== null && t.supply > 0 ? t.supply * t.priceUsd : null;
+        const reward = projectReward(i.farm, t.token, supplyUsd, t.stakedUsd, unfarmed, weight);
+        const share = (reward.sharePct ?? 0) / 100;
+        const perDay = (rate: bigint | undefined, decimals: number | undefined) =>
+            rate === undefined || decimals === undefined ? null : toNumber(rate, decimals) * SECONDS_PER_DAY * share;
+        const dailyA = i.farm ? perDay(i.farm.rewardAPerSecond, i.farm.decimalsA) : null;
+        const dailyB = i.farm ? perDay(i.farm.rewardBPerSecond, i.farm.decimalsB) : null;
+        const yearlyUsd = reward.dailyUsd === null ? null : reward.dailyUsd * 365;
+        const exampleApr = reward.dailyUsd === null ? null : ((reward.dailyUsd * 365) / EXAMPLE_STAKE_USD) * 100;
+        const boost = i.farm?.boostBps ?? 0n;
+        return {
+            token: t.token.toLowerCase(),
+            symbol: t.symbol,
+            reward,
+            supplyUsd,
+            dailyA,
+            dailyB,
+            yearlyUsd,
+            exampleApr,
+            exampleAprBoosted: exampleApr === null || boost === 0n ? null : exampleApr * (1 + Number(boost) / BPS)
+        };
+    });
+}
+
 // ------------------------------------------------------------------------------------------------ token price and cap
 
 export interface TokenMarket {
@@ -308,4 +386,104 @@ export function tokenMarket(i: {
     if (positive(i.explorerMarketCapUsd)) return { priceUsd, priceSource, marketCapUsd: i.explorerMarketCapUsd, marketCapSource: 'explorer' };
     if (priceUsd !== null && positive(i.supply)) return { priceUsd, priceSource, marketCapUsd: priceUsd * i.supply, marketCapSource: 'supply' };
     return { priceUsd, priceSource, marketCapUsd: null, marketCapSource: null };
+}
+
+// -------------------------------------------------------------------------------- token market over time
+
+export type MarketSource = 'explorer' | 'pools';
+
+/** What the page last learned about one token, and when it learned each part. Everything is "unknown" until read. */
+export interface MarketSnapshot {
+    explorerPriceUsd: number | null;
+    explorerMarketCapUsd: number | null;
+    /** Total supply in whole tokens, from the contract. */
+    supply: number | null;
+    /** Price derived from the pools' reserves at `poolsAt`. */
+    poolPriceUsd: number | null;
+    /** When the explorer / the pools were last read successfully (ms since epoch); null = never. */
+    explorerAt: number | null;
+    poolsAt: number | null;
+    /** Sources whose read failed in the latest round: their figures are the last good ones, not new ones. */
+    failed: MarketSource[];
+}
+
+export interface MarketView extends TokenMarket {
+    /** The sources the displayed price and market cap actually came from. */
+    usedSources: MarketSource[];
+    /** The oldest time among the used sources: how old the displayed numbers can be. null when nothing is displayed. */
+    asOf: number | null;
+    /** A source behind a displayed number failed on the latest round, so that number is being held, not refreshed. */
+    degraded: boolean;
+}
+
+/**
+ * The price and market cap to show, and how fresh they are. Same rules as `tokenMarket` (explorer first, then pools,
+ * cap = price x supply when the explorer has none; an unknown stays null, never 0), plus the timestamps of the sources
+ * that were used, so the page can say "updated 12 s ago" about exactly the numbers it shows.
+ */
+export function tokenMarketView(s: MarketSnapshot | null): MarketView {
+    if (!s) return { priceUsd: null, priceSource: null, marketCapUsd: null, marketCapSource: null, usedSources: [], asOf: null, degraded: false };
+    const m = tokenMarket({
+        explorerPriceUsd: s.explorerPriceUsd,
+        explorerMarketCapUsd: s.explorerMarketCapUsd,
+        poolPriceUsd: s.poolPriceUsd,
+        supply: s.supply
+    });
+    const used = new Set<MarketSource>();
+    if (m.priceSource === 'explorer') used.add('explorer');
+    if (m.priceSource === 'pools') used.add('pools');
+    // an explorer cap is the explorer's; a computed cap rests on the price (the supply is the contract's, which does not move)
+    if (m.marketCapSource === 'explorer') used.add('explorer');
+    const stamps = [...used].map(u => (u === 'explorer' ? s.explorerAt : s.poolsAt));
+    const known = stamps.filter((t): t is number => t !== null);
+    // a used source that has never been read cannot be dated: say so (null) instead of borrowing another's time
+    const asOf = used.size === 0 || known.length !== stamps.length ? null : Math.min(...known);
+    return { ...m, usedSources: [...used], asOf, degraded: [...used].some(u => s.failed.includes(u)) };
+}
+
+/** What one polling round learned from each source. A source that was not reached is { ok: false }. */
+export interface MarketRound {
+    explorer:
+        | { ok: true; priceUsd: number | null; marketCapUsd: number | null; supply: number | null; at: number | null; failedLatest: boolean }
+        | { ok: false };
+    pools: { ok: true; priceUsd: number | null; at: number } | { ok: false };
+}
+
+/**
+ * Fold one polling round into the snapshot the page holds. A source that answered replaces its figures and its
+ * timestamp; one that did not keeps the last good figures and the time they were read, and is listed in `failed`, so
+ * a failing source can neither blank a number nor make an old one look new. Returns null when no source answered:
+ * that round learned nothing, and the caller should treat it as a failed poll (keep what it has, back off).
+ */
+export function nextMarketSnapshot(previous: MarketSnapshot | null, round: MarketRound): MarketSnapshot | null {
+    const prev: MarketSnapshot = previous ?? {
+        explorerPriceUsd: null,
+        explorerMarketCapUsd: null,
+        supply: null,
+        poolPriceUsd: null,
+        explorerAt: null,
+        poolsAt: null,
+        failed: []
+    };
+    const failed: MarketSource[] = [];
+    const next: MarketSnapshot = { ...prev, failed };
+
+    if (round.explorer.ok) {
+        next.explorerPriceUsd = round.explorer.priceUsd;
+        next.explorerMarketCapUsd = round.explorer.marketCapUsd;
+        next.supply = round.explorer.supply ?? prev.supply;
+        next.explorerAt = round.explorer.at ?? prev.explorerAt;
+        if (round.explorer.failedLatest) failed.push('explorer');
+    } else {
+        failed.push('explorer');
+    }
+
+    if (round.pools.ok) {
+        next.poolPriceUsd = round.pools.priceUsd;
+        next.poolsAt = round.pools.at;
+    } else {
+        failed.push('pools');
+    }
+
+    return failed.length === 2 ? null : next;
 }

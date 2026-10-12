@@ -350,6 +350,22 @@ export async function readUserPositions(batch: FarmBatch, farm: FarmState, user:
   return out;
 }
 
+/**
+ * What a wallet holds of each token (one round trip), for the tokens a page wants to show a balance for even though
+ * the farm has no pool for them. A token whose read fails is omitted, never zeroed.
+ */
+export async function readWalletBalances(batch: FarmBatch, tokens: readonly string[], user: string): Promise<Record<string, bigint>> {
+  const unique = [...new Set(tokens.map(t => t.toLowerCase()))];
+  if (unique.length === 0) return {};
+  const raw = await batch(unique.map(t => ({ to: t, data: callData(TOKEN_SELECTORS.balanceOf, addressWord(user)) })));
+  const out: Record<string, bigint> = {};
+  unique.forEach((t, i) => {
+    const v = uintOf(first(raw[i]));
+    if (v !== undefined) out[t] = v;
+  });
+  return out;
+}
+
 export interface PairInfo {
   lpToken: string;
   /** Present only for a two-token LP. A single-asset pool has neither. */
@@ -605,6 +621,8 @@ export interface FarmTokenInfo {
   decimals: number;
   priceUsd?: number;
   iconUrl?: string;
+  /** Total supply in base units, read from the contract. Only used to size a single-token pool's "if everyone deposited". */
+  totalSupply?: bigint;
 }
 
 export interface FarmRow {
@@ -621,6 +639,11 @@ export interface FarmRow {
   totalStaked: bigint;
   /** Decimals of the staked token (18 for an LP). */
   stakeDecimals: number;
+  /**
+   * False for a single token whose decimals could not be read from its contract: `stakeDecimals` is then a placeholder
+   * and no amount of that token may be parsed or shown with it.
+   */
+  stakeDecimalsKnown: boolean;
   /** Value of everything staked in this pool, USD; undefined when a price is missing. */
   tvlUsd?: number;
   /** Reward APR in percent from the current emission, before any Qrb boost. Undefined when it cannot be known. */
@@ -678,6 +701,7 @@ export function buildFarmRows(i: BuildRowsInput): { rows: FarmRow[]; summary: Fa
     const t1 = isLp ? tok(pair!.token1) : undefined;
     const single = !isLp ? tok(pool.lpToken) : undefined;
     const stakeDecimals = isLp ? LP_DECIMALS : single?.decimals ?? LP_DECIMALS;
+    const stakeDecimalsKnown = isLp || single?.decimals !== undefined;
 
     const short = (a?: string) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '?');
     const label = isLp
@@ -733,6 +757,7 @@ export function buildFarmRows(i: BuildRowsInput): { rows: FarmRow[]; summary: Fa
       sharePct: pool.sharePct,
       totalStaked: pool.totalStaked,
       stakeDecimals,
+      stakeDecimalsKnown,
       tvlUsd,
       aprA: apr.aprA,
       aprB: apr.aprB,
@@ -766,6 +791,62 @@ export function buildFarmRows(i: BuildRowsInput): { rows: FarmRow[]; summary: Fa
     poolsWithStake: mine.length
   };
   return { rows, summary };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Single-token pools: stake Q0 or BDELTA itself
+// ---------------------------------------------------------------------------------------------
+
+/** A single-token pool the project plans to run (structurally the registry's SingleStakePlan). */
+export interface PlannedSinglePool {
+  /** Address of the token that is deposited (any case). */
+  stakeToken: string;
+  symbol: string;
+  /** The weight the deploy flow plans for it. */
+  allocPoint: bigint;
+}
+
+export interface SingleStakeCandidate {
+  stakeToken: string;
+  symbol: string;
+  allocPoint: bigint;
+  /** IN_FARM: the farm already has a pool for this token. NOT_IN_FARM: its owner has not added it yet. */
+  state: 'IN_FARM' | 'NOT_IN_FARM';
+  pid: number | null;
+}
+
+/**
+ * For each single-token pool in the plan: is it in the deployed farm, or still to be added? The answer comes from the
+ * farm's own pool list (the plan's pool ids mean nothing on a live farm), compared by token address, so a pool added
+ * at any position, with any weight, counts. A token listed twice in the plan is one candidate.
+ */
+export function singleStakeCandidates(farm: Pick<FarmState, 'pools'>, planned: readonly PlannedSinglePool[]): SingleStakeCandidate[] {
+  const seen = new Set<string>();
+  const out: SingleStakeCandidate[] = [];
+  for (const p of planned) {
+    const token = p.stakeToken.toLowerCase();
+    if (seen.has(token)) continue;
+    seen.add(token);
+    const live = farm.pools.find(pool => pool.lpToken.toLowerCase() === token);
+    out.push({
+      stakeToken: token,
+      symbol: p.symbol,
+      allocPoint: p.allocPoint,
+      state: live ? 'IN_FARM' : 'NOT_IN_FARM',
+      pid: live ? live.pid : null
+    });
+  }
+  return out;
+}
+
+/** What a pool is called on the page: "Stake Q0" for a single token, "BDELTA / WQUAI" for a pair. */
+export function poolTitle(row: Pick<FarmRow, 'kind' | 'label'>): string {
+  return row.kind === 'SINGLE' ? `Stake ${row.label}` : row.label;
+}
+
+/** "Earn BDELTA + Q0": the plain-language line under a pool's name. Both rewards are paid by every pool. */
+export function earnsLine(rewardSymbolA: string, rewardSymbolB: string): string {
+  return `Earn ${rewardSymbolA} + ${rewardSymbolB}`;
 }
 
 /**

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AlertTriangle, CheckCircle2, Coins, KeyRound, PauseCircle, PlayCircle, RefreshCw, ShieldCheck, Sprout, Wrench } from 'lucide-react';
 import {
+  SINGLE_STAKE_POOLS,
   TOKEN_SELECTORS,
   analyzePairs,
   batchQuaiCall,
@@ -19,6 +20,7 @@ import {
   readFarmState,
   readPairs,
   runwaySeconds,
+  singleStakeCandidates,
   tryParseUnits,
   SECONDS_PER_DAY,
   POOL_COUNT_MAX,
@@ -28,11 +30,13 @@ import {
   type FarmState,
   type FarmTokenInfo,
   type PairAnalysis,
-  type PairInfo
+  type PairInfo,
+  type SingleStakeCandidate
 } from 'quai-service';
 import { AddrLink, Badge, CopyButton, Field, Notice, Spinner, box, input, muted, smallBtn } from './ui';
 import { describeTxError, sendContractCall } from './farmSend';
 import { formatUsd } from './TokenPicker';
+import './singleStake.css';
 
 interface Props {
   farm: FarmState;
@@ -226,9 +230,53 @@ export default function FarmAdminPanel({ farm, rows, tokens, rewards, wallet, is
     return checkAddPool({ lpToken: p.pair, allocPoint: a, farm, isContract: true, pair: pairInfoOf(p), isFactoryPool: true });
   };
 
+  // Single-token pools in the plan (stake Q0 or BDELTA itself) that the deployed farm does not have yet. The plan's
+  // weights are only the starting value of the input; whether a pool is in the farm is read from the farm.
+  const singles = useMemo(() => singleStakeCandidates(farm, SINGLE_STAKE_POOLS).filter(c => c.state === 'NOT_IN_FARM'), [farm]);
+  const singleKey = singles.map(c => c.stakeToken).join(',');
+  const [singleCode, setSingleCode] = useState<Record<string, boolean | undefined>>({});
+  useEffect(() => {
+    let live = true;
+    setSingleCode({});
+    if (!singleKey) return;
+    void (async () => {
+      try {
+        const dep = await import('quai-service/deploy');
+        const found: Record<string, boolean> = {};
+        for (const token of singleKey.split(',')) {
+          const code = await quaiRpcCall('quai_getCode', [dep.checksum(token), 'latest']);
+          found[token] = Boolean(code) && code !== '0x';
+        }
+        if (live) setSingleCode(found);
+      } catch {
+        /* stays unknown: adding is held until the token contract is confirmed */
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [singleKey]);
+
+  const singleAllocOf = (token: string): bigint | null =>
+    tryParseUnits(allocText[token] ?? (SINGLE_STAKE_POOLS.find(p => p.stakeToken === token)?.allocPoint ?? 100n).toString(), 0);
+  const singleSymbol = (c: SingleStakeCandidate) => tokens[c.stakeToken]?.symbol ?? c.symbol;
+  const singleChecks = (c: SingleStakeCandidate): Check[] => {
+    const a = singleAllocOf(c.stakeToken);
+    if (a === null) return [{ level: 'error', code: 'ALLOC_NOT_A_NUMBER', message: 'Allocation must be a whole number.' }];
+    if (singleCode[c.stakeToken] === undefined) return [{ level: 'error', code: 'CHECKING_TOKEN', message: 'Checking the token contract…' }];
+    return checkAddPool({ lpToken: c.stakeToken, allocPoint: a, farm, isContract: singleCode[c.stakeToken] === true });
+  };
+
   const chosen = candidates.filter(c => picked[c.pair.toLowerCase()]);
-  const chosenErrors = chosen.some(c => hasErrors(candidateChecks(c)));
-  const newTotal = chosen.reduce((s, c) => s + (allocOf(c.pair) ?? 0n), 0n);
+  const chosenSingles = singles.filter(c => picked[c.stakeToken]);
+  // one list for both kinds, so a single transaction batch, one total and one button cover everything ticked
+  interface AddItem { label: string; token: string; alloc: bigint | null; pair?: PairInfo; isFactoryPool?: boolean }
+  const addItems: AddItem[] = [
+    ...chosen.map<AddItem>(c => ({ label: `${c.token0.symbol || '?'} / ${c.token1.symbol || '?'}`, token: c.pair, alloc: allocOf(c.pair), pair: pairInfoOf(c), isFactoryPool: true })),
+    ...chosenSingles.map<AddItem>(c => ({ label: `${singleSymbol(c)} (single token)`, token: c.stakeToken, alloc: singleAllocOf(c.stakeToken) }))
+  ];
+  const chosenErrors = chosen.some(c => hasErrors(candidateChecks(c))) || chosenSingles.some(c => hasErrors(singleChecks(c)));
+  const newTotal = addItems.reduce((s, c) => s + (c.alloc ?? 0n), 0n);
   const totalAfter = farm.totalAllocPoint + newTotal;
   const shareAfter = (alloc: bigint) => (totalAfter === 0n ? 0 : Number((alloc * 1_000_000n) / totalAfter) / 10_000);
 
@@ -240,17 +288,17 @@ export default function FarmAdminPanel({ farm, rows, tokens, rewards, wallet, is
     const added: string[] = [];
     const skipped: string[] = [];
     try {
-      for (const c of chosen) {
+      for (const item of addItems) {
         // The contract accepts a duplicate pool; the page must not. Re-read the farm before every add.
         const fresh = await readFarmState(batch, farm.address);
-        const alloc = allocOf(c.pair)!;
-        const checks = checkAddPool({ lpToken: c.pair, allocPoint: alloc, farm: fresh, isContract: true, pair: pairInfoOf(c), isFactoryPool: true });
-        const label = `${c.token0.symbol || '?'} / ${c.token1.symbol || '?'}`;
+        const alloc = item.alloc!;
+        const checks = checkAddPool({ lpToken: item.token, allocPoint: alloc, farm: fresh, isContract: true, pair: item.pair, isFactoryPool: item.isFactoryPool });
+        const label = item.label;
         if (hasErrors(checks)) {
           skipped.push(`${label}: ${checks.find(k => k.level === 'error')!.message}`);
           continue;
         }
-        await sendContractCall(wallet!, farm.address, farmTx.addPool(alloc, c.pair), { gasMultiplier: 1.5 });
+        await sendContractCall(wallet!, farm.address, farmTx.addPool(alloc, item.token), { gasMultiplier: 1.5 });
         added.push(label);
       }
       setPicked({});
@@ -426,7 +474,7 @@ export default function FarmAdminPanel({ farm, rows, tokens, rewards, wallet, is
       <Section
         icon={<Sprout size={18} />}
         title="Add pools"
-        hint="Every pair the Circleswap factory lists that is not farming yet. Tick the ones to add, set a reward weight, and sign once per pool."
+        hint="Every pair the Circleswap factory lists that is not farming yet, and the single-token pools (stake Q0 or BDELTA itself). Tick the ones to add, set a reward weight, and sign once per pool."
       >
         {discovery.state === 'loading' && <div style={{ ...muted, fontSize: '0.85rem' }}><Spinner /> Listing the AMM's pairs…</div>}
         {discovery.state === 'error' && <Notice tone="danger">{discovery.error} <button type="button" style={smallBtn} onClick={() => void discover()}>Retry</button></Notice>}
@@ -468,18 +516,57 @@ export default function FarmAdminPanel({ farm, rows, tokens, rewards, wallet, is
                 </div>
               );
             })}
-            {chosen.length > 0 && (
-              <>
-                <Notice tone="info">
-                  Adding {chosen.length} pool{chosen.length === 1 ? '' : 's'} with {newTotal.toString()} new weight changes every existing pool's share: they keep their weights, but the total grows from {farm.totalAllocPoint.toString()} to {totalAfter.toString()}.
-                </Notice>
-                <button type="button" className="btn-primary" disabled={busy !== null || chosenErrors || !isOwner} onClick={() => void addChosen()}>
-                  {busy === 'addpools' ? <><Spinner /> Adding…</> : `Add ${chosen.length} pool${chosen.length === 1 ? '' : 's'}`}
-                </button>
-                {!isOwner && <small style={{ ...muted, marginLeft: '0.6rem' }}>Only the owner can send this.</small>}
-                {chosen.length === 1 && allocOf(chosen[0].pair) !== null && <Calldata to={farm.address} data={farmTx.addPool(allocOf(chosen[0].pair)!, chosen[0].pair)} label="addPool(weight, pair)" />}
-              </>
-            )}
+          </>
+        )}
+
+        {singles.length > 0 && (
+          <>
+            <p style={{ ...muted, fontSize: '0.8rem', margin: '0.9rem 0 0.5rem' }}>
+              Single-token pools &middot; deposit the token itself and earn {rewards.a.symbol} + {rewards.b.symbol} &middot; {singles.length} not in the farm yet
+            </p>
+            {singles.map(c => {
+              const key = c.stakeToken;
+              const checks = singleChecks(c);
+              const errs = checks.filter(k => k.level === 'error');
+              const isPicked = Boolean(picked[key]);
+              const alloc = singleAllocOf(key);
+              const sym = singleSymbol(c);
+              return (
+                <div key={key} className="farm-candidate farm-candidate-single">
+                  <label className="farm-candidate-head">
+                    <input type="checkbox" checked={isPicked} onChange={e => setPicked(p => ({ ...p, [key]: e.target.checked }))} disabled={errs.some(k => k.code !== 'ALLOC_NOT_A_NUMBER')} />
+                    <strong>Stake {sym}</strong>
+                    <Badge severity="neutral">Single token</Badge>
+                    <span style={muted}>Earn {rewards.a.symbol} + {rewards.b.symbol}</span>
+                    <AddrLink address={key} />
+                  </label>
+                  {isPicked && (
+                    <div className="farm-candidate-body">
+                      <Field label="Reward weight" hint={alloc !== null ? `Becomes ${shareAfter(alloc).toFixed(1)}% of all rewards once the ticked pools are added` : undefined}>
+                        <input style={{ ...input, maxWidth: '10rem', fontFamily: 'monospace' }} inputMode="numeric" value={allocText[key] ?? c.allocPoint.toString()} onChange={e => setAllocText(t => ({ ...t, [key]: e.target.value }))} />
+                      </Field>
+                      <Checks checks={checks.filter(k => k.code !== 'SINGLE_ASSET')} />
+                    </div>
+                  )}
+                  {!isPicked && errs.length > 0 && errs[0].code !== 'ALLOC_NOT_A_NUMBER' && (
+                    <small style={muted}>{errs[0].message}</small>
+                  )}
+                </div>
+              );
+            })}
+          </>
+        )}
+
+        {addItems.length > 0 && (
+          <>
+            <Notice tone="info">
+              Adding {addItems.length} pool{addItems.length === 1 ? '' : 's'} with {newTotal.toString()} new weight changes every existing pool's share: they keep their weights, but the total grows from {farm.totalAllocPoint.toString()} to {totalAfter.toString()}.
+            </Notice>
+            <button type="button" className="btn-primary" disabled={busy !== null || chosenErrors || !isOwner} onClick={() => void addChosen()}>
+              {busy === 'addpools' ? <><Spinner /> Adding…</> : `Add ${addItems.length} pool${addItems.length === 1 ? '' : 's'}`}
+            </button>
+            {!isOwner && <small style={{ ...muted, marginLeft: '0.6rem' }}>Only the owner can send this.</small>}
+            {addItems.length === 1 && addItems[0].alloc !== null && <Calldata to={farm.address} data={farmTx.addPool(addItems[0].alloc, addItems[0].token)} label={addItems[0].pair ? 'addPool(weight, pair)' : 'addPool(weight, token)'} />}
           </>
         )}
 

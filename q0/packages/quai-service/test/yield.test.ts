@@ -3,15 +3,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  EXAMPLE_STAKE_USD,
   SWAP_TOPIC,
   THIN_LIQUIDITY_USD,
   assumedWeightOf,
+  buildSingleStakeYields,
   buildYieldRows,
   decodeSwapLogs,
+  nextMarketSnapshot,
   feeApr,
   projectReward,
   tokenMarket,
+  tokenMarketView,
   tokenPricesUsd,
+  type MarketRound,
+  type MarketSnapshot,
   type YieldFarmInput
 } from '../src/yield.ts';
 
@@ -241,3 +247,255 @@ test('tokenMarket: no price or no supply means no market cap, never 0', () => {
   assert.equal(tokenMarket({ poolPriceUsd: Number.NaN, supply: 10 }).priceUsd, null);
 });
 
+
+// ---- single-token pools --------------------------------------------------------------------------------------------
+
+const TOKEN_Q0 = { token: T_Q0, symbol: 'Q0', priceUsd: 0.1 as number | null, supply: 1_000_000 as number | null, stakedUsd: null as number | null };
+const TOKEN_BD = { token: T_BDELTA, symbol: 'BDELTA', priceUsd: 0.5 as number | null, supply: 100_000 as number | null, stakedUsd: null as number | null };
+
+test('single-token pools use projectReward: an unfarmed token gets the assumed share and is a projection', () => {
+  // empty farm, two tokens waiting, no LP waiting: each gets 100 of 200
+  const rows = buildSingleStakeYields({ farm: farm(), tokens: [TOKEN_Q0, TOKEN_BD], otherUnfarmed: 0 });
+  assert.equal(rows.length, 2);
+  for (const r of rows) {
+    assert.equal(r.reward.status, 'NOT_FARMING');
+    assert.equal(r.reward.sharePct, 50);
+    assert.equal(r.reward.projected, true);
+    assert.equal(r.reward.basis, 'if-fully-staked');
+  }
+  // the whole farm: 0.01 BDELTA/s * 86400 * $0.5 = $432/day; half of it is this pool's
+  const q0 = rows[0];
+  assert.ok(Math.abs(q0.reward.dailyUsd! - 216) < 1e-6);
+  assert.ok(Math.abs(q0.yearlyUsd! - 216 * 365) < 1e-6);
+  // measured against the token's whole supply (1,000,000 Q0 * $0.1): the floor
+  assert.equal(q0.supplyUsd, 100_000);
+  assert.ok(Math.abs(q0.reward.apr! - ((216 * 365) / 100_000) * 100) < 1e-6);
+  // an example deposit, alone: $216 a day on $1,000
+  assert.ok(Math.abs(q0.exampleApr! - ((216 * 365) / EXAMPLE_STAKE_USD) * 100) < 1e-6);
+  assert.ok(Math.abs(q0.exampleAprBoosted! - q0.exampleApr! * 1.5) < 1e-6);
+  // tokens per day at that share
+  assert.ok(Math.abs(q0.dailyA! - 0.01 * 86_400 * 0.5) < 1e-9);
+  assert.equal(q0.dailyB, 0); // B is not emitted in this fixture
+});
+
+test('single-token shares assume the same thing the pairs do: everything not in the farm joins together', () => {
+  // 3 LP pools also waiting + 2 tokens = 5 pools at 100 each
+  const rows = buildSingleStakeYields({ farm: farm(), tokens: [TOKEN_Q0, TOKEN_BD], otherUnfarmed: 3 });
+  assert.equal(rows[0].reward.sharePct, 20);
+  // and the pairs on the board count the tokens too, so their shares come out the same 20%
+  const board = buildYieldRows({
+    analyses: [analysis(PAIR_A, 1000), analysis(PAIR_B, 1000), analysis('0x00cccccccccccccccccccccccccccccccccccc03', 1000)],
+    volumes: null,
+    windowSeconds: WEEK,
+    quaiUsd: 1,
+    farm: farm(),
+    lpFeeBps: FEES,
+    extraUnfarmed: 2
+  });
+  for (const row of board) assert.equal(row.reward.sharePct, 20);
+});
+
+test('extraUnfarmed defaults to nothing and changes no existing share', () => {
+  const base = { analyses: [analysis(PAIR_A, 1000)], volumes: null, windowSeconds: WEEK, quaiUsd: 1, farm: farm(), lpFeeBps: FEES };
+  assert.equal(buildYieldRows(base)[0].reward.sharePct, 100);
+  assert.equal(buildYieldRows({ ...base, extraUnfarmed: 0 })[0].reward.sharePct, 100);
+  assert.equal(buildYieldRows({ ...base, extraUnfarmed: 1 })[0].reward.sharePct, 50);
+});
+
+test('a single-token pool already in the farm uses its real share and what is staked', () => {
+  const f = farm({
+    totalAllocPoint: 300n,
+    pools: [
+      { pid: 0, lpToken: PAIR_A, allocPoint: 200n, totalStaked: 0n },
+      { pid: 1, lpToken: T_Q0, allocPoint: 100n, totalStaked: 500n * E18 }
+    ]
+  });
+  const [r] = buildSingleStakeYields({ farm: f, tokens: [{ ...TOKEN_Q0, stakedUsd: 50 }], otherUnfarmed: 0 });
+  assert.equal(r.reward.status, 'FARMING');
+  assert.equal(r.reward.pid, 1);
+  assert.ok(Math.abs(r.reward.sharePct! - 100 / 3) < 1e-3);
+  assert.equal(r.reward.basis, 'staked');
+  assert.equal(r.reward.projected, false);
+});
+
+test('single-token pool: an unpriced token or an unreadable supply leaves the APR unknown, never 0 or infinite', () => {
+  const noPrice = buildSingleStakeYields({ farm: farm(), tokens: [{ ...TOKEN_Q0, priceUsd: null }], otherUnfarmed: 0 })[0];
+  assert.equal(noPrice.supplyUsd, null);
+  assert.equal(noPrice.reward.apr, null);
+  // the pool's own reward value does not depend on the staked token's price
+  assert.ok(noPrice.yearlyUsd! > 0);
+  const noSupply = buildSingleStakeYields({ farm: farm(), tokens: [{ ...TOKEN_Q0, supply: null }], otherUnfarmed: 0 })[0];
+  assert.equal(noSupply.supplyUsd, null);
+  assert.equal(noSupply.reward.apr, null);
+  assert.equal(buildSingleStakeYields({ farm: farm(), tokens: [{ ...TOKEN_Q0, supply: 0 }], otherUnfarmed: 0 })[0].supplyUsd, null);
+});
+
+test('single-token pool: no farm means no projection at all', () => {
+  const [r] = buildSingleStakeYields({ farm: null, tokens: [TOKEN_Q0], otherUnfarmed: 0 });
+  assert.equal(r.reward.status, 'NO_FARM');
+  assert.equal(r.yearlyUsd, null);
+  assert.equal(r.exampleApr, null);
+  assert.equal(r.dailyA, null);
+});
+
+test('single-token pool: an emitted reward with no price makes the pool value unknown', () => {
+  const [r] = buildSingleStakeYields({ farm: farm({ rewardBPerSecond: E18, priceUsdB: undefined }), tokens: [TOKEN_Q0], otherUnfarmed: 0 });
+  assert.equal(r.yearlyUsd, null);
+  assert.equal(r.exampleApr, null);
+});
+
+// ---- a token's market over time (the QRB page polls this) ---------------------------------------------------------------
+
+const snap = (over: Partial<MarketSnapshot> = {}): MarketSnapshot => ({
+  explorerPriceUsd: null,
+  explorerMarketCapUsd: null,
+  supply: 1,
+  poolPriceUsd: null,
+  explorerAt: null,
+  poolsAt: null,
+  failed: [],
+  ...over
+});
+
+test('tokenMarket: NaN, Infinity, zero and negative figures are not prices, so nothing is invented from them', () => {
+  const bad = [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 0, -1];
+  for (const v of bad) {
+    const m = tokenMarket({ explorerPriceUsd: v, explorerMarketCapUsd: v, poolPriceUsd: v, supply: 1 });
+    assert.deepEqual(m, { priceUsd: null, priceSource: null, marketCapUsd: null, marketCapSource: null });
+  }
+});
+
+test('tokenMarket: a bad explorer price falls through to the pools; an explorer cap still wins', () => {
+  const m = tokenMarket({ explorerPriceUsd: Number.NaN, explorerMarketCapUsd: 500, poolPriceUsd: 2, supply: 1 });
+  assert.equal(m.priceUsd, 2);
+  assert.equal(m.priceSource, 'pools');
+  assert.equal(m.marketCapUsd, 500);
+  assert.equal(m.marketCapSource, 'explorer');
+});
+
+test('tokenMarket: an unknown or empty supply gives no market cap rather than 0', () => {
+  assert.equal(tokenMarket({ poolPriceUsd: 5, supply: 0 }).marketCapUsd, null);
+  assert.equal(tokenMarket({ poolPriceUsd: 5, supply: null }).marketCapUsd, null);
+  assert.equal(tokenMarket({ poolPriceUsd: 5 }).marketCapUsd, null);
+});
+
+test('market view: nothing read yet is all unknown and nothing is degraded', () => {
+  const v = tokenMarketView(null);
+  assert.equal(v.priceUsd, null);
+  assert.equal(v.marketCapUsd, null);
+  assert.equal(v.asOf, null);
+  assert.equal(v.degraded, false);
+  assert.deepEqual(v.usedSources, []);
+});
+
+test('market view: a token only the pools price (QRB) is dated by the pools read', () => {
+  const v = tokenMarketView(snap({ poolPriceUsd: 4, supply: 1, poolsAt: 5_000, explorerAt: 1_000 }));
+  assert.equal(v.priceUsd, 4);
+  assert.equal(v.priceSource, 'pools');
+  assert.equal(v.marketCapUsd, 4);
+  assert.equal(v.marketCapSource, 'supply');
+  assert.deepEqual(v.usedSources, ['pools']);
+  assert.equal(v.asOf, 5_000, 'the explorer read, which supplied no figure, does not make it look fresher or older');
+});
+
+test('market view: explorer figures are dated by the explorer read', () => {
+  const v = tokenMarketView(snap({ explorerPriceUsd: 3, explorerMarketCapUsd: 90, poolPriceUsd: 4, poolsAt: 9_000, explorerAt: 2_000 }));
+  assert.equal(v.priceSource, 'explorer');
+  assert.equal(v.marketCapSource, 'explorer');
+  assert.deepEqual(v.usedSources, ['explorer']);
+  assert.equal(v.asOf, 2_000);
+});
+
+test('market view: a pool price with an explorer cap is as old as the older of the two reads', () => {
+  const v = tokenMarketView(snap({ explorerMarketCapUsd: 90, poolPriceUsd: 4, poolsAt: 9_000, explorerAt: 2_000 }));
+  assert.equal(v.priceSource, 'pools');
+  assert.equal(v.marketCapSource, 'explorer');
+  assert.equal(v.usedSources.length, 2);
+  assert.equal(v.asOf, 2_000);
+});
+
+test('market view: it is degraded only when a source behind a shown number failed in the latest round', () => {
+  const pools = snap({ poolPriceUsd: 4, poolsAt: 9_000, failed: ['pools'] });
+  assert.equal(tokenMarketView(pools).degraded, true, 'the pool price is a held value');
+  assert.equal(tokenMarketView({ ...pools, failed: ['explorer'] }).degraded, false, 'the explorer failing does not touch a pool price');
+  const explorer = snap({ explorerPriceUsd: 3, explorerAt: 1_000, failed: ['pools'] });
+  assert.equal(tokenMarketView(explorer).degraded, false);
+});
+
+test('market view: a used source that was never read has no date, and no price means nothing is dated', () => {
+  assert.equal(tokenMarketView(snap({ poolPriceUsd: 4, poolsAt: null })).asOf, null);
+  const none = tokenMarketView(snap({ poolsAt: 5_000, explorerAt: 5_000 }));
+  assert.equal(none.priceUsd, null);
+  assert.equal(none.asOf, null);
+  assert.equal(none.degraded, false);
+});
+
+// ---- folding one polling round into the held snapshot ----------------------------------------------------------------
+
+const ok = (over: Partial<Extract<MarketRound['explorer'], { ok: true }>> = {}): MarketRound['explorer'] => ({
+  ok: true,
+  priceUsd: null,
+  marketCapUsd: null,
+  supply: 1,
+  at: 100,
+  failedLatest: false,
+  ...over
+});
+
+test('round: both sources answer, so everything is replaced and dated', () => {
+  const s1 = nextMarketSnapshot(null, { explorer: ok({ priceUsd: 3, marketCapUsd: 3, at: 100 }), pools: { ok: true, priceUsd: 4, at: 200 } })!;
+  assert.equal(s1.explorerPriceUsd, 3);
+  assert.equal(s1.explorerMarketCapUsd, 3);
+  assert.equal(s1.supply, 1);
+  assert.equal(s1.poolPriceUsd, 4);
+  assert.equal(s1.explorerAt, 100);
+  assert.equal(s1.poolsAt, 200);
+  assert.deepEqual(s1.failed, []);
+});
+
+test('round: a failing pool read keeps the last pool price and the time it was read, and is listed', () => {
+  const held = nextMarketSnapshot(null, { explorer: ok(), pools: { ok: true, priceUsd: 4, at: 200 } })!;
+  const next = nextMarketSnapshot(held, { explorer: ok({ at: 300 }), pools: { ok: false } })!;
+  assert.equal(next.poolPriceUsd, 4, 'not blanked');
+  assert.equal(next.poolsAt, 200, 'and not re-dated');
+  assert.equal(next.explorerAt, 300);
+  assert.deepEqual(next.failed, ['pools']);
+});
+
+test('round: a failing explorer keeps its figures and time; a failed latest attempt is flagged even when the cache answered', () => {
+  const held = nextMarketSnapshot(null, { explorer: ok({ priceUsd: 3, at: 100 }), pools: { ok: true, priceUsd: 4, at: 200 } })!;
+  const down = nextMarketSnapshot(held, { explorer: { ok: false }, pools: { ok: true, priceUsd: 5, at: 400 } })!;
+  assert.equal(down.explorerPriceUsd, 3);
+  assert.equal(down.explorerAt, 100);
+  assert.equal(down.poolPriceUsd, 5);
+  assert.deepEqual(down.failed, ['explorer']);
+
+  const cooled = nextMarketSnapshot(held, { explorer: ok({ priceUsd: 3, at: 100, failedLatest: true }), pools: { ok: true, priceUsd: 5, at: 400 } })!;
+  assert.deepEqual(cooled.failed, ['explorer']);
+  assert.equal(cooled.explorerAt, 100);
+});
+
+test('round: when no source answered nothing was learned, so it is a failed poll (null), never a blank snapshot', () => {
+  const held = nextMarketSnapshot(null, { explorer: ok({ priceUsd: 3 }), pools: { ok: true, priceUsd: 4, at: 200 } })!;
+  assert.equal(nextMarketSnapshot(held, { explorer: { ok: false }, pools: { ok: false } }), null);
+  assert.equal(nextMarketSnapshot(null, { explorer: { ok: false }, pools: { ok: false } }), null);
+});
+
+test('round: an unreadable supply keeps the last known one; a price that disappeared from the explorer disappears', () => {
+  const held = nextMarketSnapshot(null, { explorer: ok({ priceUsd: 3, supply: 7 }), pools: { ok: true, priceUsd: 4, at: 200 } })!;
+  const next = nextMarketSnapshot(held, { explorer: ok({ priceUsd: null, supply: null, at: 500 }), pools: { ok: true, priceUsd: 4, at: 500 } })!;
+  assert.equal(next.supply, 7);
+  assert.equal(next.explorerPriceUsd, null, 'an explorer that stopped quoting a price is believed');
+  // and the view then falls back to the pools, dated by the pools
+  const v = tokenMarketView(next);
+  assert.equal(v.priceSource, 'pools');
+  assert.equal(v.asOf, 500);
+});
+
+test('round: a pool that no longer prices the token (price null) replaces the old price: it is a fresh answer, not a failure', () => {
+  const held = nextMarketSnapshot(null, { explorer: ok(), pools: { ok: true, priceUsd: 4, at: 200 } })!;
+  const next = nextMarketSnapshot(held, { explorer: ok(), pools: { ok: true, priceUsd: null, at: 600 } })!;
+  assert.equal(next.poolPriceUsd, null);
+  assert.equal(next.poolsAt, 600);
+  assert.deepEqual(next.failed, []);
+});

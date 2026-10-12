@@ -26,17 +26,22 @@ interface Props {
   onClose: () => void;
   /** Called after a transaction confirmed, so the page re-reads the farm. */
   onDone: () => void;
+  /** Opens the add-liquidity dialog: how a wallet gets the pool tokens of a pair. */
   onGetLp?: () => void;
+  /** Opens the swap tab: how a wallet gets a single token (Q0, BDELTA) to deposit. */
+  onGetToken?: () => void;
 }
 
 type Step = 'IDLE' | 'APPROVING' | 'SENDING' | 'DONE';
 
-export default function FarmActionModal({ mode, row, farm, wallet, rewards, onClose, onDone, onGetLp }: Props) {
+export default function FarmActionModal({ mode, row, farm, wallet, rewards, onClose, onDone, onGetLp, onGetToken }: Props) {
   const stake = mode === 'stake';
   const position = row.position;
   const decimals = row.stakeDecimals;
   const max = stake ? position?.walletBalance ?? 0n : position?.staked ?? 0n;
   const symbol = row.kind === 'LP' ? `${row.label} pool tokens` : row.label;
+  // A single token whose decimals the contract did not answer cannot be sized safely: no amount is parsed or sent.
+  const decimalsKnown = row.stakeDecimalsKnown;
 
   const [text, setText] = useState('');
   const [step, setStep] = useState<Step>('IDLE');
@@ -49,7 +54,7 @@ export default function FarmActionModal({ mode, row, farm, wallet, rewards, onCl
   const amount = useMemo(() => tryParseUnits(text, decimals), [text, decimals]);
   const busy = step === 'APPROVING' || step === 'SENDING';
   const tooMuch = amount !== null && amount > max;
-  const valid = amount !== null && amount > 0n && !tooMuch;
+  const valid = decimalsKnown && amount !== null && amount > 0n && !tooMuch;
   const paused = farm.paused;
 
   // Dust: an input with more places than the token has is refused rather than silently rounded.
@@ -120,6 +125,17 @@ export default function FarmActionModal({ mode, row, farm, wallet, rewards, onCl
       maxWidth={480}
       locked={busy}
     >
+      {row.kind !== 'LP' && (
+        <p style={{ ...muted, fontSize: '0.8rem', margin: '0 0 0.6rem' }}>
+          Deposit {row.label} itself. You earn {rewards.a.symbol} + {rewards.b.symbol} for as long as it is deposited, and you can take your {row.label} back at any time.
+        </p>
+      )}
+      {!decimalsKnown && (
+        <Notice tone="danger">
+          <AlertTriangle size={14} style={{ verticalAlign: 'middle', marginRight: '0.35rem' }} />
+          This token&apos;s contract did not say how many decimals it has, so an amount cannot be sized safely. Nothing is sent from here.
+        </Notice>
+      )}
       {stake && paused && (
         <Notice tone="warn">
           <AlertTriangle size={14} style={{ verticalAlign: 'middle', marginRight: '0.35rem' }} />
@@ -141,6 +157,15 @@ export default function FarmActionModal({ mode, row, farm, wallet, rewards, onCl
                 </button>
               </>
             )}
+            {stake && max === 0n && onGetToken && row.kind !== 'LP' && (
+              <>
+                {' '}
+                &middot;{' '}
+                <button type="button" style={{ ...smallBtn, padding: '0.1rem 0.45rem' }} onClick={onGetToken}>
+                  Get {row.label}
+                </button>
+              </>
+            )}
           </>
         }
       >
@@ -150,11 +175,11 @@ export default function FarmActionModal({ mode, row, farm, wallet, rewards, onCl
             inputMode="decimal"
             placeholder="0.0"
             value={text}
-            disabled={busy}
+            disabled={busy || !decimalsKnown}
             onChange={e => setText(e.target.value)}
             aria-label="Amount"
           />
-          <button type="button" style={smallBtn} disabled={busy || max === 0n} onClick={() => setText(formatUnits(max, decimals, decimals))}>
+          <button type="button" style={smallBtn} disabled={busy || max === 0n || !decimalsKnown} onClick={() => setText(formatUnits(max, decimals, decimals))}>
             MAX
           </button>
         </div>

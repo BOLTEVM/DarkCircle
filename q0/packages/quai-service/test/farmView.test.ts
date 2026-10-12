@@ -4,6 +4,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildFarmRows,
+  earnsLine,
+  poolTitle,
+  readWalletBalances,
+  singleStakeCandidates,
   tryParseUnits,
   ratePerSecondFromDaily,
   runwaySeconds,
@@ -180,4 +184,84 @@ test('runway counts the largest boost and is "never" with no emission', () => {
   assert.equal(runwaySeconds(1000n, 0n), null);
   assert.equal(runwaySeconds(1000n, 10n), 100);
   assert.equal(runwaySeconds(1500n, 10n, 5000n), 100); // burns 15/s at +50%
+});
+
+// ---- single-token pools (stake Q0 or BDELTA itself) ------------------------------------------------------------------
+
+const PLAN = [
+  { stakeToken: A.toUpperCase().replace('0X', '0x'), symbol: 'BDELTA', allocPoint: 100n },
+  { stakeToken: B, symbol: 'Q0', allocPoint: 100n },
+  { stakeToken: B.toUpperCase().replace('0X', '0x'), symbol: 'Q0 again', allocPoint: 7n }
+];
+
+test('single-token candidates: a planned token the farm has not added is NOT_IN_FARM, one it has is IN_FARM with its real pid', () => {
+  const empty = farm({ pools: [], totalAllocPoint: 0n });
+  const none = singleStakeCandidates(empty, PLAN);
+  assert.deepEqual(none.map(c => [c.symbol, c.state, c.pid]), [['BDELTA', 'NOT_IN_FARM', null], ['Q0', 'NOT_IN_FARM', null]]);
+  // added in any position and in any case: found by address, never by the plan's own pid
+  const live = farm({
+    pools: [
+      { pid: 0, lpToken: LP, allocPoint: 200n, lastRewardTime: 0n, accRewardAPerShare: 0n, accRewardBPerShare: 0n, totalStaked: 0n, sharePct: 50 },
+      { pid: 1, lpToken: B, allocPoint: 200n, lastRewardTime: 0n, accRewardAPerShare: 0n, accRewardBPerShare: 0n, totalStaked: 0n, sharePct: 50 }
+    ]
+  });
+  const some = singleStakeCandidates(live, PLAN);
+  assert.deepEqual(some.map(c => [c.symbol, c.state, c.pid]), [['BDELTA', 'NOT_IN_FARM', null], ['Q0', 'IN_FARM', 1]]);
+});
+
+test('single-token candidates: a token listed twice in the plan is one candidate (the first wins)', () => {
+  const out = singleStakeCandidates(farm({ pools: [] }), PLAN);
+  assert.equal(out.filter(c => c.stakeToken === B).length, 1);
+  assert.equal(out.find(c => c.stakeToken === B)!.allocPoint, 100n);
+});
+
+test('a single-token pool is titled "Stake Q0" with a plain "Earn BDELTA + Q0" line; a pair keeps its name', () => {
+  assert.equal(poolTitle({ kind: 'SINGLE', label: 'Q0' }), 'Stake Q0');
+  assert.equal(poolTitle({ kind: 'LP', label: 'BDELTA / WQUAI' }), 'BDELTA / WQUAI');
+  assert.equal(earnsLine('BDELTA', 'Q0'), 'Earn BDELTA + Q0');
+});
+
+test('a single token whose decimals could not be read is flagged, so no amount of it is scaled by a guess', () => {
+  const f2 = farm({ pools: [{ pid: 0, lpToken: SOLO, allocPoint: 100n, lastRewardTime: 0n, accRewardAPerShare: 0n, accRewardBPerShare: 0n, totalStaked: 5n, sharePct: 100 }] });
+  const unknown = buildFarmRows({ farm: f2, pairs: {}, tokens: {} }).rows[0];
+  assert.equal(unknown.kind, 'SINGLE');
+  assert.equal(unknown.stakeDecimalsKnown, false);
+  const known = buildFarmRows({ farm: f2, pairs: {}, tokens }).rows[0];
+  assert.equal(known.stakeDecimalsKnown, true);
+  assert.equal(known.stakeDecimals, 6);
+  // an LP's decimals are the AMM's own 18
+  const lp = buildFarmRows({ farm: farm(), pairs: { [LP]: pair }, tokens }).rows[0];
+  assert.equal(lp.stakeDecimalsKnown, true);
+});
+
+test('single-token pool APR: the staked token is valued at its own price, and the yield follows its share', () => {
+  const f2 = farm({
+    pools: [{ pid: 0, lpToken: A, allocPoint: 100n, lastRewardTime: 0n, accRewardAPerShare: 0n, accRewardBPerShare: 0n, totalStaked: 1000n * E18, sharePct: 100 }],
+    totalAllocPoint: 100n
+  });
+  const { rows } = buildFarmRows({ farm: f2, pairs: {}, tokens });
+  const r = rows[0];
+  assert.equal(r.kind, 'SINGLE');
+  assert.equal(r.label, 'BDELTA');
+  assert.ok(Math.abs(r.tvlUsd! - 500) < 1e-9); // 1000 BDELTA * $0.5
+  const yearlyA = 0.001 * 31_536_000 * 0.5;
+  const yearlyB = 0.01 * 31_536_000 * 0.1;
+  assert.ok(Math.abs(r.aprTotal! - ((yearlyA + yearlyB) / 500) * 100) < 1e-6);
+});
+
+test('readWalletBalances: one balance per token, an unreadable one is omitted rather than zeroed', async () => {
+  const calls: { to: string; data: string }[][] = [];
+  const out = await readWalletBalances(
+    async c => {
+      calls.push(c);
+      return ['0x' + (5n * E18).toString(16).padStart(64, '0'), undefined];
+    },
+    [A, B, A.toUpperCase().replace('0X', '0x')],
+    '0x005c0faa361ae7c4a473343ef24bae4d1379e638'
+  );
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].length, 2); // de-duplicated
+  assert.equal(out[A], 5n * E18);
+  assert.equal(B in out, false);
+  assert.deepEqual(await readWalletBalances(async () => [], [], '0x005c0faa361ae7c4a473343ef24bae4d1379e638'), {});
 });

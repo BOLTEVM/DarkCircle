@@ -4,6 +4,7 @@ import {
   readFarmState,
   readPairs,
   readUserPositions,
+  readWalletBalances,
   type FarmBatch,
   type FarmPosition,
   type FarmState,
@@ -22,6 +23,11 @@ export interface FarmData {
   pairs: Record<string, PairInfo>;
   /** The wallet's position in every readable pool; undefined while no wallet is connected. */
   positions: FarmPosition[] | undefined;
+  /**
+   * What the wallet holds of each `extraTokens` token (lower-case address): the single tokens a page lists before the
+   * farm has a pool for them. Empty without a wallet; a token whose read failed is absent, never 0.
+   */
+  balances: Record<string, bigint>;
   status: FarmStatus;
   /** Set when the last read failed. The previous good data stays on screen, labelled with `updatedAt`. */
   error: string | null;
@@ -35,15 +41,19 @@ export interface FarmData {
  * Re-reads every 30 s while the tab is visible and on demand after a transaction. A failed re-read keeps the last good
  * numbers and says so; a first read that fails shows an error, not zeros.
  */
-export function useFarm(farmAddress: string | null, wallet: string | null): FarmData {
+const NO_TOKENS: readonly string[] = [];
+
+export function useFarm(farmAddress: string | null, wallet: string | null, extraTokens: readonly string[] = NO_TOKENS): FarmData {
   const [farm, setFarm] = useState<FarmState | null>(null);
   const [pairs, setPairs] = useState<Record<string, PairInfo>>({});
   const [positions, setPositions] = useState<FarmPosition[] | undefined>(undefined);
+  const [balances, setBalances] = useState<Record<string, bigint>>({});
   const [status, setStatus] = useState<FarmStatus>(farmAddress ? 'loading' : 'idle');
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const generation = useRef(0);
+  const extraKey = extraTokens.map(t => t.toLowerCase()).join(',');
 
   const load = useCallback(async () => {
     if (!farmAddress) {
@@ -54,15 +64,17 @@ export function useFarm(farmAddress: string | null, wallet: string | null): Farm
     setRefreshing(true);
     try {
       const state = await readFarmState(batch, farmAddress);
-      const [pairInfo, userPositions] = await Promise.all([
+      const [pairInfo, userPositions, held] = await Promise.all([
         readPairs(batch, state.pools.map(p => p.lpToken)),
-        wallet ? readUserPositions(batch, state, wallet) : Promise.resolve(undefined)
+        wallet ? readUserPositions(batch, state, wallet) : Promise.resolve(undefined),
+        wallet && extraKey ? readWalletBalances(batch, extraKey.split(','), wallet).catch(() => ({} as Record<string, bigint>)) : Promise.resolve({} as Record<string, bigint>)
       ]);
       // a newer read (wallet switched, manual refresh) already superseded this one
       if (mine !== generation.current) return;
       setFarm(state);
       setPairs(pairInfo);
       setPositions(userPositions);
+      setBalances(held);
       setError(null);
       setStatus('ready');
       setUpdatedAt(Date.now());
@@ -73,11 +85,12 @@ export function useFarm(farmAddress: string | null, wallet: string | null): Farm
     } finally {
       if (mine === generation.current) setRefreshing(false);
     }
-  }, [farmAddress, wallet]);
+  }, [farmAddress, wallet, extraKey]);
 
   useEffect(() => {
     // a different wallet must never show the previous wallet's position
     setPositions(undefined);
+    setBalances({});
     void load();
     const timer = setInterval(() => {
       if (!document.hidden) void load();
@@ -88,5 +101,5 @@ export function useFarm(farmAddress: string | null, wallet: string | null): Farm
     };
   }, [load]);
 
-  return { farm, pairs, positions, status, error, updatedAt, refreshing, refresh: load };
+  return { farm, pairs, positions, balances, status, error, updatedAt, refreshing, refresh: load };
 }

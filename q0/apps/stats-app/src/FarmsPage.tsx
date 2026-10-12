@@ -3,12 +3,17 @@ import { AlertTriangle, Coins, Droplets, ExternalLink, Gift, Layers, RefreshCw, 
 import {
   DEPLOYED,
   SECONDS_PER_DAY,
+  SINGLE_STAKE_POOLS,
   TOKEN_REGISTRY,
   buildFarmRows,
+  buildSingleStakeYields,
   compactNumber,
+  earnsLine,
   farmTx,
   formatUnits,
+  poolTitle,
   runwaySeconds,
+  singleStakeCandidates,
   type FarmRow,
   type FarmTokenInfo,
   type TokenInfo
@@ -22,9 +27,13 @@ import { resolveQuaiUsd } from './quaiUsd';
 import YieldBoard from './YieldBoard';
 import { formatUsd } from './TokenPicker';
 import FarmActionModal from './FarmActionModal';
+import SingleStakeRow, { type PlannedSingleView } from './SingleStakeRow';
 import { describeTxError, sendContractCall } from './farmSend';
 
 const FarmAdminPanel = lazy(() => import('./FarmAdminPanel'));
+
+/** The tokens of the single-token pools in the plan (Q0, BDELTA): their wallet balances are read even before the farm has a pool. */
+const SINGLE_TOKENS = SINGLE_STAKE_POOLS.map(p => p.stakeToken);
 
 interface Props {
   walletAddress: string | null;
@@ -45,13 +54,20 @@ const pct = (n: number | undefined): string => {
   if (n >= 100_000) return `${compactNumber(n, 1)}%`;
   return `${n.toLocaleString('en-US', { maximumFractionDigits: n < 10 ? 2 : 1 })}%`;
 };
+const supplyOf = (raw: string | undefined): bigint | undefined => {
+  try {
+    return raw === undefined ? undefined : BigInt(raw);
+  } catch {
+    return undefined;
+  }
+};
 const usd = (n: number | undefined): string => (n === undefined ? '—' : n === 0 ? '$0' : formatUsd(n) || '—');
 const days = (s: number | null): string =>
   s === null ? 'no emission' : s >= 365 * SECONDS_PER_DAY ? 'over a year' : s < 3600 ? 'under an hour' : s < SECONDS_PER_DAY ? `${Math.floor(s / 3600)} h` : `${Math.floor(s / SECONDS_PER_DAY)} days`;
 
 export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, boostLabel }: Props) {
   const farmAddress = DEPLOYED.MASTERCHEF;
-  const { farm, pairs, positions, status, error, updatedAt, refreshing, refresh } = useFarm(farmAddress, walletAddress);
+  const { farm, pairs, positions, balances, status, error, updatedAt, refreshing, refresh } = useFarm(farmAddress, walletAddress, SINGLE_TOKENS);
   const board = useYieldBoard(farm);
   const [quaiUsd, setQuaiUsd] = useState<number | null>(null);
   const [tab, setTab] = useState<'POOLS' | 'ADMIN'>('POOLS');
@@ -89,6 +105,8 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
         } else wanted.add(pool.lpToken.toLowerCase());
       }
     }
+    // the single-token pools in the plan, listed whether or not the farm has added them
+    for (const token of SINGLE_TOKENS) wanted.add(token);
     // every token in the yield board, so each pool shows its logos
     for (const r of board.rows) {
       wanted.add(r.token0.address.toLowerCase());
@@ -114,7 +132,8 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
         symbol: profile?.symbol ?? t.symbol,
         decimals,
         priceUsd: profile?.priceUsd ?? (address === wquai && quaiUsd ? quaiUsd : undefined),
-        iconUrl: profile?.iconUrl ?? t.iconUrl
+        iconUrl: profile?.iconUrl ?? t.iconUrl,
+        totalSupply: supplyOf(profile?.totalSupply)
       };
     }
     return out;
@@ -130,6 +149,31 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
     a: { symbol: rewardA?.symbol ?? 'Reward A', decimals: rewardA?.decimals ?? 18 },
     b: { symbol: rewardB?.symbol ?? 'Reward B', decimals: rewardB?.decimals ?? 18 }
   };
+
+  // Single-token pools (stake Q0 or BDELTA) the farm has not added yet: real rows, priced with the same maths as the pairs.
+  const planned = useMemo<PlannedSingleView[]>(() => {
+    if (!farm) return [];
+    const waiting = singleStakeCandidates(farm, SINGLE_STAKE_POOLS).filter(c => c.state === 'NOT_IN_FARM');
+    if (waiting.length === 0) return [];
+    const otherUnfarmed = board.rows.filter(r => r.reward.status === 'NOT_FARMING').length;
+    const info = waiting.map(c => {
+      const t = tokens[c.stakeToken];
+      const decimals = t?.decimals ?? null;
+      // pool-derived price first (the same source the reward values use), then the explorer's
+      const priceUsd = board.prices.get(c.stakeToken) ?? t?.priceUsd ?? null;
+      const supply = t?.totalSupply !== undefined && decimals !== null ? Number(t.totalSupply) / 10 ** decimals : null;
+      return { c, t, decimals, input: { token: c.stakeToken, symbol: t?.symbol ?? c.symbol, priceUsd, supply, stakedUsd: null as number | null } };
+    });
+    const yields = buildSingleStakeYields({ farm: board.farmInput, tokens: info.map(i => i.input), otherUnfarmed });
+    return info.map((i, k) => ({
+      token: i.c.stakeToken,
+      symbol: i.input.symbol,
+      iconUrl: i.t?.iconUrl,
+      decimals: i.decimals,
+      walletBalance: walletAddress ? balances[i.c.stakeToken] : undefined,
+      yieldInfo: yields[k]
+    }));
+  }, [farm, board.rows, board.prices, board.farmInput, tokens, balances, walletAddress]);
 
   const isOwner = Boolean(farm && walletAddress && farm.owner.toLowerCase() === walletAddress.toLowerCase());
   const isPendingOwner = Boolean(farm?.pendingOwner && walletAddress && farm.pendingOwner.toLowerCase() === walletAddress.toLowerCase());
@@ -155,6 +199,12 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
       return b - a || x.pid - y.pid;
     });
   }, [rows, query, mineOnly, sort]);
+
+  const plannedVisible = useMemo(() => {
+    if (mineOnly) return [];
+    const q = query.trim().toLowerCase();
+    return planned.filter(p => !q || p.symbol.toLowerCase().includes(q) || p.token.includes(q) || 'single token'.includes(q) || 'stake'.includes(q));
+  }, [planned, query, mineOnly]);
 
   const actionRow = action ? rows.find(r => r.pid === action.pid) : undefined;
 
@@ -278,7 +328,8 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
       {farm && farm.pools.length === 0 && status === 'ready' && (
         <Notice tone="info">
           <Layers size={14} style={{ verticalAlign: 'middle', marginRight: '0.35rem' }} />
-          No pool is earning farm rewards yet. {isOwner ? 'Add the first one in the Admin tab.' : 'Check back soon.'}
+          No pool is earning farm rewards yet.{planned.length > 0 && <> The single-token pools below ({planned.map(p => p.symbol).join(', ')}) and the pairs above start earning once they are added.</>}{' '}
+          {isOwner ? 'Add them in the Admin tab.' : 'Check back soon.'}
         </Notice>
       )}
       {toast && <Notice tone={toast.tone}>{toast.body}</Notice>}
@@ -291,7 +342,7 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
           value={farm ? (summary?.emissionUsdPerDay !== undefined ? usd(summary.emissionUsdPerDay) : `${compactNumber(Number(farm.rewardAPerSecond) / 10 ** rewards.a.decimals * SECONDS_PER_DAY, 2)} ${rewards.a.symbol}`) : '…'}
           hint={farm ? `${compactNumber(Number(farm.rewardAPerSecond) / 10 ** rewards.a.decimals * SECONDS_PER_DAY, 2)} ${rewards.a.symbol} + ${compactNumber(Number(farm.rewardBPerSecond) / 10 ** rewards.b.decimals * SECONDS_PER_DAY, 2)} ${rewards.b.symbol}` : undefined}
         />
-        <Stat label="Pools" value={farm ? String(farm.pools.length) : '…'} />
+        <Stat label="Pools" value={farm ? String(farm.pools.length) : '…'} hint={planned.length > 0 ? `+${planned.length} single-token not added yet` : undefined} />
         <Stat
           label="Your deposit"
           value={!walletAddress ? 'Connect' : summary ? usd(summary.yourStakedUsd) : '…'}
@@ -365,7 +416,7 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
             <div style={{ ...box, textAlign: 'center', padding: '2rem' }}><Spinner /> Reading the farm from Cyprus-1…</div>
           )}
 
-          {farm && visible.length > 0 && (
+          {farm && (visible.length > 0 || plannedVisible.length > 0) && (
             <div className="farm-table" role="table" aria-label="Farming pools">
               <div className="farm-head" role="row">
                 <span>Pool</span>
@@ -394,10 +445,30 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
                   onHarvest={() => void harvest(row)}
                 />
               ))}
+              {plannedVisible.length > 0 && (
+                <>
+                  <div className="farm-subhead" role="row">
+                    <strong>Single-token pools</strong> &middot; deposit {plannedVisible.map(p => p.symbol).join(' or ')} itself and earn {rewards.a.symbol} + {rewards.b.symbol}.
+                    The farm owner has not added {plannedVisible.length === 1 ? 'this pool' : 'these pools'} yet, so there is nothing to deposit into; the numbers are estimates until then.
+                  </div>
+                  {plannedVisible.map(p => (
+                    <SingleStakeRow
+                      key={p.token}
+                      view={p}
+                      rewards={rewards}
+                      wallet={walletAddress}
+                      isOwner={isOwner}
+                      loading={board.status === 'loading'}
+                      onConnect={() => void onConnect()}
+                      onOpenAdmin={() => setTab('ADMIN')}
+                    />
+                  ))}
+                </>
+              )}
             </div>
           )}
 
-          {farm && rows.length > 0 && visible.length === 0 && (
+          {farm && rows.length + planned.length > 0 && visible.length + plannedVisible.length === 0 && (
             <div style={{ ...box, textAlign: 'center' }}>
               No pool matches. {mineOnly ? 'You have no stake or rewards in any pool.' : 'Clear the search to see all pools.'}
             </div>
@@ -419,6 +490,10 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
           onGetLp={() => {
             setAction(null);
             onOpenLiquidity();
+          }}
+          onGetToken={() => {
+            setAction(null);
+            window.location.hash = '#swap';
           }}
         />
       )}
@@ -489,7 +564,8 @@ function PoolRow({
           )}
         </span>
         <span style={{ minWidth: 0 }}>
-          <strong>{row.label}</strong>
+          <strong>{poolTitle(row)}</strong>
+          {row.kind === 'SINGLE' && <small className="farm-sub">{earnsLine(rewards.a.symbol, rewards.b.symbol)}</small>}
           <small className="farm-sub">
             <Badge severity={row.kind === 'LP' ? 'info' : 'neutral'}>{row.kind === 'LP' ? 'Pool' : 'Single token'}</Badge>{' '}
             <a className="link-hash" href={`https://quaiscan.io/address/${row.lpToken}`} target="_blank" rel="noreferrer" title={row.lpToken}>
@@ -533,7 +609,7 @@ function PoolRow({
       </div>
 
       <div className="farm-cell farm-actions-cell">
-        <button type="button" className="btn-primary" style={{ padding: '0.4rem 0.9rem', fontSize: '0.78rem' }} onClick={onStake} disabled={paused && !!wallet} title={paused ? 'Deposits are paused' : undefined}>
+        <button type="button" className="btn-primary" style={{ padding: '0.4rem 0.9rem', fontSize: '0.78rem' }} onClick={onStake} disabled={(paused || !row.stakeDecimalsKnown) && !!wallet} title={paused ? 'Deposits are paused' : !row.stakeDecimalsKnown ? 'This token did not report its decimals, so an amount cannot be sized safely' : undefined}>
           {wallet ? 'Deposit' : 'Connect'}
         </button>
         {wallet && staked > 0n && (

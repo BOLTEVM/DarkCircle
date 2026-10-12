@@ -1,0 +1,44 @@
+/* Single-token pools (stake Q0 or BDELTA itself) on the Farms page. Kept apart from index.css and mobile.css. */
+
+.farm-subhead {
+  padding: 0.7rem 1.1rem;
+  border-top: 1px solid var(--panel-border);
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.farm-subhead strong {
+  color: #fff;
+  font-weight: 700;
+}
+
+.farm-row-planned {
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.015) 0 10px, transparent 10px 20px);
+  box-shadow: inset 3px 0 0 rgba(245, 158, 11, 0.55);
+}
+
+.farm-row-planned .farm-example {
+  color: var(--text-muted);
+  opacity: 0.9;
+}
+
+.farm-row-planned .farm-pool small.farm-sub {
+  display: block;
+}
+
+.farm-row-planned .farm-pool small.farm-sub + small.farm-sub {
+  margin-top: 0.2rem;
+}
+
+/* admin panel: single-token candidates */
+.farm-candidate-single .farm-candidate-head {
+  align-items: baseline;
+}
+
+@media (max-width: 640px) {
+  .farm-subhead {
+    padding: 0.6rem 0.8rem;
+  }
+}
