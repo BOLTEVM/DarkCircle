@@ -79,6 +79,7 @@ import { formatUsd } from './TokenPicker';
 import { toBubbleMetadata, useTokenProfiles } from './useTokenProfiles';
 import ImportTokenModal from './ImportTokenModal';
 import FarmsPage from './FarmsPage';
+import PrimaryNav from './PrimaryNav';
 import QuainanceMarkets from './QuainanceMarkets';
 import { loadQuainanceCatalog, type CatalogLoad } from './quainanceCatalog';
 import { useAdministrator } from './useAdministrator';
@@ -1041,46 +1042,18 @@ export default function App() {
       </header>
 
       {/* Primary Navigation Tabs */}
-      <nav className="circleswap-nav">
-        <button 
-          className={`circleswap-nav-btn ${activeTab === 'SWAP' ? 'active' : ''}`} 
-          onClick={() => navigateToTab('SWAP')}
-        >
-          <ArrowUpDown size={16} /> Swap
-        </button>
-        <button 
-          className={`circleswap-nav-btn ${activeTab === 'FARMS' ? 'active' : ''}`} 
-          onClick={() => navigateToTab('FARMS')}
-        >
-          <TrendingUp size={16} /> Farms & Pools
-        </button>
-        <button 
-          className={`circleswap-nav-btn ${activeTab === 'QRB' ? 'active' : ''}`} 
-          onClick={() => navigateToTab('QRB')}
-        >
-          <Sparkles size={16} /> Qrb Genesis
-        </button>
-        <button 
-          className={`circleswap-nav-btn ${activeTab === 'ANALYTICS' ? 'active' : ''}`} 
-          onClick={() => navigateToTab('ANALYTICS')}
-        >
-          <Activity size={16} /> Analytics & Ledger
-        </button>
-        <button 
-          className={`circleswap-nav-btn ${activeTab === 'PAIRS' ? 'active' : ''}`} 
-          onClick={() => navigateToTab('PAIRS')}
-        >
-          <Layers size={16} /> Pairs & Liquidity
-        </button>
-        {deployVisible && (
-          <button 
-            className={`circleswap-nav-btn ${activeTab === 'DEPLOY' ? 'active' : ''}`} 
-            onClick={() => navigateToTab('DEPLOY')}
-          >
-            <Rocket size={16} /> Deploy
-          </button>
-        )}
-      </nav>
+      <PrimaryNav
+        active={activeTab}
+        onNavigate={navigateToTab}
+        items={[
+          { id: 'SWAP', label: 'Swap', icon: <ArrowUpDown size={16} /> },
+          { id: 'FARMS', label: 'Farms & Pools', icon: <TrendingUp size={16} /> },
+          { id: 'QRB', label: 'Qrb Genesis', icon: <Sparkles size={16} /> },
+          { id: 'ANALYTICS', label: 'Analytics & Ledger', icon: <Activity size={16} /> },
+          { id: 'PAIRS', label: 'Pairs & Liquidity', icon: <Layers size={16} /> },
+          ...(deployVisible ? [{ id: 'DEPLOY' as const, label: 'Deploy', icon: <Rocket size={16} /> }] : [])
+        ]}
+      />
 
       {/* Multi-Token Portfolio Ticker: scrolls by itself (no scrollbar); pauses while hovered or focused */}
       {walletAddress && (() => {
