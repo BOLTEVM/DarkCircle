@@ -7,37 +7,61 @@
  */
 export function getQuaiProvider(): any | null {
   if (typeof window === 'undefined') return null;
+  // `?nowallet=1` (the crash screen's "Open without wallet detection") skips every injected provider.
+  if (read(() => new URLSearchParams(window.location.search).has('nowallet')) === true) return null;
 
   // 1. Dedicated Pelagus injected provider
-  if (window.pelagus) {
-    return window.pelagus;
-  }
+  const pelagus = read(() => window.pelagus);
+  if (pelagus) return pelagus;
 
   // 2. Dedicated Quai injected provider
-  if (window.quai) {
-    return window.quai;
-  }
+  const quai = read(() => window.quai);
+  if (quai) return quai;
 
   // 3. Multi-wallet provider arrays (e.g. EIP-6963 or window.ethereum.providers)
-  const eth = window.ethereum as any;
-  if (eth?.providers && Array.isArray(eth.providers)) {
-    const pelagusProvider = eth.providers.find((p: any) => p.isPelagus || p.isQuai);
-    if (pelagusProvider) {
-      return pelagusProvider;
+  const eth = read(() => window.ethereum as any);
+  if (!eth) return null;
+  const list = read(() => eth.providers);
+  if (Array.isArray(list)) {
+    const hit = list.find(p => read(() => Boolean(p && (p.isPelagus || p.isQuai))) === true);
+    if (hit) return hit;
+  }
+
+  // 4./5. Window.ethereum itself (Pelagus/Quai, or whatever else the browser injects, such as Brave Wallet)
+  return eth;
+}
+
+/**
+ * Read a property of an injected object without letting it throw. Wallet extensions and in-app browsers inject
+ * getters, proxies and half-implemented providers; a page that trusts them blank-screens when one misbehaves.
+ */
+function read<T>(get: () => T): T | undefined {
+  try {
+    return get();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Subscribe to a provider event. Returns the unsubscribe function, and never throws: a provider whose `on` is missing,
+ * throws, or does not know the event simply gives no live updates.
+ */
+export function subscribeProvider(provider: any, event: string, handler: (...args: any[]) => void): () => void {
+  try {
+    if (!provider || typeof provider.on !== 'function') return () => {};
+    provider.on(event, handler);
+  } catch {
+    return () => {};
+  }
+  return () => {
+    try {
+      if (typeof provider.removeListener === 'function') provider.removeListener(event, handler);
+      else if (typeof provider.off === 'function') provider.off(event, handler);
+    } catch {
+      /* the provider is gone or never supported it */
     }
-  }
-
-  // 4. Window.ethereum itself identified as Pelagus / Quai
-  if (eth?.isPelagus || eth?.isQuai) {
-    return eth;
-  }
-
-  // 5. Fallback to window.ethereum if no specific Pelagus provider was isolated
-  if (eth) {
-    return eth;
-  }
-
-  return null;
+  };
 }
 
 /**

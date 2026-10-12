@@ -7,7 +7,6 @@ import {
   buildFarmRows,
   compactNumber,
   farmTx,
-  fetchQuaiUsd,
   formatUnits,
   runwaySeconds,
   type FarmRow,
@@ -19,6 +18,7 @@ import { TokenAvatar } from './TokenBubble';
 import { useTokenProfiles } from './useTokenProfiles';
 import { useFarm } from './useFarm';
 import { useYieldBoard } from './useYieldBoard';
+import { resolveQuaiUsd } from './quaiUsd';
 import YieldBoard from './YieldBoard';
 import { formatUsd } from './TokenPicker';
 import FarmActionModal from './FarmActionModal';
@@ -64,7 +64,7 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
 
   useEffect(() => {
     let live = true;
-    void fetchQuaiUsd().then(v => live && setQuaiUsd(v));
+    void resolveQuaiUsd().then(v => live && setQuaiUsd(v));
     return () => {
       live = false;
     };

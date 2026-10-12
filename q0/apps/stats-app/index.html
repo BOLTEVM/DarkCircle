@@ -10,7 +10,25 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Replaced the moment the app mounts. Inline styles so it shows even if the stylesheet is slow or blocked. -->
+      <div id="boot-splash" style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.75rem;color:#9ca3af;font:600 .9rem system-ui,sans-serif;text-align:center;padding:1rem">
+        <div style="width:28px;height:28px;border-radius:50%;border:3px solid rgba(255,255,255,.15);border-top-color:#00f2fe;animation:boot-spin 1s linear infinite"></div>
+        <div>Loading Circleswap&hellip;</div>
+        <div id="boot-slow" style="display:none;max-width:22rem;font-weight:500;font-size:.8rem;line-height:1.5">
+          This is taking longer than usual. Check your connection, then
+          <a href="javascript:location.reload()" style="color:#00f2fe">reload</a>.
+          If it stays blank, <a id="boot-nowallet" href="?nowallet=1" style="color:#00f2fe">open without wallet detection</a>.
+        </div>
+      </div>
+      <style>@keyframes boot-spin{to{transform:rotate(360deg)}}</style>
+      <script>
+        setTimeout(function () {
+          var slow = document.getElementById('boot-slow');
+          if (slow) slow.style.display = 'block';
+        }, 10000);
+      </script>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

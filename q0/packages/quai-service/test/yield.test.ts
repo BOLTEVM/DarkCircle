@@ -10,6 +10,7 @@ import {
   decodeSwapLogs,
   feeApr,
   projectReward,
+  tokenMarket,
   tokenPricesUsd,
   type YieldFarmInput
 } from '../src/yield.ts';
@@ -214,3 +215,29 @@ test('tokenPricesUsd takes each token from its deepest pool', () => {
   assert.equal(m.get(T_WQUAI), 2);
   assert.equal(tokenPricesUsd([analysis(PAIR_A, 100)], null).size, 0);
 });
+
+test('tokenMarket: a token the explorer has not priced is priced from the pools, and its cap is price x supply', () => {
+  const m = tokenMarket({ explorerPriceUsd: null, explorerMarketCapUsd: null, poolPriceUsd: 12.5, supply: 1 });
+  assert.deepEqual(m, { priceUsd: 12.5, priceSource: 'pools', marketCapUsd: 12.5, marketCapSource: 'supply' });
+});
+
+test('tokenMarket: the explorer figures win when it has them', () => {
+  const m = tokenMarket({ explorerPriceUsd: 0.5, explorerMarketCapUsd: 1000, poolPriceUsd: 0.6, supply: 5000 });
+  assert.deepEqual(m, { priceUsd: 0.5, priceSource: 'explorer', marketCapUsd: 1000, marketCapSource: 'explorer' });
+});
+
+test('tokenMarket: an explorer price without a cap gets price x supply, still labelled', () => {
+  const m = tokenMarket({ explorerPriceUsd: 2, explorerMarketCapUsd: null, supply: 10 });
+  assert.equal(m.priceSource, 'explorer');
+  assert.equal(m.marketCapUsd, 20);
+  assert.equal(m.marketCapSource, 'supply');
+});
+
+test('tokenMarket: no price or no supply means no market cap, never 0', () => {
+  assert.deepEqual(tokenMarket({}), { priceUsd: null, priceSource: null, marketCapUsd: null, marketCapSource: null });
+  assert.equal(tokenMarket({ poolPriceUsd: 3 }).marketCapUsd, null); // price but unknown supply
+  assert.equal(tokenMarket({ supply: 10 }).marketCapUsd, null); // supply but no price
+  assert.equal(tokenMarket({ poolPriceUsd: 0, explorerPriceUsd: 0, supply: 10 }).priceUsd, null);
+  assert.equal(tokenMarket({ poolPriceUsd: Number.NaN, supply: 10 }).priceUsd, null);
+});
+

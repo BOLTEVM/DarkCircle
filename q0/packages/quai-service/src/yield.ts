@@ -277,3 +277,35 @@ export function tokenPricesUsd(analyses: PairAnalysis[], quaiUsd: number | null)
     }
     return out;
 }
+
+// ------------------------------------------------------------------------------------------------ token price and cap
+
+export interface TokenMarket {
+    priceUsd: number | null;
+    /** 'explorer': the explorer's indexed price. 'pools': derived from AMM reserves (the deepest route to WQUAI). */
+    priceSource: 'explorer' | 'pools' | null;
+    marketCapUsd: number | null;
+    /** 'explorer': indexed by the explorer. 'supply': circulating supply x price (total supply when that is all there is). */
+    marketCapSource: 'explorer' | 'supply' | null;
+}
+
+const positive = (v: number | null | undefined): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0;
+
+/**
+ * Price and market cap for one token. The explorer's figure wins when it has one; a token the explorer has not priced
+ * (QRB, until it is indexed) falls back to the pools, and its market cap is price x supply. Missing inputs stay null:
+ * a price of 0 is never invented, and a market cap is never shown without both a price and a supply.
+ */
+export function tokenMarket(i: {
+    explorerPriceUsd?: number | null;
+    explorerMarketCapUsd?: number | null;
+    poolPriceUsd?: number | null;
+    /** Total supply in whole tokens. */
+    supply?: number | null;
+}): TokenMarket {
+    const priceUsd = positive(i.explorerPriceUsd) ? i.explorerPriceUsd : positive(i.poolPriceUsd) ? i.poolPriceUsd : null;
+    const priceSource = positive(i.explorerPriceUsd) ? 'explorer' : positive(i.poolPriceUsd) ? 'pools' : null;
+    if (positive(i.explorerMarketCapUsd)) return { priceUsd, priceSource, marketCapUsd: i.explorerMarketCapUsd, marketCapSource: 'explorer' };
+    if (priceUsd !== null && positive(i.supply)) return { priceUsd, priceSource, marketCapUsd: priceUsd * i.supply, marketCapSource: 'supply' };
+    return { priceUsd, priceSource, marketCapUsd: null, marketCapSource: null };
+}

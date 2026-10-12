@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { resolveQuaiUsd } from './quaiUsd';
 import {
   DEXES,
   DEX_IDS,
@@ -9,7 +10,6 @@ import {
   batchQuaiCall,
   buildYieldRows,
   decodeSwapLogs,
-  fetchQuaiUsd,
   loadPairSnapshots,
   quaiRpcCall,
   tokenPricesUsd,
@@ -45,7 +45,7 @@ interface BoardBase {
 let baseCache: { at: number; promise: Promise<BoardBase> } | null = null;
 
 async function loadBase(): Promise<BoardBase> {
-  const [{ pairs }, quaiUsd] = await Promise.all([loadPairSnapshots(DEX_IDS, { maxPerDex: 1000 }), fetchQuaiUsd()]);
+  const [{ pairs }, quaiUsd] = await Promise.all([loadPairSnapshots(DEX_IDS, { maxPerDex: 1000 }), resolveQuaiUsd()]);
   const analyses = analyzePairs(pairs, { quaiUsd });
   const registry = new Set(POOL_REGISTRY.map(p => p.pair.toLowerCase()));
   const advertised = analyses.filter(a => a.dex === 'CIRCLESWAP' || registry.has(a.pair.toLowerCase()));
@@ -225,6 +225,26 @@ async function runScan(addresses: string[]) {
 }
 
 // ------------------------------------------------------------------------------------------------------------ hook
+
+/**
+ * Token USD prices derived from the pools (the deepest route to WQUAI), without reading any swap history. For the pages
+ * that only need a price or a market cap, such as the analytics cards and the Genesis page.
+ */
+export function useTokenPricesUsd(): { prices: Map<string, number>; quaiUsd: number | null; ready: boolean } {
+  const [base, setBase] = useState<BoardBase | null>(null);
+  useEffect(() => {
+    let live = true;
+    getBase()
+      .then(b => live && setBase(b))
+      .catch(() => {
+        /* no pool prices: callers fall back to the explorer's figures, or show nothing */
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return useMemo(() => ({ prices: base?.prices ?? new Map<string, number>(), quaiUsd: base?.quaiUsd ?? null, ready: base !== null }), [base]);
+}
 
 export interface YieldBoardState {
   rows: YieldRow[];

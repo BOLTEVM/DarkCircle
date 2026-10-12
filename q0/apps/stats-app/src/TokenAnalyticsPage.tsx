@@ -6,6 +6,7 @@ import {
   TOKEN_REGISTRY,
   formatUnits,
   getTokenDetailV2,
+  tokenMarket,
   type DexId,
   type LPReserves,
   type PoolInfo,
@@ -13,6 +14,9 @@ import {
   type TokenTransferV2
 } from 'quai-service';
 import { readLocalDeployments } from 'quai-service/bootstrap';
+import { TokenAvatar } from './TokenBubble';
+import { useTokenProfiles } from './useTokenProfiles';
+import { useTokenPricesUsd } from './useYieldBoard';
 
 type TokenSymbol = 'Q0' | 'BDELTA' | 'QRB';
 type TokenRecord = {
@@ -52,6 +56,18 @@ function displayAmount(raw: string, decimals: number, precision = 4): string {
     return Number.isFinite(value) ? value.toLocaleString(undefined, { maximumFractionDigits: precision }) : '—';
   } catch {
     return '—';
+  }
+}
+
+/** Total supply in whole tokens. The explorer sometimes sends it in exponent form ("1e+27"), which BigInt cannot read. */
+function wholeSupply(raw: string | undefined, decimals: number): number | null {
+  if (!raw) return null;
+  try {
+    const n = Number(formatUnits(raw, decimals, 18));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n / 10 ** decimals : null;
   }
 }
 
@@ -104,6 +120,11 @@ export default function TokenAnalyticsPage({ latestBlock, pools, poolReserves }:
   const [holderToken, setHolderToken] = useState<TokenSymbol>('Q0');
   const [ledgerToken, setLedgerToken] = useState<'ALL' | TokenSymbol>('ALL');
   const [section, setSection] = useState('analytics-overview');
+  // Pool-derived prices: the explorer has not indexed a price for QRB, but Circleswap has QRB pools.
+  const { prices: poolPrices } = useTokenPricesUsd();
+  const { profiles } = useTokenProfiles(
+    useMemo(() => tokenRecords.filter(t => t.symbol !== 'QRB' && t.address).map(t => TOKEN_REGISTRY[t.symbol]).filter(Boolean), [])
+  );
 
   useEffect(() => {
     let live = true;
@@ -237,22 +258,37 @@ export default function TokenAnalyticsPage({ latestBlock, pools, poolReserves }:
         <div className="token-fundamentals-grid">
           {analyticsTokens.map(token => {
             const detail = detailFor(token.symbol);
-            const price = detail?.marketStats?.priceUsd;
             const supplyRaw = detail?.token.total_supply;
             const decimals = detail?.token.decimals ?? TOKEN_REGISTRY[token.symbol]?.decimals ?? 18;
+            const supplyWhole = wholeSupply(supplyRaw, decimals);
+            const market = tokenMarket({
+              explorerPriceUsd: Number(detail?.marketStats?.priceUsd),
+              explorerMarketCapUsd: Number(detail?.marketStats?.marketCapUsd),
+              poolPriceUsd: token.address ? poolPrices.get(token.address.toLowerCase()) ?? null : null,
+              supply: supplyWhole
+            });
+            // QRB's logo is its on-chain artwork (the Arweave URI the contract was deployed with); the others come from the explorer
+            const iconUrl = token.symbol === 'QRB' ? DEPLOYED.ARTWORK_URI ?? undefined : token.address ? profiles[token.address.toLowerCase()]?.iconUrl : undefined;
             return (
               <article className="token-fundamental-card" key={token.symbol} style={{ '--token-accent': token.color } as CSSProperties}>
                 <div className="token-fundamental-top">
-                  <span className="analytics-token-mark">{token.symbol.slice(0, 1)}</span>
+                  <TokenAvatar symbol={token.symbol} iconUrl={iconUrl} size="md" />
                   <div><h3>{detail?.token.symbol ?? token.symbol}</h3><p>{detail?.token.name ?? token.name}</p></div>
                   <a href={token.address ? `https://explorer.qu.ai/token/${token.address}` : undefined} target="_blank" rel="noreferrer" aria-label={`View ${token.symbol} on explorer`} className="analytics-icon-link"><ExternalLink size={15} /></a>
                 </div>
-                <div className="token-price-line"><span>{formatUsd(price)}</span><small>USD price</small></div>
+                <div className="token-price-line">
+                  <span>{formatUsd(market.priceUsd === null ? null : String(market.priceUsd))}</span>
+                  <small>USD price{market.priceSource === 'pools' ? ' · from pool reserves' : ''}</small>
+                </div>
                 <div className="token-fundamental-metrics">
-                  <div><span>Market cap</span><strong>{formatUsd(detail?.marketStats?.marketCapUsd)}</strong><small>{changeLabel(detail?.marketStats?.marketCapGrowth24h)} · 24h</small></div>
+                  <div>
+                    <span>Market cap</span>
+                    <strong>{formatUsd(market.marketCapUsd === null ? null : String(market.marketCapUsd))}</strong>
+                    <small>{market.marketCapSource === 'explorer' ? `${changeLabel(detail?.marketStats?.marketCapGrowth24h)} · 24h` : market.marketCapSource === 'supply' ? 'price × supply' : '—'}</small>
+                  </div>
                   <div><span>Holders</span><strong>{detail ? compactNumber(detail.token.holder_count) : '—'}</strong><small>{changeLabel(detail?.marketStats?.holderGrowth24h)} · 24h</small></div>
                   <div><span>24h transfers</span><strong>{detail ? compactNumber(detail.transfers24h) : '—'}</strong><small>{changeLabel(detail?.marketStats?.transferGrowth24h)} · change</small></div>
-                  <div><span>Total supply</span><strong>{supplyRaw ? displayAmount(supplyRaw, decimals, 3) : '—'} {detail?.token.symbol ?? token.symbol}</strong></div>
+                  <div><span>Total supply</span><strong>{supplyWhole !== null ? supplyWhole.toLocaleString(undefined, { maximumFractionDigits: 3 }) : '—'} {detail?.token.symbol ?? token.symbol}</strong></div>
                 </div>
                 {!detail && <p className="analytics-inline-status">{failures[token.symbol] ?? (token.symbol === 'QRB' ? 'Deployment address not recorded.' : 'Waiting for token data.')}</p>}
               </article>

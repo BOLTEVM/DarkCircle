@@ -58,9 +58,9 @@ import {
   getTokenDetailV2,
   getQuainanceTVL,
   mergeQuainance,
+  tokenMarket,
   loadPairSnapshots,
   analyzePairs,
-  fetchQuaiUsd,
   getTokenByAddress,
   type PairSnapshot,
   type QuainanceAggregate,
@@ -80,6 +80,8 @@ import { toBubbleMetadata, useTokenProfiles } from './useTokenProfiles';
 import ImportTokenModal from './ImportTokenModal';
 import FarmsPage from './FarmsPage';
 import PrimaryNav from './PrimaryNav';
+import { resolveQuaiUsd } from './quaiUsd';
+import { useTokenPricesUsd } from './useYieldBoard';
 import QuainanceMarkets from './QuainanceMarkets';
 import { loadQuainanceCatalog, type CatalogLoad } from './quainanceCatalog';
 import { useAdministrator } from './useAdministrator';
@@ -94,7 +96,8 @@ import {
   getCyprus1Address, 
   requestWalletAccounts, 
   getAuthorizedAccounts, 
-  sendWalletTransaction 
+  sendWalletTransaction,
+  subscribeProvider
 } from './providerUtils';
 
 const showLegacyAnalytics = (): boolean => false;
@@ -132,6 +135,8 @@ export default function App() {
   // Wallet first: the administrator check below needs it. (Declared here so the hash handler can read the result.)
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const { isAdmin } = useAdministrator(walletAddress);
+  // QRB has no explorer price yet, so its price and market cap come from its Circleswap pools.
+  const { prices: poolPricesUsd } = useTokenPricesUsd();
   const deployVisible = isAdmin || DEPLOY_BOOTSTRAP_OPEN;
   const deployVisibleRef = useRef(deployVisible);
   deployVisibleRef.current = deployVisible;
@@ -478,7 +483,7 @@ export default function App() {
         setQuainanceTvl(null);
       }
       try {
-        const [quaiUsd, catalog] = await Promise.all([fetchQuaiUsd(), loadQuainanceCatalog()]);
+        const [quaiUsd, catalog] = await Promise.all([resolveQuaiUsd(), loadQuainanceCatalog()]);
         setQuaiUsdNow(quaiUsd);
         setQuainanceCatalog(catalog);
         setQuainanceAgg(
@@ -610,10 +615,10 @@ export default function App() {
   // Accounts listener
   useEffect(() => {
     const provider = getQuaiProvider();
-    if (!provider || typeof provider.on !== 'function') return;
+    if (!provider) return;
 
     const handleAccountsChanged = (newAccounts: string[]) => {
-      if (newAccounts && newAccounts.length > 0) {
+      if (Array.isArray(newAccounts) && newAccounts.length > 0) {
         const cyprus1Addr = getCyprus1Address(newAccounts);
         setWalletAddress(cyprus1Addr);
       } else {
@@ -621,12 +626,8 @@ export default function App() {
       }
     };
 
-    provider.on('accountsChanged', handleAccountsChanged);
-    return () => {
-      if (typeof provider.removeListener === 'function') {
-        provider.removeListener('accountsChanged', handleAccountsChanged);
-      }
-    };
+    // never throws: an injected provider that is half-implemented must not blank the page
+    return subscribeProvider(provider, 'accountsChanged', handleAccountsChanged);
   }, []);
 
   // Wallet connect
@@ -1425,6 +1426,40 @@ export default function App() {
                   <div className="qrb-trait-name">Max Supply</div>
                   <div className="qrb-trait-val" style={{ color: 'var(--accent-plasma)' }}>1.0 QRB (Strict)</div>
                 </div>
+                {(() => {
+                  const addr = DEPLOYED.QRB?.toLowerCase();
+                  const profile = addr ? tokenProfiles[addr] : undefined;
+                  let supply: number | null = null;
+                  try {
+                    if (profile?.totalSupply) supply = Number(formatBaseUnits(BigInt(profile.totalSupply), 18, 18));
+                  } catch {
+                    supply = null; // unreadable supply: no market cap rather than a wrong one
+                  }
+                  const m = tokenMarket({
+                    explorerPriceUsd: profile?.priceUsd ?? null,
+                    explorerMarketCapUsd: profile?.marketCapUsd ?? null,
+                    poolPriceUsd: addr ? poolPricesUsd.get(addr) ?? null : null,
+                    supply
+                  });
+                  const money = (n: number | null) => (n === null ? '—' : formatUsd(n) || '—');
+                  return (
+                    <>
+                      <div className="qrb-trait-card">
+                        <div className="qrb-trait-name">Price</div>
+                        <div className="qrb-trait-val" style={{ color: 'var(--accent-neon)' }} title={m.priceSource === 'pools' ? 'Derived from the Circleswap pool reserves' : undefined}>
+                          {money(m.priceUsd)}
+                          {m.priceSource === 'pools' && <small style={{ color: 'var(--text-muted)', fontWeight: 400 }}> · from pools</small>}
+                        </div>
+                      </div>
+                      <div className="qrb-trait-card">
+                        <div className="qrb-trait-name">Market Cap</div>
+                        <div className="qrb-trait-val" style={{ color: 'var(--accent-neon)' }} title="Price × total supply">
+                          {money(m.marketCapUsd)}
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
                 <div className="qrb-trait-card">
                   <div className="qrb-trait-name">Core Catalyst</div>
                   <div className="qrb-trait-val">Radiant Dark Plasma</div>
