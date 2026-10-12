@@ -1,0 +1,57 @@
+/* Loading state shown inside #root until the app mounts. An external file on purpose: the site's CSP allows no inline
+   styles or scripts, so none of this can live in index.html. */
+.boot-splash {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: #94a3b8;
+  font: 600 0.9rem system-ui, sans-serif;
+  text-align: center;
+  padding: 1rem;
+}
+
+.boot-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: #34d399;
+  animation: boot-spin 1s linear infinite;
+}
+
+.boot-slow {
+  display: none;
+  max-width: 22rem;
+  font-weight: 500;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.boot-slow.is-visible {
+  display: block;
+}
+
+.boot-reload {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: #34d399;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+@keyframes boot-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-spinner {
+    animation: none;
+  }
+}
