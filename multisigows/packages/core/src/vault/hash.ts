@@ -15,7 +15,7 @@ export interface VaultTxFields {
   nonce: number | bigint;
 }
 
-/** Mirrors SafeBuddyVault.getTransactionHash exactly. */
+/** Mirrors DarkSafeVault.getTransactionHash exactly. */
 export function computeVaultTxHash(f: VaultTxFields): string {
   return keccak256(
     coder.encode(
@@ -33,7 +33,7 @@ export interface ReviewDigestInput {
 }
 
 /**
- * A short code owners can read to each other (or compare with `safebuddy-verify tx`) to
+ * A short code owners can read to each other (or compare with `darksafe-verify tx`) to
  * confirm they are approving the same transaction under the same owner set and threshold.
  * The tx hash already commits to vault, chain, destination, value, calldata, gas, expiry,
  * delay and nonce; the digest adds the governance state it is being approved under.

@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
- * @title SafeBuddyVault (v2)
+ * @title DarkSafeVault (v2)
  * @notice Multi-signature vault for Quai Cyprus-1 with on-chain approvals.
  *
  * Lifecycle: an owner proposes (and thereby approves) a transaction, other owners approve
@@ -24,10 +24,10 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
  *  - Self-calls (administration) are restricted to a fixed set of selectors, carry no
  *    value, skip the timelock (so honest owners can react quickly) and revert on failure.
  *
- * Instances are ERC1967 proxies (SafeBuddyVaultProxy) created by SafeBuddyVaultFactory;
+ * Instances are ERC1967 proxies (DarkSafeVaultProxy) created by DarkSafeVaultFactory;
  * this implementation contract locks itself in its constructor.
  */
-contract SafeBuddyVault is ReentrancyGuard {
+contract DarkSafeVault is ReentrancyGuard {
     // ---------------------------------------------------------------- constants
 
     string public constant VERSION = "2.0.0";
@@ -114,7 +114,7 @@ contract SafeBuddyVault is ReentrancyGuard {
     event OwnerRemoved(address indexed owner);
     event ThresholdChanged(uint256 threshold);
     event MinExecutionDelayChanged(uint32 oldDelay, uint32 newDelay);
-    /// @notice Emitted by SafeBuddyVaultProxy.receive(); declared here so the vault ABI decodes it.
+    /// @notice Emitted by DarkSafeVaultProxy.receive(); declared here so the vault ABI decodes it.
     event Received(address indexed sender, uint256 value);
 
     // ---------------------------------------------------------------- errors
@@ -494,11 +494,11 @@ contract SafeBuddyVault is ReentrancyGuard {
         if (data.length < 4) revert UnrecognizedSelfCall(bytes4(0));
         bytes4 selector = bytes4(data[:4]);
         if (
-            selector != SafeBuddyVault.addOwner.selector &&
-            selector != SafeBuddyVault.removeOwner.selector &&
-            selector != SafeBuddyVault.changeThreshold.selector &&
-            selector != SafeBuddyVault.setMinExecutionDelay.selector &&
-            selector != SafeBuddyVault.cancelByConsensus.selector
+            selector != DarkSafeVault.addOwner.selector &&
+            selector != DarkSafeVault.removeOwner.selector &&
+            selector != DarkSafeVault.changeThreshold.selector &&
+            selector != DarkSafeVault.setMinExecutionDelay.selector &&
+            selector != DarkSafeVault.cancelByConsensus.selector
         ) revert UnrecognizedSelfCall(selector);
     }
 

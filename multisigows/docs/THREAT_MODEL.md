@@ -1,6 +1,6 @@
-# SafeBuddy v2 threat model
+# DarkSafe v2 threat model
 
-What SafeBuddy defends against, how, which test proves it, and what is left over. Paths are
+What DarkSafe defends against, how, which test proves it, and what is left over. Paths are
 relative to the repository root; `I1`–`I14` are the invariants in the security plan, listed
 in `docs/AUDIT_SCOPE.md`.
 
@@ -10,7 +10,7 @@ in `docs/AUDIT_SCOPE.md`.
 - **Governance state:** owners, threshold, timelock, and the approvals on each transaction.
 - **The integrity of what an owner approves.** An owner approves a transaction hash. That hash
   must commit to exactly the call the owner reviewed.
-- **Owner keys.** These are held in the owners' wallets, never by SafeBuddy.
+- **Owner keys.** These are held in the owners' wallets, never by DarkSafe.
 
 ## Actors and trust
 
@@ -29,8 +29,8 @@ in `docs/AUDIT_SCOPE.md`.
 
 | # | Threat | Defence | Evidence |
 |---|---|---|---|
-| T1 | **Blind signing / swapped UI** (the Bybit pattern): the page shows one call while another is approved | On-chain approval of a content hash. The review screen re-derives that hash from the stored fields and shows every field in full. `safebuddy-verify` prints the same review digest from any node. There is a timelock, and the watcher alerts on proposals and on quorum | `invariant_everyHashRederivesFromStoredFields`; the tamper test in `apps/web/test/v2_vault.test.tsx`; the lying-node tests in `packages/contracts/test/v2/core-integration.test.ts` and `tools-integration.test.ts` |
-| T2 | **Fake vault** (deposits into an attacker's contract that reports convincing owners) | A vault must run the pinned proxy code, point at the pinned implementation, and have been created by the verified factory (`isWallet`). There is no "add anyway" override | `core-integration.test.ts` (a stray proxy with identical code is refused); `SafeBuddyVaultFactory.t.sol` |
+| T1 | **Blind signing / swapped UI** (the Bybit pattern): the page shows one call while another is approved | On-chain approval of a content hash. The review screen re-derives that hash from the stored fields and shows every field in full. `darksafe-verify` prints the same review digest from any node. There is a timelock, and the watcher alerts on proposals and on quorum | `invariant_everyHashRederivesFromStoredFields`; the tamper test in `apps/web/test/v2_vault.test.tsx`; the lying-node tests in `packages/contracts/test/v2/core-integration.test.ts` and `tools-integration.test.ts` |
+| T2 | **Fake vault** (deposits into an attacker's contract that reports convincing owners) | A vault must run the pinned proxy code, point at the pinned implementation, and have been created by the verified factory (`isWallet`). There is no "add anyway" override | `core-integration.test.ts` (a stray proxy with identical code is refused); `DarkSafeVaultFactory.t.sol` |
 | T3 | **Fake or poisoned factory** | The factory's code must equal the compiled template once its immutable byte ranges are masked; `implementation()` must run the pinned vault code; `proxyCodeHash()` must equal the pinned proxy hash | `testFuzz_factoryMaskAgreesWithPin` (differential; a single flipped byte is caught); `core-integration.test.ts` (a factory pointing at a token is refused) |
 | T4 | **Gas griefing** (execute with just enough gas that the call fails and the approved transaction is burnt) | Before the call, the vault requires `gasLimit × 64/63 + 100k` and marks the transaction executed. A starved execute reverts instead of failing | `testFuzz_starvedExecuteNeverBurnsTheTransaction`, `test_gasBoundaryForwardsFullCommittedGas`, handler checks in the invariant campaign, the soak's starved-execute simulation |
 | T5 | **Storage takeover via DELEGATECALL / upgrade** | The vault has no DELEGATECALL, CALLCODE or SELFDESTRUCT. There are no modules, no upgrade function and no admin key | `scripts/check-opcodes.js` (CI); `test_proxyHasNoUpgradeOrReinitialisePath` |
@@ -59,7 +59,7 @@ in `docs/AUDIT_SCOPE.md`.
    who never compare digests, can still be misled by a malicious page. The CLI and the
    digest are the defence.
 3. **If every source is the same provider, a consistent lie is not detected.** Run
-   `safebuddy-verify` against a node you control, or configure an independent
+   `darksafe-verify` against a node you control, or configure an independent
    `VITE_QUAI_SECONDARY_RPC_URL`.
 4. **Quai's gas schedule differs from Ethereum's.** Storage cost scales with state size. The gas
    margins are proven with Ethereum's gas costs in Foundry, and the Orchard soak measures them on

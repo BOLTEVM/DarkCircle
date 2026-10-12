@@ -8,8 +8,8 @@ const path = require('node:path');
 
 const SUMMARY = path.resolve(__dirname, '../coverage/coverage-summary.json');
 const GATES = [
-  { file: 'contracts/v2/SafeBuddyVault.sol', branches: 95, lines: 98, functions: 100 },
-  { file: 'contracts/v2/SafeBuddyVaultFactory.sol', branches: 90, lines: 95, functions: 100 },
+  { file: 'contracts/v2/DarkSafeVault.sol', branches: 95, lines: 98, functions: 100 },
+  { file: 'contracts/v2/DarkSafeVaultFactory.sol', branches: 90, lines: 95, functions: 100 },
 ];
 
 if (!fs.existsSync(SUMMARY)) {

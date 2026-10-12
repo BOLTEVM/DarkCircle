@@ -1,9 +1,9 @@
 {
-  "name": "@safebuddy/verify",
+  "name": "@darksafe/verify",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Independent, read-only verifier for SafeBuddy v2 vaults and transactions",
+  "description": "Independent, read-only verifier for DarkSafe v2 vaults and transactions",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -14,7 +14,7 @@
     }
   },
   "bin": {
-    "safebuddy-verify": "./dist/cli.js"
+    "darksafe-verify": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
@@ -23,7 +23,7 @@
     "clean": "node -e \"const fs=require('fs'); fs.rmSync('dist', { recursive: true, force: true });\""
   },
   "dependencies": {
-    "@safebuddy/core": "workspace:*",
+    "@darksafe/core": "workspace:*",
     "ethers": "6.17.0"
   },
   "devDependencies": {

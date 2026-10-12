@@ -2,16 +2,16 @@ import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { App } from '../src/App.js';
-import { FORBIDDEN_MOCK_BALANCE } from '@safebuddy/core';
+import { FORBIDDEN_MOCK_BALANCE } from '@darksafe/core';
 
-describe('SafeBuddy Visual Architecture & Layout Verification', () => {
+describe('DarkSafe Visual Architecture & Layout Verification', () => {
   it('renders brand header, no-vault empty state, and disconnected signer pill on first load', () => {
     render(<App />);
 
     // Brand logo
-    const logoImg = screen.getByAltText('SafeBuddy Logo');
+    const logoImg = screen.getByAltText('DarkSafe Logo');
     expect(logoImg).toBeInTheDocument();
-    expect(logoImg.getAttribute('src')).toBe('/0logov3.png');
+    expect(logoImg.getAttribute('src')).toMatch(/(^|\/)0\.png$/);
 
     // No vault pre-selected — nothing fabricated
     expect(screen.getAllByText('No Vault Selected').length).toBeGreaterThan(0);
@@ -38,7 +38,7 @@ describe('SafeBuddy Visual Architecture & Layout Verification', () => {
     expect(screen.getByText('BDelta CLOB')).toBeInTheDocument();
 
     // No fabricated "PRO ACTIVE" badge, and no stale 4-of-7 consensus claim
-    expect(screen.queryByText('SafeBuddy PRO')).not.toBeInTheDocument();
+    expect(screen.queryByText('DarkSafe PRO')).not.toBeInTheDocument();
     expect(screen.queryByText('4-of-7 Consensus')).not.toBeInTheDocument();
   });
 

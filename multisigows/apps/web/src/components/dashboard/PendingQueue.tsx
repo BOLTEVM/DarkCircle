@@ -10,7 +10,7 @@ import {
   summarizeCall,
   estimatedChainNow,
   formatDuration,
-} from '@safebuddy/core';
+} from '@darksafe/core';
 import { useSafe } from '../../context/SafeContext.js';
 import type { ReviewTarget } from '../modals/TransactionReviewModal.js';
 

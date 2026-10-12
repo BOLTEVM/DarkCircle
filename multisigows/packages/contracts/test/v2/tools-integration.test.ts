@@ -13,17 +13,17 @@ import {
   reviewDigest,
   formatDigest,
   vaultInterface,
-} from "@safebuddy/core";
-import type { RpcLike, VaultDeployment } from "@safebuddy/core";
-import { runVerify, EXIT } from "@safebuddy/verify";
-import { pollOnce, emptyState } from "@safebuddy/watcher";
-import type { Alert, WatcherState } from "@safebuddy/watcher";
+} from "@darksafe/core";
+import type { RpcLike, VaultDeployment } from "@darksafe/core";
+import { runVerify, EXIT } from "@darksafe/verify";
+import { pollOnce, emptyState } from "@darksafe/watcher";
+import type { Alert, WatcherState } from "@darksafe/watcher";
 import { hardhatQuaiRpc, quaiWallets, deployCyprusV2 } from "./quai-shim.ts";
 
 const { ethers, network } = hre;
 const EXEC = { gasLimit: 5_000_000 };
 
-describe("safebuddy-verify and the watcher against the real v2 contracts", function () {
+describe("darksafe-verify and the watcher against the real v2 contracts", function () {
   this.timeout(180_000);
 
   let rpc: RpcLike;
@@ -59,7 +59,7 @@ describe("safebuddy-verify and the watcher against the real v2 contracts", funct
   it("verifies a factory, a vault and a transaction, and fails closed", async () => {
     const f = await verify(["factory", deployment.factory]);
     expect(f.code).to.equal(EXIT.OK);
-    expect(f.out).to.contain("is a genuine SafeBuddy v2 factory");
+    expect(f.out).to.contain("is a genuine DarkSafe v2 factory");
 
     const v = await verify(["vault", vault, "--factory", deployment.factory], [rpc, hardhatQuaiRpc()]);
     expect(v.code, v.out).to.equal(EXIT.OK);

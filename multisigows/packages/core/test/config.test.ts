@@ -11,7 +11,7 @@ import {
   getNetworkConfig
 } from '../src/config.js';
 
-describe('@safebuddy/core: config module', () => {
+describe('@darksafe/core: config module', () => {
   it('defines correct chain IDs', () => {
     expect(ORCHARD_CHAIN_ID).toBe(15000);
     expect(MAINNET_CHAIN_ID).toBe(9);

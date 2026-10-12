@@ -6,7 +6,7 @@ function capture() {
   return { lines, deps: { makeRpc: () => ({ rawRequest: async () => '0x3a98' }) as any, write: (l: string) => lines.push(l) } };
 }
 
-describe('safebuddy-verify argument handling', () => {
+describe('darksafe-verify argument handling', () => {
   it('prints usage for --help and exits 0', async () => {
     const c = capture();
     expect(await runVerify(['--help'], c.deps)).toBe(EXIT.OK);

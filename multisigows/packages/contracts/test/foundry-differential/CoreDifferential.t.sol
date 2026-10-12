@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import {VaultTestBase} from "../foundry/Base.sol";
-import {SafeBuddyVault} from "../../contracts/v2/SafeBuddyVault.sol";
+import {DarkSafeVault} from "../../contracts/v2/DarkSafeVault.sol";
 
 interface IERC20Calls {
     function transfer(address to, uint256 amount) external returns (bool);
@@ -16,7 +16,7 @@ interface IERC20Calls {
  * Run with `forge test --profile differential` after building packages/core.
  */
 contract CoreDifferentialTest is VaultTestBase {
-    SafeBuddyVault internal vault;
+    DarkSafeVault internal vault;
     address[] internal team;
 
     function setUp() public {
@@ -148,7 +148,7 @@ contract CoreDifferentialTest is VaultTestBase {
     function testFuzz_factoryMaskAgreesWithPin(address impl, uint16 flipAt) public {
         vm.assume(impl.code.length == 0 && uint160(impl) > 0x10000);
         vm.etch(impl, hex"00");
-        address f = deployCode_(abi.encodePacked(artifactBytecode("SafeBuddyVaultFactory"), abi.encode(impl)));
+        address f = deployCode_(abi.encodePacked(artifactBytecode("DarkSafeVaultFactory"), abi.encode(impl)));
         bytes memory code = f.code;
         string[] memory args = new string[](2);
         args[0] = "mask";
@@ -168,11 +168,11 @@ contract CoreDifferentialTest is VaultTestBase {
     function testFuzz_adminDecodeAgreesWithCore(uint8 which, address who, uint256 num, bytes32 h) public {
         bytes memory data;
         uint8 expectedKind = 3 + (which % 5);
-        if (which % 5 == 0) data = abi.encodeCall(SafeBuddyVault.addOwner, (who, num));
-        else if (which % 5 == 1) data = abi.encodeCall(SafeBuddyVault.removeOwner, (who, num));
-        else if (which % 5 == 2) data = abi.encodeCall(SafeBuddyVault.changeThreshold, (num));
-        else if (which % 5 == 3) data = abi.encodeCall(SafeBuddyVault.setMinExecutionDelay, (uint32(num)));
-        else data = abi.encodeCall(SafeBuddyVault.cancelByConsensus, (h));
+        if (which % 5 == 0) data = abi.encodeCall(DarkSafeVault.addOwner, (who, num));
+        else if (which % 5 == 1) data = abi.encodeCall(DarkSafeVault.removeOwner, (who, num));
+        else if (which % 5 == 2) data = abi.encodeCall(DarkSafeVault.changeThreshold, (num));
+        else if (which % 5 == 3) data = abi.encodeCall(DarkSafeVault.setMinExecutionDelay, (uint32(num)));
+        else data = abi.encodeCall(DarkSafeVault.cancelByConsensus, (h));
 
         (uint8 kind, address a, uint256 n, bytes32 hh) = _decode(address(vault), 0, data);
         assertEq(kind, expectedKind);
@@ -195,7 +195,7 @@ contract CoreDifferentialTest is VaultTestBase {
     function testFuzz_dirtyAdminCalldataRejectedByBoth(bytes12 dirt, uint256 seed) public {
         vm.assume(dirt != bytes12(0));
         address newOwner = cyprus(seed);
-        bytes memory data = abi.encodeCall(SafeBuddyVault.addOwner, (newOwner, 1));
+        bytes memory data = abi.encodeCall(DarkSafeVault.addOwner, (newOwner, 1));
         for (uint256 i = 0; i < 12; i++) data[4 + i] = dirt[i];
 
         (uint8 kind,,,) = _decode(address(vault), 0, data);
@@ -219,7 +219,7 @@ contract CoreDifferentialTest is VaultTestBase {
         uint32 requestedDelay;
     }
 
-    function _coreAcceptsDraft(SafeBuddyVault v, Draft memory d) internal returns (bool) {
+    function _coreAcceptsDraft(DarkSafeVault v, Draft memory d) internal returns (bool) {
         string[] memory args = new string[](10);
         args[0] = "validate";
         args[1] = vm.toString(address(v));
@@ -244,11 +244,11 @@ contract CoreDifferentialTest is VaultTestBase {
         uint32 requestedDelay,
         uint256 expOffset
     ) public {
-        SafeBuddyVault v = createVault(team, 1, uint32(bound(floor, 0, 2 days)));
+        DarkSafeVault v = createVault(team, 1, uint32(bound(floor, 0, 2 days)));
         Draft memory d = Draft({
             to: self ? address(v) : cyprus(uint256(expOffset)),
             value: value % 3 == 0 ? 0 : value,
-            data: self ? abi.encodeCall(SafeBuddyVault.changeThreshold, (1)) : bytes(""),
+            data: self ? abi.encodeCall(DarkSafeVault.changeThreshold, (1)) : bytes(""),
             gasLimit: uint64(bound(gasLimit, 0, 31_000_000)),
             requestedDelay: uint32(bound(requestedDelay, 0, 31 days)),
             expiration: uint64(block.timestamp + bound(expOffset, 0, 64 days))
@@ -262,7 +262,7 @@ contract CoreDifferentialTest is VaultTestBase {
         }
     }
 
-    function _adminCandidate(SafeBuddyVault v, address[] memory current, uint256 seed) internal pure returns (address) {
+    function _adminCandidate(DarkSafeVault v, address[] memory current, uint256 seed) internal pure returns (address) {
         uint256 pick = seed % 7;
         if (pick == 0) return current[seed % current.length]; // already an owner
         if (pick == 1) return address(0);
@@ -277,13 +277,13 @@ contract CoreDifferentialTest is VaultTestBase {
     /// the app says nothing of the sort, the change goes through.
     function testFuzz_riskPredictsAdminRejection(uint8 kind, uint256 seed, uint256 num) public {
         address[] memory current = owners(3, 70);
-        SafeBuddyVault v = createVault(current, 2, 0);
+        DarkSafeVault v = createVault(current, 2, 0);
         bytes memory data;
         uint256 k = kind % 4;
-        if (k == 0) data = abi.encodeCall(SafeBuddyVault.addOwner, (_adminCandidate(v, current, seed), bound(num, 0, 5)));
-        else if (k == 1) data = abi.encodeCall(SafeBuddyVault.removeOwner, (_adminCandidate(v, current, seed), bound(num, 0, 4)));
-        else if (k == 2) data = abi.encodeCall(SafeBuddyVault.changeThreshold, (bound(num, 0, 5)));
-        else data = abi.encodeCall(SafeBuddyVault.setMinExecutionDelay, (uint32(bound(num, 0, 40 days))));
+        if (k == 0) data = abi.encodeCall(DarkSafeVault.addOwner, (_adminCandidate(v, current, seed), bound(num, 0, 5)));
+        else if (k == 1) data = abi.encodeCall(DarkSafeVault.removeOwner, (_adminCandidate(v, current, seed), bound(num, 0, 4)));
+        else if (k == 2) data = abi.encodeCall(DarkSafeVault.changeThreshold, (bound(num, 0, 5)));
+        else data = abi.encodeCall(DarkSafeVault.setMinExecutionDelay, (uint32(bound(num, 0, 40 days))));
 
         string[] memory args = new string[](6);
         args[0] = "adminrisk";
@@ -298,7 +298,7 @@ contract CoreDifferentialTest is VaultTestBase {
         vm.prank(current[1]);
         v.approveTransaction(h);
         vm.prank(current[0]);
-        (bool ok,) = address(v).call{gas: 5_000_000}(abi.encodeCall(SafeBuddyVault.executeTransaction, (h)));
+        (bool ok,) = address(v).call{gas: 5_000_000}(abi.encodeCall(DarkSafeVault.executeTransaction, (h)));
         assertEq(predictedReject, !ok, "core's rejection prediction disagrees with the vault");
     }
 

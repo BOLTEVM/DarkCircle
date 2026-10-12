@@ -2,8 +2,8 @@ import { Interface } from 'ethers';
 
 /**
  * QuaiVault (github.com/Quai-Vault) is a separate multisig product on Quai Cyprus-1, not this
- * workspace's SafeBuddyVault. Its own core `QuaiVault.sol` source is not vendored anywhere this
- * workspace can read, so this ABI is not derived from source the way SafeBuddyVault's is â€” it is
+ * workspace's DarkSafeVault. Its own core `QuaiVault.sol` source is not vendored anywhere this
+ * workspace can read, so this ABI is not derived from source the way DarkSafeVault's is â€” it is
  * transcribed function-by-function from the official SDK's typed contract wrapper
  * (`quai-vault/quaivault-sdk`, `src/chain/vault-contract.ts`: every `.read()`/`.write()` call
  * there names the exact Solidity signature it invokes), cross-checked against

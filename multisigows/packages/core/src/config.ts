@@ -1,5 +1,5 @@
 /**
- * Quai Network Configuration Profiles for SafeBuddy
+ * Quai Network Configuration Profiles for DarkSafe
  * Supports Quai Orchard Testnet (Chain ID 15000) and Quai Mainnet (Chain ID 9)
  * targeting the Cyprus-1 execution shard (0x00 prefix).
  */

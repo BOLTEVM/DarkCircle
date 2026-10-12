@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /**
- * Soak test: runs the whole SafeBuddy v2 lifecycle on a live chain and records what it cost.
+ * Soak test: runs the whole DarkSafe v2 lifecycle on a live chain and records what it cost.
  *
  *   node scripts/soak-v2.mjs --network local        (anvil, via scripts/local-quai-chain.mjs)
  *   node scripts/soak-v2.mjs --network orchard --owners a.json,b.json,c.json [--confirmations 2] [--resume]
  *
  * Every step goes through the same pipeline the app uses (packages/core/src/tx.ts: simulate,
  * access list, explicit gas), waits for confirmations, then asserts the vault's state through
- * @safebuddy/core. The steps: create a vault through the factory and fund it; propose, approve,
+ * @darksafe/core. The steps: create a vault through the factory and fund it; propose, approve,
  * wait out the timelock and execute; check that a starved execute reverts; revoke; cancel; let
  * a transaction expire; admin changes (threshold, remove and re-add an owner to check stale
- * approvals are dropped, timelock); cancel by consensus; then the watcher and safebuddy-verify
+ * approvals are dropped, timelock); cancel by consensus; then the watcher and darksafe-verify
  * over the result.
  *
  * Progress is saved after every step (deployments/soak-<network>.state.json); --resume carries
@@ -19,7 +19,7 @@
  * deployments/soak-<network>-<timestamp>.json.
  *
  * Keys: on Quai networks the three owner keys come only from encrypted keystores (password from
- * SAFEBUDDY_KEYSTORE_PASSWORD_FILE, one file for all three, or a hidden prompt per keystore).
+ * DARKSAFE_KEYSTORE_PASSWORD_FILE, one file for all three, or a hidden prompt per keystore).
  * Locally, accounts are anvil-impersonated and no keys exist.
  */
 import fs from 'node:fs';
@@ -47,9 +47,9 @@ import {
   describeVaultRevert,
   isCyprus1QuaiAddress,
   formatDuration,
-} from '@safebuddy/core';
-import { runVerify } from '@safebuddy/verify';
-import { pollOnce, emptyState } from '@safebuddy/watcher';
+} from '@darksafe/core';
+import { runVerify } from '@darksafe/verify';
+import { pollOnce, emptyState } from '@darksafe/watcher';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -100,7 +100,7 @@ function parseArgs(argv) {
 }
 
 async function hiddenPrompt(question) {
-  if (!process.stdin.isTTY) fail('no TTY for the password prompt; set SAFEBUDDY_KEYSTORE_PASSWORD_FILE');
+  if (!process.stdin.isTTY) fail('no TTY for the password prompt; set DARKSAFE_KEYSTORE_PASSWORD_FILE');
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
   const write = rl._writeToOutput.bind(rl);
   rl._writeToOutput = (s) => (s.includes(question) ? write(s) : undefined);
@@ -117,7 +117,7 @@ const jsonBig = (value) => JSON.stringify(value, (_k, v) => (typeof v === 'bigin
 /** Signs with an encrypted keystore through quais (the only way keys enter this script). */
 async function keystoreSender(file, net) {
   if (!fs.existsSync(file)) fail(`keystore ${file} not found`);
-  const pwFile = process.env.SAFEBUDDY_KEYSTORE_PASSWORD_FILE;
+  const pwFile = process.env.DARKSAFE_KEYSTORE_PASSWORD_FILE;
   const password = pwFile ? fs.readFileSync(pwFile, 'utf8').replace(/\r?\n$/, '') : await hiddenPrompt(`Password for ${path.basename(file)}: `);
   const provider = new JsonRpcProvider(net.pathingBase, undefined, { usePathing: true });
   const wallet = (await Wallet.fromEncryptedJson(fs.readFileSync(file, 'utf8'), password)).connect(provider);
@@ -408,7 +408,7 @@ const STEPS = [
       const vaultCode = await runVerify(['vault', state.vault, '--factory', deployment.factory, ...extra], { makeRpc, write: (l) => lines.push(l) });
       const txCode = await runVerify(['tx', state.vault, state.txs.T1.hash, '--factory', deployment.factory, ...extra], { makeRpc, write: (l) => lines.push(l) });
       state.notes.push(...lines.filter((l) => /digest|agree|grade/.test(l)).map((l) => `verify: ${l.trim()}`));
-      check(vaultCode === 0 && txCode === 0, `safebuddy-verify exit codes ${vaultCode}/${txCode}`);
+      check(vaultCode === 0 && txCode === 0, `darksafe-verify exit codes ${vaultCode}/${txCode}`);
 
       // The watcher from an empty cursor sees the vault and its open transaction (T6).
       const { alerts, state: w } = await pollOnce(emptyState(net.chainId), { sources: [{ name: 'rpc', rpc }], deployment, vaults: [state.vault], confirmations: 1 });

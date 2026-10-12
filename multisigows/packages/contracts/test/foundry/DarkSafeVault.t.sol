@@ -3,7 +3,7 @@ pragma solidity 0.8.24;
 
 import {console2} from "forge-std/console2.sol";
 import {VaultTestBase, GasProbe} from "./Base.sol";
-import {SafeBuddyVault} from "../../contracts/v2/SafeBuddyVault.sol";
+import {DarkSafeVault} from "../../contracts/v2/DarkSafeVault.sol";
 
 contract TransferSender {
     function sendWithStipend(address payable to) external payable {
@@ -11,8 +11,8 @@ contract TransferSender {
     }
 }
 
-contract SafeBuddyVaultFuzzTest is VaultTestBase {
-    SafeBuddyVault internal vault;
+contract DarkSafeVaultFuzzTest is VaultTestBase {
+    DarkSafeVault internal vault;
     address[] internal team;
     GasProbe internal probe;
 
@@ -64,7 +64,7 @@ contract SafeBuddyVaultFuzzTest is VaultTestBase {
     function testFuzz_expiryWindowIsEnforced(uint32 floor, uint32 requested, uint256 offset) public {
         floor = uint32(bound(floor, 0, MAX_DELAY));
         requested = uint32(bound(requested, 0, MAX_DELAY));
-        SafeBuddyVault v = createVault(team, 2, floor);
+        DarkSafeVault v = createVault(team, 2, floor);
         uint256 delay = requested > floor ? requested : floor;
         uint256 executableFrom = block.timestamp + delay;
         offset = bound(offset, 0, MAX_WINDOW + 10);
@@ -72,19 +72,19 @@ contract SafeBuddyVaultFuzzTest is VaultTestBase {
 
         vm.prank(team[0]);
         if (offset == 0) {
-            vm.expectRevert(SafeBuddyVault.ExpirationTooSoon.selector);
+            vm.expectRevert(DarkSafeVault.ExpirationTooSoon.selector);
         } else if (offset > MAX_WINDOW) {
-            vm.expectRevert(SafeBuddyVault.ExpirationTooFar.selector);
+            vm.expectRevert(DarkSafeVault.ExpirationTooFar.selector);
         }
         v.proposeTransaction(address(probe), 0, "", 50_000, expiration, requested);
     }
 
     function testFuzz_selfCallsAreRestrictedToAdminSelectors(bytes4 selector, bytes calldata tail) public {
-        bool isAdmin = selector == SafeBuddyVault.addOwner.selector || selector == SafeBuddyVault.removeOwner.selector
-            || selector == SafeBuddyVault.changeThreshold.selector || selector == SafeBuddyVault.setMinExecutionDelay.selector
-            || selector == SafeBuddyVault.cancelByConsensus.selector;
+        bool isAdmin = selector == DarkSafeVault.addOwner.selector || selector == DarkSafeVault.removeOwner.selector
+            || selector == DarkSafeVault.changeThreshold.selector || selector == DarkSafeVault.setMinExecutionDelay.selector
+            || selector == DarkSafeVault.cancelByConsensus.selector;
         vm.prank(team[0]);
-        if (!isAdmin) vm.expectRevert(abi.encodeWithSelector(SafeBuddyVault.UnrecognizedSelfCall.selector, selector));
+        if (!isAdmin) vm.expectRevert(abi.encodeWithSelector(DarkSafeVault.UnrecognizedSelfCall.selector, selector));
         vault.proposeTransaction(address(vault), 0, abi.encodePacked(selector, tail), 0, uint64(block.timestamp + 1 days), 0);
     }
 
@@ -92,15 +92,15 @@ contract SafeBuddyVaultFuzzTest is VaultTestBase {
         vm.assume(!vault.isOwner(stranger));
         bytes32 h = propose(vault, team[0], address(probe), 0, "", 50_000);
         vm.startPrank(stranger);
-        vm.expectRevert(SafeBuddyVault.NotAnOwner.selector);
+        vm.expectRevert(DarkSafeVault.NotAnOwner.selector);
         vault.approveTransaction(h);
-        vm.expectRevert(SafeBuddyVault.NotAnOwner.selector);
+        vm.expectRevert(DarkSafeVault.NotAnOwner.selector);
         vault.executeTransaction(h);
-        vm.expectRevert(SafeBuddyVault.NotAnOwner.selector);
+        vm.expectRevert(DarkSafeVault.NotAnOwner.selector);
         vault.revokeApproval(h);
-        vm.expectRevert(SafeBuddyVault.NotAnOwner.selector);
+        vm.expectRevert(DarkSafeVault.NotAnOwner.selector);
         vault.cancelTransaction(h);
-        vm.expectRevert(SafeBuddyVault.NotAnOwner.selector);
+        vm.expectRevert(DarkSafeVault.NotAnOwner.selector);
         vault.proposeTransaction(address(probe), 0, "", 50_000, uint64(block.timestamp + 1 days), 0);
         vm.stopPrank();
     }
@@ -123,9 +123,9 @@ contract SafeBuddyVaultFuzzTest is VaultTestBase {
 
         uint256 before = vm.snapshotState();
         vm.prank(team[0]);
-        (bool ok,) = address(vault).call{gas: supplied}(abi.encodeCall(SafeBuddyVault.executeTransaction, (h)));
+        (bool ok,) = address(vault).call{gas: supplied}(abi.encodeCall(DarkSafeVault.executeTransaction, (h)));
 
-        SafeBuddyVault.Transaction memory t = vault.getTransaction(h);
+        DarkSafeVault.Transaction memory t = vault.getTransaction(h);
         if (ok && t.failed) {
             // Terminal failure is only legitimate if the callee cannot succeed with its committed gas.
             vm.revertToState(before);
@@ -156,13 +156,13 @@ contract SafeBuddyVaultFuzzTest is VaultTestBase {
             uint256 mid = (lo + hi) / 2;
             uint256 snap = vm.snapshotState();
             vm.prank(team[0]);
-            (bool ok,) = address(vault).call{gas: mid}(abi.encodeCall(SafeBuddyVault.executeTransaction, (h)));
+            (bool ok,) = address(vault).call{gas: mid}(abi.encodeCall(DarkSafeVault.executeTransaction, (h)));
             vm.revertToState(snap);
             if (ok) hi = mid;
             else lo = mid;
         }
         vm.prank(team[0]);
-        (bool ok2,) = address(vault).call{gas: hi}(abi.encodeCall(SafeBuddyVault.executeTransaction, (h)));
+        (bool ok2,) = address(vault).call{gas: hi}(abi.encodeCall(DarkSafeVault.executeTransaction, (h)));
         assertTrue(ok2);
         assertGe(probe.seenGas() + 1_000, callGas);
         uint256 required = (uint256(callGas) * 64) / 63;
@@ -182,13 +182,13 @@ contract SafeBuddyVaultFuzzTest is VaultTestBase {
         vault.approveTransaction(target);
         assertEq(vault.getApprovalCount(target), 2);
 
-        bytes32 rm = propose(vault, others[0], address(vault), 0, abi.encodeCall(SafeBuddyVault.removeOwner, (leaving, 2)), 0);
+        bytes32 rm = propose(vault, others[0], address(vault), 0, abi.encodeCall(DarkSafeVault.removeOwner, (leaving, 2)), 0);
         approveAll(vault, rm, others);
         vm.prank(others[0]);
         vault.executeTransaction{gas: 5_000_000}(rm);
         assertEq(vault.getApprovalCount(target), 1, "removed owner's approval dropped");
 
-        bytes32 add = propose(vault, others[0], address(vault), 0, abi.encodeCall(SafeBuddyVault.addOwner, (leaving, 2)), 0);
+        bytes32 add = propose(vault, others[0], address(vault), 0, abi.encodeCall(DarkSafeVault.addOwner, (leaving, 2)), 0);
         approveAll(vault, add, others);
         vm.prank(others[0]);
         vault.executeTransaction{gas: 5_000_000}(add);
@@ -201,7 +201,7 @@ contract SafeBuddyVaultFuzzTest is VaultTestBase {
         TransferSender sender = new TransferSender();
         uint256 before = address(vault).balance;
         vm.expectEmit(true, false, false, true, address(vault));
-        emit SafeBuddyVault.Received(address(sender), 1 ether);
+        emit DarkSafeVault.Received(address(sender), 1 ether);
         sender.sendWithStipend{value: 1 ether}(payable(address(vault)));
         assertEq(address(vault).balance, before + 1 ether);
     }
@@ -212,9 +212,9 @@ contract SafeBuddyVaultFuzzTest is VaultTestBase {
         vm.prank(team[0]);
         (bool ok,) = address(vault).call(abi.encodeWithSignature("upgradeToAndCall(address,bytes)", address(probe), ""));
         assertFalse(ok);
-        vm.expectRevert(SafeBuddyVault.AlreadyInitialized.selector);
+        vm.expectRevert(DarkSafeVault.AlreadyInitialized.selector);
         vault.initialize(team, 1, 0);
-        vm.expectRevert(SafeBuddyVault.AlreadyInitialized.selector);
+        vm.expectRevert(DarkSafeVault.AlreadyInitialized.selector);
         implementation.initialize(team, 1, 0);
         assertEq(vm.load(address(vault), slot), implBefore);
     }

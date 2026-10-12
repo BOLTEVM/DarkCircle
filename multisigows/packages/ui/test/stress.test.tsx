@@ -30,7 +30,7 @@ import { AddressAvatar } from '../src/components/AddressAvatar';
 import { CopyButton } from '../src/components/CopyButton';
 import { Dropdown } from '../src/components/Dropdown';
 
-describe('Adversarial Stress Test Suite: @safebuddy/ui', () => {
+describe('Adversarial Stress Test Suite: @darksafe/ui', () => {
   afterEach(() => {
     cleanup();
     document.body.innerHTML = '';
@@ -478,7 +478,7 @@ describe('Adversarial Stress Test Suite: @safebuddy/ui', () => {
         'not_an_address',
         '0x',
         '1234567890',
-        '🚀🔥💎 SafeBuddy',
+        '🚀🔥💎 DarkSafe',
         '<script>alert(1)</script>',
         'a'.repeat(5000), // 5000 characters
       ];

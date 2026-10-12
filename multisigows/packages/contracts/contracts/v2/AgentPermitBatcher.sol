@@ -13,8 +13,8 @@ import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC2
  * @dev The problem this solves: N agents each holding tokens they want under multisig custody
  * would otherwise need N separate approve()+transfer() transactions (N gas payers, no single
  * point of review). Instead each agent signs a free EIP-2612 permit off-chain; this contract is
- * proposed once as a SafeBuddyVault v2 transaction (see `packages/contracts/contracts/v2/
- * SafeBuddyVault.sol`), so the owners review and approve the whole batch as one line item, and
+ * proposed once as a DarkSafeVault v2 transaction (see `packages/contracts/contracts/v2/
+ * DarkSafeVault.sol`), so the owners review and approve the whole batch as one line item, and
  * `executeTransaction` calls this contract exactly once to redeem all of it atomically.
  *
  * Design notes:

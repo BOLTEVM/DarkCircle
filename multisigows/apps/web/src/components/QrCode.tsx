@@ -33,4 +33,4 @@ export const QrCode: React.FC<{ value: string; size?: number; title?: string }> 
 };
 
 /** Same grouping everywhere an address is confirmed (core/src/vault/format.ts). */
-export { groupAddress } from '@safebuddy/core';
+export { groupAddress } from '@darksafe/core';

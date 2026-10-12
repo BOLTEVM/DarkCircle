@@ -31,7 +31,7 @@ import {
   isCyprus1QuaiAddress,
   validateCyprus1Address,
   SimulationError,
-} from '@safebuddy/core';
+} from '@darksafe/core';
 import { AddressBookEntry, KnownVault, SafeState } from '../types/index.js';
 import { useWallet } from './WalletContext.js';
 import {
@@ -48,12 +48,12 @@ const REFRESH_INTERVAL_MS = 30_000;
 const RECENT_TRANSACTIONS = 25;
 
 export const MAINNET_GATE_MESSAGE =
-  'SafeBuddy vaults are not yet enabled on Quai mainnet: the vault contract has not had an independent security audit. ' +
+  'DarkSafe vaults are not yet enabled on Quai mainnet: the vault contract has not had an independent security audit. ' +
   'Use Orchard testnet, or set VITE_ALLOW_MAINNET_VAULTS=true in a build you control and accept that risk.';
 
 // v2 uses new keys: v1 vault entries are never shown as v2 vaults.
-const KNOWN_VAULTS_STORAGE_KEY = 'safebuddy.vaults.v2';
-const ADDRESS_BOOK_STORAGE_KEY = `safebuddy.addressbook.v1.${NETWORK_CONFIG.chainId}`;
+const KNOWN_VAULTS_STORAGE_KEY = 'darksafe.vaults.v2';
+const ADDRESS_BOOK_STORAGE_KEY = `darksafe.addressbook.v1.${NETWORK_CONFIG.chainId}`;
 
 function isKnownVault(v: any): v is KnownVault {
   return (
@@ -159,7 +159,7 @@ interface SafeContextValue {
   selectVault: (address: string) => void;
   /** Saves a vault that has already passed assertVaultAuthentic (and, after creation, assertVaultMatchesParams). */
   registerVerifiedVault: (vault: VerifiedVault, name?: string) => void;
-  /** Adds an existing vault; refused unless it is a genuine vault created by the SafeBuddy factory. */
+  /** Adds an existing vault; refused unless it is a genuine vault created by the DarkSafe factory. */
   addExistingVault: (address: string, name?: string) => Promise<VerifiedVault>;
   forgetVault: (address: string) => void;
   /** Reads and cross-checks everything the review screen shows. */
@@ -224,8 +224,8 @@ export const SafeProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (cancelled) return;
         setDeploymentError(
           err instanceof NoDeploymentError
-            ? `SafeBuddy v2 is not deployed on ${NETWORK_CONFIG.name === 'mainnet' ? 'Quai mainnet' : 'Orchard'} yet, so vaults cannot be created or opened here.`
-            : `Could not verify the SafeBuddy factory: ${err?.message ?? err}`
+            ? `DarkSafe v2 is not deployed on ${NETWORK_CONFIG.name === 'mainnet' ? 'Quai mainnet' : 'Orchard'} yet, so vaults cannot be created or opened here.`
+            : `Could not verify the DarkSafe factory: ${err?.message ?? err}`
         );
       });
     return () => {
@@ -335,7 +335,7 @@ export const SafeProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addExistingVault = useCallback(
     async (address: string, name?: string) => {
       if (!isVaultCreationAllowed()) throw new Error(MAINNET_GATE_MESSAGE);
-      if (!deployment) throw new Error(deploymentError ?? 'The SafeBuddy factory has not been verified yet.');
+      if (!deployment) throw new Error(deploymentError ?? 'The DarkSafe factory has not been verified yet.');
       const vault = await assertVaultAuthentic(rpcClient, address.trim(), deployment);
       registerVerifiedVault(vault, name);
       return vault;
@@ -401,7 +401,7 @@ export const SafeProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isOwner = Boolean(signer && safeState.owners.some((o) => o.toLowerCase() === signer.address.toLowerCase()));
   // Everything except ownership: anyone may formally expire a transaction.
   const baseBlockReason = !deployment
-    ? deploymentError ?? 'Verifying the SafeBuddy factory...'
+    ? deploymentError ?? 'Verifying the DarkSafe factory...'
     : !safeAddress
       ? 'No vault selected.'
       : safeState.verification === 'disagreement'

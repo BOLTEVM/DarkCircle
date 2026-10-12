@@ -5,7 +5,7 @@
  *
  *   node scripts/new-keystore.mjs --out deployer.json
  *
- * The password comes from the file named by SAFEBUDDY_KEYSTORE_PASSWORD_FILE, or is typed twice
+ * The password comes from the file named by DARKSAFE_KEYSTORE_PASSWORD_FILE, or is typed twice
  * at a hidden prompt; it must be at least 12 characters. The file is written with owner-only
  * permissions and never overwritten. Only the address is printed: the key never leaves the
  * encrypted file. Keep keystores out of the repository (*.keystore.json and keystores/ are
@@ -22,7 +22,7 @@ function fail(msg) {
 }
 
 async function hiddenPrompt(question) {
-  if (!process.stdin.isTTY) fail('no TTY for the password prompt; set SAFEBUDDY_KEYSTORE_PASSWORD_FILE');
+  if (!process.stdin.isTTY) fail('no TTY for the password prompt; set DARKSAFE_KEYSTORE_PASSWORD_FILE');
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
   const write = rl._writeToOutput.bind(rl);
   rl._writeToOutput = (s) => (s.includes(question) ? write(s) : undefined);
@@ -37,7 +37,7 @@ const out = i > 0 ? process.argv[i + 1] : fail('usage: node scripts/new-keystore
 if (fs.existsSync(out)) fail(`${out} already exists; refusing to overwrite a keystore`);
 
 let password;
-const pwFile = process.env.SAFEBUDDY_KEYSTORE_PASSWORD_FILE;
+const pwFile = process.env.DARKSAFE_KEYSTORE_PASSWORD_FILE;
 if (pwFile) {
   password = fs.readFileSync(pwFile, 'utf8').replace(/\r?\n$/, '');
 } else {

@@ -1,4 +1,4 @@
-import { MAINNET_CONFIG, TESTNET_CONFIG, QuaiNetworkConfig } from '@safebuddy/core';
+import { MAINNET_CONFIG, TESTNET_CONFIG, QuaiNetworkConfig } from '@darksafe/core';
 
 /**
  * Resolves which Quai network profile the dashboard talks to, via Vite build-time env:
@@ -37,7 +37,7 @@ export function requiredConfirmations(config: QuaiNetworkConfig = resolveWebNetw
 export const RECEIPT_TIMEOUT_MS = 20 * 60 * 1000;
 
 /**
- * Optional: a SafeBuddy v2 factory to use instead of the recorded deployment
+ * Optional: a DarkSafe v2 factory to use instead of the recorded deployment
  * (packages/contracts/deployments), e.g. a factory you deployed to Orchard yourself. It is
  * verified on chain against the pinned build before the app trusts it.
  *   VITE_V2_FACTORY_ADDRESS=0x00...

@@ -5,7 +5,7 @@ import {
   resolveCyprus1Endpoint
 } from '../src/rpc.js';
 
-describe('@safebuddy/core: rpc module', () => {
+describe('@darksafe/core: rpc module', () => {
   const validCyprus1Addr = '0x00eDf2d16AfbC028FB1e879559b07997Af79539f';
   const invalidAddr = '0x1234567890123456789012345678901234567890';
 

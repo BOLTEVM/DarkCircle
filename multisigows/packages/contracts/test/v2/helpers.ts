@@ -2,7 +2,7 @@ import hre from "hardhat";
 import "@nomicfoundation/hardhat-toolbox";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import type { Wallet, ContractTransactionResponse } from "ethers";
-import type { SafeBuddyVault, SafeBuddyVaultFactory } from "../../typechain-types/index.ts";
+import type { DarkSafeVault, DarkSafeVaultFactory } from "../../typechain-types/index.ts";
 
 const { ethers, network } = hre;
 
@@ -34,11 +34,11 @@ export function cyprusAddress(): string {
 }
 
 export async function deployV2() {
-  const Vault = await ethers.getContractFactory("SafeBuddyVault");
-  const implementation = (await Vault.deploy()) as unknown as SafeBuddyVault;
+  const Vault = await ethers.getContractFactory("DarkSafeVault");
+  const implementation = (await Vault.deploy()) as unknown as DarkSafeVault;
   await implementation.waitForDeployment();
-  const Factory = await ethers.getContractFactory("SafeBuddyVaultFactory");
-  const factory = (await Factory.deploy(await implementation.getAddress())) as unknown as SafeBuddyVaultFactory;
+  const Factory = await ethers.getContractFactory("DarkSafeVaultFactory");
+  const factory = (await Factory.deploy(await implementation.getAddress())) as unknown as DarkSafeVaultFactory;
   await factory.waitForDeployment();
   return { implementation, factory, Vault };
 }
@@ -65,7 +65,7 @@ export async function createVault(opts: {
     })
     .find((l: any) => l?.name === "WalletCreated");
   const address: string = log!.args.wallet;
-  const vault = (await ethers.getContractAt("SafeBuddyVault", address)) as unknown as SafeBuddyVault;
+  const vault = (await ethers.getContractAt("DarkSafeVault", address)) as unknown as DarkSafeVault;
   return { vault, factory, implementation, address, salt };
 }
 

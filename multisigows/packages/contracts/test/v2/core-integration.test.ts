@@ -34,8 +34,8 @@ import {
   highestRisk,
   isCyprus1QuaiAddress,
   vaultInterface,
-} from "@safebuddy/core";
-import type { RpcLike, VaultDeployment } from "@safebuddy/core";
+} from "@darksafe/core";
+import type { RpcLike, VaultDeployment } from "@darksafe/core";
 import { hardhatQuaiRpc, quaiWallets, deployCyprusV2, deployAtCyprus, cyprusDeployer } from "./quai-shim.ts";
 
 const { ethers } = hre;
@@ -55,7 +55,7 @@ function signatures(abi: ReadonlyArray<unknown>): string[] {
   return new Interface(abi as any).fragments.map((f) => f.format("full")).sort();
 }
 
-describe("@safebuddy/core against the real v2 contracts", function () {
+describe("@darksafe/core against the real v2 contracts", function () {
   this.timeout(180_000);
 
   let rpc: RpcLike;
@@ -89,15 +89,15 @@ describe("@safebuddy/core against the real v2 contracts", function () {
     expect(created.wallet).to.equal(mined.address);
     expect(isCyprus1QuaiAddress(created.wallet)).to.equal(true);
     vaultAddress = created.wallet;
-    vault = await ethers.getContractAt("SafeBuddyVault", vaultAddress);
+    vault = await ethers.getContractAt("DarkSafeVault", vaultAddress);
     await owners[0]!.sendTransaction({ to: vaultAddress, value: ethers.parseEther("5") });
   });
 
   it("carries exactly the compiled ABIs and constants", async () => {
     for (const [abi, name] of [
-      [VAULT_V2_ABI, "SafeBuddyVault"],
-      [VAULT_FACTORY_V2_ABI, "SafeBuddyVaultFactory"],
-      [VAULT_PROXY_V2_ABI, "SafeBuddyVaultProxy"],
+      [VAULT_V2_ABI, "DarkSafeVault"],
+      [VAULT_FACTORY_V2_ABI, "DarkSafeVaultFactory"],
+      [VAULT_PROXY_V2_ABI, "DarkSafeVaultProxy"],
     ] as const) {
       const artifact = await hre.artifacts.readArtifact(name);
       expect(signatures(abi)).to.deep.equal(signatures(artifact.abi));
@@ -116,8 +116,8 @@ describe("@safebuddy/core against the real v2 contracts", function () {
 
     // Same factory code, but pointing at a contract that is not the vault implementation.
     const token = await deployAtCyprus("MockERC20", ["T", "T", 18]);
-    const rogue = await deployAtCyprus("SafeBuddyVaultFactory", [await token.getAddress()]);
-    await expectRejects(verifyFactory(rpc, await rogue.getAddress()), FactoryAuthenticityError, /not the pinned SafeBuddyVault/);
+    const rogue = await deployAtCyprus("DarkSafeVaultFactory", [await token.getAddress()]);
+    await expectRejects(verifyFactory(rpc, await rogue.getAddress()), FactoryAuthenticityError, /not the pinned DarkSafeVault/);
     await expectRejects(verifyFactory(rpc, deployment.implementation), FactoryAuthenticityError, /differs from the pinned build/);
     await expectRejects(verifyFactory(rpc, owners[0]!.address), FactoryAuthenticityError, /no code/);
   });
@@ -133,8 +133,8 @@ describe("@safebuddy/core against the real v2 contracts", function () {
 
     // A proxy with identical code and the real implementation, but not created by the factory.
     const init = vaultInterface.encodeFunctionData("initialize", [owners.map((o) => o.address), 1, 0]);
-    const stray = await deployAtCyprus("SafeBuddyVaultProxy", [deployment.implementation, init]);
-    await expectRejects(assertVaultAuthentic(rpc, await stray.getAddress(), deployment), UnknownVaultCodeError, /not created by the SafeBuddy factory/);
+    const stray = await deployAtCyprus("DarkSafeVaultProxy", [deployment.implementation, init]);
+    await expectRejects(assertVaultAuthentic(rpc, await stray.getAddress(), deployment), UnknownVaultCodeError, /not created by the DarkSafe factory/);
     await expectRejects(assertVaultAuthentic(rpc, deployment.implementation, deployment), UnknownVaultCodeError);
     await expectRejects(assertVaultAuthentic(rpc, owners[1]!.address, deployment), UnknownVaultCodeError, /no contract code/);
   });

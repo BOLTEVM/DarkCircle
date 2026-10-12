@@ -6,9 +6,9 @@
 
 server {
     listen 443 ssl http2;
-    server_name safebuddy.example;
+    server_name darksafe.example;
 
-    root /var/www/safebuddy;
+    root /var/www/darksafe;
     index index.html;
 
     add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://rpc.quai.network https://orchard.rpc.quai.network; worker-src 'self'; manifest-src 'self'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests" always;

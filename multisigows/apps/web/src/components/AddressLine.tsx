@@ -1,5 +1,5 @@
 import React from 'react';
-import { groupAddress } from '@safebuddy/core';
+import { groupAddress } from '@darksafe/core';
 
 /**
  * Every address a user confirms is shown in full, in groups of four, with its address-book

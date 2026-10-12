@@ -2,10 +2,10 @@
 pragma solidity 0.8.24;
 
 import {VaultTestBase} from "./Base.sol";
-import {SafeBuddyVault} from "../../contracts/v2/SafeBuddyVault.sol";
-import {SafeBuddyVaultFactory} from "../../contracts/v2/SafeBuddyVaultFactory.sol";
+import {DarkSafeVault} from "../../contracts/v2/DarkSafeVault.sol";
+import {DarkSafeVaultFactory} from "../../contracts/v2/DarkSafeVaultFactory.sol";
 
-contract SafeBuddyVaultFactoryFuzzTest is VaultTestBase {
+contract DarkSafeVaultFactoryFuzzTest is VaultTestBase {
     function setUp() public {
         deployShipped();
     }
@@ -30,8 +30,8 @@ contract SafeBuddyVaultFactoryFuzzTest is VaultTestBase {
         assertEq(wallet, predicted);
         assertTrue(factory.isWallet(wallet));
         assertEq(keccak256(wallet.code), factory.proxyCodeHash());
-        assertEq(keccak256(wallet.code), keccak256(artifactRuntime("SafeBuddyVaultProxy")));
-        SafeBuddyVault v = SafeBuddyVault(payable(wallet));
+        assertEq(keccak256(wallet.code), keccak256(artifactRuntime("DarkSafeVaultProxy")));
+        DarkSafeVault v = DarkSafeVault(payable(wallet));
         assertEq(v.getOwners(), list);
         assertEq(v.getThreshold(), threshold);
         assertEq(v.minExecutionDelay(), minDelay);
@@ -53,12 +53,12 @@ contract SafeBuddyVaultFactoryFuzzTest is VaultTestBase {
         uint256 count = bound(n, 1, 20);
         address[] memory list = owners(count, seed);
         badThreshold = bound(badThreshold, count + 1, type(uint256).max);
-        vm.expectRevert(SafeBuddyVault.InvalidThreshold.selector);
+        vm.expectRevert(DarkSafeVault.InvalidThreshold.selector);
         factory.createWallet(list, badThreshold, 0, bytes32(0));
-        vm.expectRevert(SafeBuddyVault.InvalidThreshold.selector);
+        vm.expectRevert(DarkSafeVault.InvalidThreshold.selector);
         factory.createWallet(list, 0, 0, bytes32(0));
         badDelay = uint32(bound(badDelay, uint256(MAX_DELAY) + 1, type(uint32).max));
-        vm.expectRevert(SafeBuddyVault.ExecutionDelayTooLong.selector);
+        vm.expectRevert(DarkSafeVault.ExecutionDelayTooLong.selector);
         factory.createWallet(list, 1, badDelay, bytes32(0));
     }
 
@@ -66,33 +66,33 @@ contract SafeBuddyVaultFactoryFuzzTest is VaultTestBase {
         vm.assume(uint160(outsider) >> 152 != 0);
         address[] memory list = owners(2, seed);
         list[1] = outsider;
-        vm.expectRevert(abi.encodeWithSelector(SafeBuddyVault.InvalidOwnerAddress.selector, outsider));
+        vm.expectRevert(abi.encodeWithSelector(DarkSafeVault.InvalidOwnerAddress.selector, outsider));
         factory.createWallet(list, 1, 0, bytes32(0));
     }
 
     function test_tooManyOwnersAndDuplicatesAreRejected() public {
         address[] memory list = owners(21, 7);
-        vm.expectRevert(SafeBuddyVault.TooManyOwners.selector);
+        vm.expectRevert(DarkSafeVault.TooManyOwners.selector);
         factory.createWallet(list, 1, 0, bytes32(0));
         address[] memory dup = owners(2, 7);
         dup[1] = dup[0];
-        vm.expectRevert(abi.encodeWithSelector(SafeBuddyVault.DuplicateOwner.selector, dup[0]));
+        vm.expectRevert(abi.encodeWithSelector(DarkSafeVault.DuplicateOwner.selector, dup[0]));
         factory.createWallet(dup, 1, 0, bytes32(0));
     }
 
     /// A proxy deployed outside the factory, even pointing at the real implementation, is never a registered wallet.
     function test_isWalletOnlyForFactoryCreatedVaults() public {
         address[] memory list = owners(2, 3);
-        bytes memory init = abi.encodeCall(SafeBuddyVault.initialize, (list, 1, 0));
+        bytes memory init = abi.encodeCall(DarkSafeVault.initialize, (list, 1, 0));
         address stray =
-            deployCode_(abi.encodePacked(artifactBytecode("SafeBuddyVaultProxy"), abi.encode(address(implementation), init)));
+            deployCode_(abi.encodePacked(artifactBytecode("DarkSafeVaultProxy"), abi.encode(address(implementation), init)));
         assertEq(keccak256(stray.code), factory.proxyCodeHash(), "same code as a real vault");
         assertFalse(factory.isWallet(stray), "but not registered");
     }
 
     function testFuzz_constructorRejectsCodelessImplementation(address impl) public {
         vm.assume(impl.code.length == 0);
-        bytes memory init = abi.encodePacked(artifactBytecode("SafeBuddyVaultFactory"), abi.encode(impl));
+        bytes memory init = abi.encodePacked(artifactBytecode("DarkSafeVaultFactory"), abi.encode(impl));
         address deployed;
         assembly {
             deployed := create(0, add(init, 0x20), mload(init))

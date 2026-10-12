@@ -2,20 +2,20 @@
 pragma solidity 0.8.24;
 
 import {VaultTestBase} from "./Base.sol";
-import {SafeBuddyVault} from "../../contracts/v2/SafeBuddyVault.sol";
+import {DarkSafeVault} from "../../contracts/v2/DarkSafeVault.sol";
 import {AgentPermitBatcher} from "../../contracts/v2/AgentPermitBatcher.sol";
 import {MockERC20Permit} from "../../contracts/test/MockERC20Permit.sol";
 import {MockERC20} from "../../contracts/test/MockERC20.sol";
 
 /**
  * Exercises AgentPermitBatcher standalone (direct calls "as if" from the vault, via vm.prank)
- * and end-to-end through a real SafeBuddyVault propose/approve/execute cycle.
+ * and end-to-end through a real DarkSafeVault propose/approve/execute cycle.
  */
 contract AgentPermitBatcherTest is VaultTestBase {
     bytes32 private constant PERMIT_TYPEHASH =
         keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
 
-    SafeBuddyVault internal vault;
+    DarkSafeVault internal vault;
     address[] internal team;
     AgentPermitBatcher internal batcher;
     MockERC20Permit internal token;

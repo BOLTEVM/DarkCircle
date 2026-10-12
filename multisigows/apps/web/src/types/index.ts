@@ -1,4 +1,4 @@
-import type { SourceReport, VaultDeployment } from '@safebuddy/core';
+import type { SourceReport, VaultDeployment } from '@darksafe/core';
 
 export type SignerMode = 'eip1193';
 

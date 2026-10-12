@@ -46,6 +46,9 @@ jobs:
             exit 1
           fi
 
+      - name: Guard - the retired product name must not return
+        run: bash tools/check_legacy_name.sh
+
       - name: Test 404 / subdomain redirect router
         run: node tools/test_404_router.mjs
 
@@ -61,11 +64,11 @@ jobs:
         run: |
           cd multisigows
           pnpm install --frozen-lockfile
-          pnpm --filter @safebuddy/core build
-          pnpm --filter @safebuddy/ui build
-          pnpm --filter @safebuddy/verify build
-          pnpm --filter @safebuddy/watcher build
-          pnpm --filter @safebuddy/web build
+          pnpm --filter @darksafe/core build
+          pnpm --filter @darksafe/ui build
+          pnpm --filter @darksafe/verify build
+          pnpm --filter @darksafe/watcher build
+          pnpm --filter @darksafe/web build
           cd ..
 
       - name: Assemble Unified GitHub Pages Site

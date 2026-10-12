@@ -9,7 +9,7 @@ import {
   BASELINE_PRICES
 } from '../src/oracle.js';
 
-describe('@safebuddy/core: oracle module', () => {
+describe('@darksafe/core: oracle module', () => {
   it('enforces Guard OG-10: accepts valid fresh price with low confidence interval', () => {
     const pyth = new PythPriceFeedClient();
     const price = pyth.getPriceWithGuardOG10('QUAI', 60, 2.0);

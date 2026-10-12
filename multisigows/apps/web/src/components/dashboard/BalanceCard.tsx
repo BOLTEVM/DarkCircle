@@ -1,7 +1,7 @@
 import React from 'react';
 import { RefreshCw, Send, ArrowDownLeft, ArrowLeftRight, CheckCircle2 } from 'lucide-react';
 import { useMarketData } from '../../context/MarketDataContext.js';
-import { Card, SkeletonLoader, Button } from '@safebuddy/ui';
+import { Card, SkeletonLoader, Button } from '@darksafe/ui';
 
 interface BalanceCardProps {
   onSend: () => void;

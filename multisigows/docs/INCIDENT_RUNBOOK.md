@@ -1,6 +1,6 @@
 # Incident runbook
 
-What to do when something is wrong with a SafeBuddy v2 vault. Act in this order: **contain**,
+What to do when something is wrong with a DarkSafe v2 vault. Act in this order: **contain**,
 then **verify**, then **recover**. Every step works from the web app. The verifier CLI
 (`packages/verify`) confirms state independently of it.
 
@@ -28,7 +28,7 @@ then **verify**, then **recover**. Every step works from the web app. The verifi
 1. Propose **Vault settings → Cancel a transaction by consensus**, and choose that transaction.
 2. Honest owners approve and execute it straight away. It needs quorum, but no timelock.
 3. Confirm the transaction now shows **Cancelled**:
-   `safebuddy-verify tx <vault> <hash>`.
+   `darksafe-verify tx <vault> <hash>`.
 4. Then deal with the keys that approved it (section 3).
 
 ## 3. An owner's key is compromised (fewer keys than the threshold)
@@ -55,7 +55,7 @@ then **verify**, then **recover**. Every step works from the web app. The verifi
 
 1. Do not approve or execute anything. The app has already blocked writes.
 2. Check with a node you trust:
-   `safebuddy-verify vault <vault> --rpc <your node> --rpc <another node>`.
+   `darksafe-verify vault <vault> --rpc <your node> --rpc <another node>`.
 3. If your wallet's node or the app's RPC is the odd one out, switch it and report it to its
    operator.
 4. If independent nodes disagree with each other, wait for them to converge (a reorg, or a node
@@ -64,14 +64,14 @@ then **verify**, then **recover**. Every step works from the web app. The verifi
 ## 6. You suspect the web app itself (hosting or supply chain)
 
 1. Stop using the hosted app for writes.
-2. Check every pending transaction with `safebuddy-verify tx` from a clean machine, and compare
+2. Check every pending transaction with `darksafe-verify tx` from a clean machine, and compare
    digests with the other owners.
 3. Report it privately (see `SECURITY.md`). Maintainers rotate hosting credentials, rebuild from
    a clean checkout, and compare the deployed bundle with a local build.
 
 ## 7. The watcher reports a reorg
 
-1. Wait for the network to settle. Re-check state with `safebuddy-verify vault` at the new head.
+1. Wait for the network to settle. Re-check state with `darksafe-verify vault` at the new head.
 2. Any transaction you sent in the affected blocks may have been dropped. Check its receipt on
    the explorer before sending it again: a duplicate proposal is a new transaction.
 
@@ -86,4 +86,4 @@ then **verify**, then **recover**. Every step works from the web app. The verifi
 - Record what happened: transactions, blocks and times.
 - Rotate anything that may be exposed.
 - Review the configuration against `docs/SECURITY_GUIDE.md`.
-- If SafeBuddy should have prevented it, report it (see `SECURITY.md`).
+- If DarkSafe should have prevented it, report it (see `SECURITY.md`).

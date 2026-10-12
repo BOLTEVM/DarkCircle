@@ -43,7 +43,7 @@ depth = 400
 fail_on_revert = true
 
 # TypeScript <-> Solidity agreement: forge test --profile differential
-# Needs `pnpm -F @safebuddy/core build` first.
+# Needs `pnpm -F @darksafe/core build` first.
 [profile.differential]
 ffi = true
 test = "test/foundry-differential"

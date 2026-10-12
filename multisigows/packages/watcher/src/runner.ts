@@ -8,7 +8,7 @@ import {
   resolveDeployment,
   isCyprus1QuaiAddress,
   readBlockNumber,
-} from '@safebuddy/core';
+} from '@darksafe/core';
 import { Alert, WatcherState, emptyState, pollOnce } from './poll.js';
 
 export interface WatcherConfig {
@@ -90,7 +90,7 @@ export function webhookSink(url: string, fetchFn: typeof fetch = fetch): AlertSi
   return async (alerts) => {
     if (alerts.length === 0) return;
     const body = JSON.stringify({
-      source: 'safebuddy-watcher',
+      source: 'darksafe-watcher',
       alerts: alerts.slice(0, 50).map((a) => ({ ...a, message: a.message.slice(0, 500) })),
     });
     let lastError: unknown;

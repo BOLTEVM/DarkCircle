@@ -5,7 +5,7 @@ import {
   FORBIDDEN_MOCK_BALANCE,
   MultiTierPriceAggregator,
   PythPriceFeedClient,
-} from '@safebuddy/core';
+} from '@darksafe/core';
 
 describe('Dynamic State & Live Valuation Logic', () => {
   it('throws an error if forbidden mockup balance $2,348.43 is present', () => {

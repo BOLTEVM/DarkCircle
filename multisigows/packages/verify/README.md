@@ -1,11 +1,11 @@
-# @safebuddy/verify
+# @darksafe/verify
 
-`safebuddy-verify` checks SafeBuddy v2 contracts straight from the chain, independently of the
+`darksafe-verify` checks DarkSafe v2 contracts straight from the chain, independently of the
 web app. Use it to confirm what you are approving when you cannot trust, or cannot inspect,
 the page in front of you. Its review digest must match the one the app shows.
 
 ```bash
-pnpm -F @safebuddy/verify build
+pnpm -F @darksafe/verify build
 node packages/verify/dist/cli.js vault 0x00... --network testnet
 node packages/verify/dist/cli.js tx 0x00...vault 0x...txhash --rpc https://node-a --rpc https://node-b
 node packages/verify/dist/cli.js factory 0x00...

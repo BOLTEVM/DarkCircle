@@ -31,7 +31,7 @@ import {
   adminCalls,
   walletCreatedFromLogs,
   proposedHashFromLogs,
-} from '@safebuddy/core';
+} from '@darksafe/core';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -124,8 +124,8 @@ process.on('exit', () => child.kill());
 
 await waitForAnvil();
 
-const vaultArt = artifact('SafeBuddyVault');
-const factoryArt = artifact('SafeBuddyVaultFactory');
+const vaultArt = artifact('DarkSafeVault');
+const factoryArt = artifact('DarkSafeVaultFactory');
 const implDeployer = cyprusDeployer();
 const implementation = walletCreatedGuard((await sendAs(implDeployer, { data: vaultArt.bytecode })).contractAddress);
 const factoryDeployer = cyprusDeployer();
@@ -204,5 +204,5 @@ http
   })
   .listen(PROXY_PORT, '127.0.0.1', () => {
     console.log(JSON.stringify(summary, null, 2));
-    console.log(`quai proxy ready on ${summary.rpc}; run: pnpm -F @safebuddy/web exec vite --mode localchain --port 3010`);
+    console.log(`quai proxy ready on ${summary.rpc}; run: pnpm -F @darksafe/web exec vite --mode localchain --port 3010`);
   });

@@ -3,7 +3,7 @@ import { Shield, Copy, Check, QrCode, RefreshCw, Wallet, ChevronDown } from 'luc
 import { useSafe } from '../../context/SafeContext.js';
 import { useWallet } from '../../context/WalletContext.js';
 import { useMarketData } from '../../context/MarketDataContext.js';
-import { shortAddress } from '@safebuddy/core';
+import { shortAddress } from '@darksafe/core';
 
 interface HeaderProps {
   onOpenQrModal: () => void;
@@ -44,12 +44,12 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center space-x-3 lg:space-x-4">
         <div className="flex items-center space-x-2">
           <img
-            src="/0logov3.png"
-            alt="SafeBuddy Logo"
+            src={`${import.meta.env.BASE_URL}0.png`}
+            alt="DarkSafe Logo"
             className="w-8 h-8 rounded-lg shadow-sm border border-emerald-500/20 object-contain bg-slate-900"
           />
           <span className="font-bold text-lg tracking-tight text-white hidden sm:inline-block">
-            Safe<span className="text-emerald-400">Buddy</span>
+            Dark<span className="text-emerald-400">Safe</span>
           </span>
         </div>
 

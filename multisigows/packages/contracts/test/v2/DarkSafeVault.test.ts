@@ -20,7 +20,7 @@ import {
   EXEC_GAS,
 } from "./helpers.ts";
 
-describe("SafeBuddyVault v2", function () {
+describe("DarkSafeVault v2", function () {
   let A: Wallet, B: Wallet, C: Wallet, D: Wallet, outsider: Wallet;
 
   before(async function () {
@@ -61,13 +61,13 @@ describe("SafeBuddyVault v2", function () {
 
       expect(await factory.isWallet(predicted)).to.equal(true);
       expect(await factory.walletCount()).to.equal(1n);
-      const vault = await ethers.getContractAt("SafeBuddyVault", predicted);
+      const vault = await ethers.getContractAt("DarkSafeVault", predicted);
       expect(await vault.getOwners()).to.deep.equal(owners);
       expect(await vault.threshold()).to.equal(2n);
       expect(await vault.getThreshold()).to.equal(2n);
       expect(await vault.minExecutionDelay()).to.equal(BigInt(DAY));
 
-      const proxy = await ethers.getContractAt("SafeBuddyVaultProxy", predicted);
+      const proxy = await ethers.getContractAt("DarkSafeVaultProxy", predicted);
       expect(await proxy.getImplementation()).to.equal(await implementation.getAddress());
       const code = await ethers.provider.getCode(predicted);
       expect(ethers.keccak256(code)).to.equal(await factory.proxyCodeHash());
@@ -108,7 +108,7 @@ describe("SafeBuddyVault v2", function () {
     });
 
     it("refuses an implementation address with no code", async function () {
-      const Factory = await ethers.getContractFactory("SafeBuddyVaultFactory");
+      const Factory = await ethers.getContractFactory("DarkSafeVaultFactory");
       await expect(Factory.deploy(cyprusAddress())).to.be.revertedWithCustomError(Factory, "InvalidImplementation");
     });
 
@@ -121,7 +121,7 @@ describe("SafeBuddyVault v2", function () {
     it("refuses plain QUAI sent to the ownerless implementation, but the proxy accepts and logs it", async function () {
       const { address, implementation } = await vault2of3();
       await expect(A.sendTransaction({ to: await implementation.getAddress(), value: 1n })).to.be.reverted;
-      const proxy = await ethers.getContractAt("SafeBuddyVaultProxy", address);
+      const proxy = await ethers.getContractAt("DarkSafeVaultProxy", address);
       await expect(A.sendTransaction({ to: address, value: 5n })).to.emit(proxy, "Received").withArgs(A.address, 5n);
     });
 
@@ -131,7 +131,7 @@ describe("SafeBuddyVault v2", function () {
       await expect(
         A.sendTransaction({ to: address, data: upgrade.encodeFunctionData("upgradeToAndCall", [await implementation.getAddress(), "0x"]) })
       ).to.be.reverted;
-      expect(await (await ethers.getContractAt("SafeBuddyVaultProxy", address)).getImplementation()).to.equal(
+      expect(await (await ethers.getContractAt("DarkSafeVaultProxy", address)).getImplementation()).to.equal(
         await implementation.getAddress()
       );
     });
@@ -141,7 +141,7 @@ describe("SafeBuddyVault v2", function () {
 
   describe("I1: bytecode", function () {
     it("contains no DELEGATECALL, CALLCODE, SELFDESTRUCT, CREATE/CREATE2 or post-Paris opcode", async function () {
-      const art = artifacts.readArtifactSync("SafeBuddyVault");
+      const art = artifacts.readArtifactSync("DarkSafeVault");
       const bytes = Buffer.from(art.deployedBytecode.slice(2), "hex");
       const meta = (bytes[bytes.length - 2]! << 8) | bytes[bytes.length - 1]!;
       const code = bytes.subarray(0, bytes.length - meta - 2);

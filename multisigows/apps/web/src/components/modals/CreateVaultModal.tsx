@@ -20,7 +20,7 @@ import {
   VAULT_PRESETS,
   VAULT_LIMITS,
   formatDuration,
-} from '@safebuddy/core';
+} from '@darksafe/core';
 import { useWallet } from '../../context/WalletContext.js';
 import { useSafe, MAINNET_GATE_MESSAGE } from '../../context/SafeContext.js';
 import { resolveWebNetworkConfig, isVaultCreationAllowed, requiredConfirmations, RECEIPT_TIMEOUT_MS } from '../../config/network.js';
@@ -225,7 +225,7 @@ export const CreateVaultModal: React.FC<CreateVaultModalProps> = ({ isOpen, onCl
           <div>
             <h3 className="text-base font-bold text-white">Create a New Vault</h3>
             <p className="text-xs text-slate-400">
-              A SafeBuddy v2 vault on {NETWORK_CONFIG.name === 'mainnet' ? 'Quai Mainnet' : 'Quai Orchard Testnet'} (Cyprus-1)
+              A DarkSafe v2 vault on {NETWORK_CONFIG.name === 'mainnet' ? 'Quai Mainnet' : 'Quai Orchard Testnet'} (Cyprus-1)
             </p>
           </div>
         </div>
@@ -258,7 +258,7 @@ export const CreateVaultModal: React.FC<CreateVaultModalProps> = ({ isOpen, onCl
               </div>
             )}
             <p className="text-slate-400 leading-relaxed">
-              A Quai wallet (Pelagus) creates the vault through the SafeBuddy factory. You choose the owners; the wallet that
+              A Quai wallet (Pelagus) creates the vault through the DarkSafe factory. You choose the owners; the wallet that
               creates it does not have to be one.
             </p>
             {signer && !isOnExpectedChain && (

@@ -43,7 +43,7 @@ export const AppShell: React.FC = () => {
         className="bg-amber-950/60 border-b border-amber-800/50 text-amber-200 text-[11px] text-center px-4 py-1.5"
         data-testid="beta-banner"
       >
-        Beta: the SafeBuddy vault contract has not had an independent security audit. Do not store funds you cannot
+        Beta: the DarkSafe vault contract has not had an independent security audit. Do not store funds you cannot
         afford to lose.
       </div>
 
@@ -85,7 +85,7 @@ export const AppShell: React.FC = () => {
               </div>
               <h2 className="text-lg font-bold text-white mb-2">No Vault Selected</h2>
               <p className="text-sm text-slate-400 mb-6">
-                Create a new SafeBuddy multi-sig vault on Cyprus-1, or add the address of one you
+                Create a new DarkSafe multi-sig vault on Cyprus-1, or add the address of one you
                 already own, to get started.
               </p>
               <button

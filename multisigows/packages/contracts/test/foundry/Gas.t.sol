@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import {VaultTestBase} from "./Base.sol";
-import {SafeBuddyVault} from "../../contracts/v2/SafeBuddyVault.sol";
+import {DarkSafeVault} from "../../contracts/v2/DarkSafeVault.sol";
 import {MockERC20} from "../../contracts/test/MockERC20.sol";
 
 /**
@@ -12,7 +12,7 @@ import {MockERC20} from "../../contracts/test/MockERC20.sol";
  * gas limits are still sized by packages/core/src/tx.ts, never from these numbers.
  */
 contract GasTest is VaultTestBase {
-    SafeBuddyVault internal vault;
+    DarkSafeVault internal vault;
     MockERC20 internal token;
     address[] internal team;
     address internal recipient;
@@ -36,7 +36,7 @@ contract GasTest is VaultTestBase {
         approveAll(vault, nativeReady, second);
         tokenReady = propose(vault, team[0], address(token), 0, abi.encodeCall(MockERC20.transfer, (recipient, 5 ether)), 100_000);
         approveAll(vault, tokenReady, second);
-        adminReady = propose(vault, team[0], address(vault), 0, abi.encodeCall(SafeBuddyVault.addOwner, (cyprus(1000), 2)), 0);
+        adminReady = propose(vault, team[0], address(vault), 0, abi.encodeCall(DarkSafeVault.addOwner, (cyprus(1000), 2)), 0);
         approveAll(vault, adminReady, second);
         awaitingApproval = propose(vault, team[0], recipient, 1, "", 50_000);
     }

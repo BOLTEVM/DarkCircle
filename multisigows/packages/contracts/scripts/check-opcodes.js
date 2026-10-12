@@ -2,7 +2,7 @@
 /**
  * Bytecode gate for the v2 contracts (run after `hardhat compile`; exits 1 on violation).
  *
- *  - SafeBuddyVault: no DELEGATECALL, CALLCODE or SELFDESTRUCT (invariant I1), no CREATE/CREATE2.
+ *  - DarkSafeVault: no DELEGATECALL, CALLCODE or SELFDESTRUCT (invariant I1), no CREATE/CREATE2.
  *  - Every v2 contract: no opcode introduced after the Paris fork (PUSH0, TLOAD, TSTORE,
  *    MCOPY, BLOBHASH, BLOBBASEFEE), so the code does not depend on Quai's EVM version.
  *
@@ -35,9 +35,9 @@ function opcodes(hex) {
 }
 
 const checks = [
-  { contract: 'SafeBuddyVault', forbid: { ...POST_PARIS, ...DANGEROUS } },
-  { contract: 'SafeBuddyVaultProxy', forbid: { ...POST_PARIS, 0xf2: 'CALLCODE', 0xff: 'SELFDESTRUCT' } },
-  { contract: 'SafeBuddyVaultFactory', forbid: { ...POST_PARIS, 0xff: 'SELFDESTRUCT' } },
+  { contract: 'DarkSafeVault', forbid: { ...POST_PARIS, ...DANGEROUS } },
+  { contract: 'DarkSafeVaultProxy', forbid: { ...POST_PARIS, 0xf2: 'CALLCODE', 0xff: 'SELFDESTRUCT' } },
+  { contract: 'DarkSafeVaultFactory', forbid: { ...POST_PARIS, 0xff: 'SELFDESTRUCT' } },
 ];
 
 let failed = false;

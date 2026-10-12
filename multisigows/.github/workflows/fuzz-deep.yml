@@ -27,6 +27,6 @@ jobs:
         with:
           version: v1.8.3
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      - run: pnpm -F @safebuddy/contracts compile
+      - run: pnpm -F @darksafe/contracts compile
       - name: Deep campaign (random seed each week)
-        run: pnpm -F @safebuddy/contracts forge:deep --fuzz-seed "$(date +%s)"
+        run: pnpm -F @darksafe/contracts forge:deep --fuzz-seed "$(date +%s)"

@@ -6,12 +6,12 @@ import { RpcLike, callAt } from './rpc.js';
 /**
  * Lets a proposal (e.g. AgentPermitBatcher.batchPermitTransfer â€” see permit.ts) be built,
  * approved and executed through either multisig product this workspace's users hold funds in:
- * SafeBuddyVault (this repo) or QuaiVault (a separate product â€” see quaivault.ts for how that
+ * DarkSafeVault (this repo) or QuaiVault (a separate product â€” see quaivault.ts for how that
  * ABI was sourced). AgentPermitBatcher.sol itself already works with either unmodified: its
  * `vault` is just whichever address calls it.
  *
  * The two backends are NOT forced into a false lowest-common-denominator shape â€” they genuinely
- * differ (SafeBuddyVault commits an exact gasLimit per call and computes its hash purely
+ * differ (DarkSafeVault commits an exact gasLimit per call and computes its hash purely
  * off-chain from the proposal's fields; QuaiVault has no per-call gas commitment and its hash is
  * read from the vault itself). `encodePropose` throws if a field its own backend actually
  * requires is missing, rather than silently defaulting something the contract would reject.
@@ -24,15 +24,15 @@ export interface ProposalCall {
 }
 
 export interface ProposeOpts {
-  /** Required by SafeBuddyVault; not part of QuaiVault's interface at all. */
+  /** Required by DarkSafeVault; not part of QuaiVault's interface at all. */
   gasLimit?: bigint;
-  /** Required by SafeBuddyVault. Optional for QuaiVault: omitted uses its no-expiry overload. */
+  /** Required by DarkSafeVault. Optional for QuaiVault: omitted uses its no-expiry overload. */
   expiration?: number;
-  /** Required by SafeBuddyVault (0 is valid). Only used by QuaiVault together with `expiration`. */
+  /** Required by DarkSafeVault (0 is valid). Only used by QuaiVault together with `expiration`. */
   requestedDelay?: number;
 }
 
-export type MultisigBackendKind = 'safebuddy-v2' | 'quaivault';
+export type MultisigBackendKind = 'darksafe-v2' | 'quaivault';
 
 export interface MultisigBackend {
   readonly kind: MultisigBackendKind;
@@ -56,13 +56,13 @@ function requireField<K extends keyof ProposeOpts>(opts: ProposeOpts, key: K, ba
   return v as NonNullable<ProposeOpts[K]>;
 }
 
-export const safeBuddyBackend: MultisigBackend = {
-  kind: 'safebuddy-v2',
+export const darkSafeBackend: MultisigBackend = {
+  kind: 'darksafe-v2',
 
   encodePropose(call, opts) {
-    const gasLimit = requireField(opts, 'gasLimit', 'SafeBuddyVault');
-    const expiration = requireField(opts, 'expiration', 'SafeBuddyVault');
-    const requestedDelay = requireField(opts, 'requestedDelay', 'SafeBuddyVault');
+    const gasLimit = requireField(opts, 'gasLimit', 'DarkSafeVault');
+    const expiration = requireField(opts, 'expiration', 'DarkSafeVault');
+    const requestedDelay = requireField(opts, 'requestedDelay', 'DarkSafeVault');
     return vaultInterface.encodeFunctionData('proposeTransaction', [call.to, call.value, call.data, gasLimit, expiration, requestedDelay]);
   },
 
@@ -80,9 +80,9 @@ export const safeBuddyBackend: MultisigBackend = {
   },
 
   async resolveTxHash(rpc, vault, chainId, call, opts) {
-    const gasLimit = requireField(opts, 'gasLimit', 'SafeBuddyVault');
-    const expiration = requireField(opts, 'expiration', 'SafeBuddyVault');
-    const requestedDelay = requireField(opts, 'requestedDelay', 'SafeBuddyVault');
+    const gasLimit = requireField(opts, 'gasLimit', 'DarkSafeVault');
+    const expiration = requireField(opts, 'expiration', 'DarkSafeVault');
+    const requestedDelay = requireField(opts, 'requestedDelay', 'DarkSafeVault');
     const raw = await callAt(rpc, vault, vaultInterface.encodeFunctionData('txNonce'));
     const nonce = vaultInterface.decodeFunctionResult('txNonce', raw)[0] as bigint;
     return computeVaultTxHash({
@@ -142,6 +142,6 @@ export const quaiVaultBackend: MultisigBackend = {
 };
 
 export const multisigBackends: Record<MultisigBackendKind, MultisigBackend> = {
-  'safebuddy-v2': safeBuddyBackend,
+  'darksafe-v2': darkSafeBackend,
   quaivault: quaiVaultBackend,
 };

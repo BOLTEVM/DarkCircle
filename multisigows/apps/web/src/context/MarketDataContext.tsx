@@ -6,7 +6,7 @@ import {
   assertZeroHardcoding,
   CYPRUS1_TOKENS,
   FetchLike,
-} from '@safebuddy/core';
+} from '@darksafe/core';
 import { AssetHolding, MarketDataState } from '../types/index.js';
 import { resolveWebNetworkConfig } from '../config/network.js';
 

@@ -63,7 +63,7 @@
 |---|---|---|---|---|
 | 🛡️ | **DarkCircle**<br/>`x402tumbler/` | `/x402tumbler/` | x402 payment privacy on Quai: WQUAI and WQI shielded pools, PPOI compliance, ephemeral payees, a voice agent | Runs against an **in-memory simulation**. Nothing is deployed on Quai and no funds move. Circuit and pool contract are reference implementations, unaudited. The voice agent page is the one real-chain feature, and your wallet signs every step |
 | ⚡ | **Circleswap**<br/>`q0/` | `/q0/` | Quai DeFi dashboard: Q0 / WQUAI / BOSS pool analytics, swap math, LP and farm views | Reads live Cyprus-1 data. Transactions are signed by your own wallet extension. `SECURITY_AUDIT.md` is an internal, AI-assisted review and **not** an external audit |
-| 🔐 | **DarkSafe**<br/>`multisigows/` | `/multisigows/` | SafeBuddy multi-sig vaults: on-chain proposals, native timelock, quorum checks, no `DELEGATECALL` | Extension-only signing, no bundled signer. The vault contract has not had an independent security audit |
+| 🔐 | **DarkSafe**<br/>`multisigows/` | `/multisigows/` | DarkSafe multi-sig vaults: on-chain proposals, native timelock, quorum checks, no `DELEGATECALL` | Extension-only signing, no bundled signer. The vault contract has not had an independent security audit |
 
 Each app has its own README with the details: [`x402tumbler/`](x402tumbler/README.md), [`q0/`](q0/README.md), [`multisigows/`](multisigows/README.md).
 
@@ -86,6 +86,7 @@ Each app has its own README with the details: [`x402tumbler/`](x402tumbler/READM
 │   ├── build_qrb_scene.py      procedural Blender builder  ->  .blend + .glb
 │   ├── verify_qrb_assets.mjs   structural gate for the .glb
 │   ├── assemble_site.sh        builds the Pages bundle (CI and local)
+│   ├── check_legacy_name.sh    fails if the retired product name reappears
 │   └── test_404_router.mjs     behavioural test for the redirect router
 ├── x402tumbler/                DarkCircle
 ├── q0/                         Circleswap
@@ -106,9 +107,9 @@ You need Node 22+, pnpm 10 and, only to regenerate the 3D asset, Blender 5.x.
   && pnpm --filter quai-service build && pnpm --filter stats-app build)
 
 (cd multisigows && pnpm install --frozen-lockfile \
-  && pnpm --filter @safebuddy/core build  && pnpm --filter @safebuddy/ui build \
-  && pnpm --filter @safebuddy/verify build && pnpm --filter @safebuddy/watcher build \
-  && pnpm --filter @safebuddy/web build)
+  && pnpm --filter @darksafe/core build  && pnpm --filter @darksafe/ui build \
+  && pnpm --filter @darksafe/verify build && pnpm --filter @darksafe/watcher build \
+  && pnpm --filter @darksafe/web build)
 ```
 
 **2. Assemble and serve the unified site:**
@@ -161,6 +162,7 @@ The bundle contains `index.html`, `404.html`, the `.glb`, the vendored three.js,
 |---|---|---|
 | Asset structure | `node tools/verify_qrb_assets.mjs` | Wrong up-axis, orb or room scale, lights exported in physical units, a light pointing the wrong way, an animation loop that stalls at the seam, unused UVs, triangle and size budgets |
 | Redirect router | `node tools/test_404_router.mjs` | Project-pages prefix loss, subdomain and deep-link redirects |
+| Brand | `bash tools/check_legacy_name.sh` | The retired product name reappearing anywhere in tracked text (the multi-sig app is DarkSafe) |
 | Portal encoding | CI step | Any non-ASCII byte in `index.html` or `404.html` (the first build shipped corrupted dashes and emoji) |
 | Bundle integrity | `bash tools/assemble_site.sh` | A navigation target or vendored module missing from the deployed bundle |
 
@@ -172,7 +174,6 @@ These are tracked, not hidden:
 
 - **DarkCircle on static hosting.** Its UI expects the local API from `pnpm ui` in `x402tumbler/`; on Pages it is a static shell and its `/api/*` calls fail.
 - **Circleswap on static hosting.** The explorer TVL request is blocked by CORS without the dev proxy, and some token icons are requested from the site root (`/token-icons/...`), which 404s under a sub-path.
-- **DarkSafe logo.** The web app requests `/0logov3.png` as a root-absolute path, which 404s under a sub-path.
 - **Portal metrics.** The hover readout shows the Cyprus-1 block height only. Pool TVL and vault status are not wired in.
 - **No licence file yet.** Until one is added, reuse rights are unspecified. The vendored three.js keeps its MIT licence in `assets/3d/vendor/three/LICENSE`.
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Answers questions with the TypeScript library the app ships (@safebuddy/core), so the
+ * Answers questions with the TypeScript library the app ships (@darksafe/core), so the
  * Foundry differential suite (test/foundry/differential) can check it against the contracts.
  * Prints one ABI-encoded hex string; forge's vm.ffi decodes it to bytes.
  *
@@ -23,7 +23,7 @@ import {
   vaultWillReject,
   validateDraft,
   PINNED_CONTRACTS,
-} from '@safebuddy/core';
+} from '@darksafe/core';
 
 const coder = AbiCoder.defaultAbiCoder();
 const [cmd, ...a] = process.argv.slice(2);
@@ -71,7 +71,7 @@ switch (cmd) {
     break;
   }
   case 'mask': {
-    const pin = PINNED_CONTRACTS.SafeBuddyVaultFactoryV2;
+    const pin = PINNED_CONTRACTS.DarkSafeVaultFactoryV2;
     const hash = keccak256(maskImmutables(a[0], pin.immutableRanges));
     out(['bytes32', 'bool'], [hash, hash === pin.runtimeCodeHash && (a[0].length - 2) / 2 === pin.runtimeBytes]);
     break;

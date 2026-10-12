@@ -1,8 +1,8 @@
 {
-  "name": "safebuddy-monorepo",
+  "name": "darksafe-monorepo",
   "version": "1.0.0",
   "private": true,
-  "description": "SafeBuddy: High-fidelity Quai Network (Cyprus-1) Multi-Signature Dashboard Monorepo",
+  "description": "DarkSafe: High-fidelity Quai Network (Cyprus-1) Multi-Signature Dashboard Monorepo",
   "scripts": {
     "build": "turbo run build",
     "test": "turbo run test",

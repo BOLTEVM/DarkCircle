@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {SafeBuddyVault} from "./SafeBuddyVault.sol";
-import {SafeBuddyVaultProxy} from "./SafeBuddyVaultProxy.sol";
+import {DarkSafeVault} from "./DarkSafeVault.sol";
+import {DarkSafeVaultProxy} from "./DarkSafeVaultProxy.sol";
 
 /**
- * @title SafeBuddyVaultFactory
- * @notice Creates SafeBuddyVault instances as CREATE2 proxies to one fixed implementation.
+ * @title DarkSafeVaultFactory
+ * @notice Creates DarkSafeVault instances as CREATE2 proxies to one fixed implementation.
  *
  * On Quai the vault address must fall in the caller's zone (Cyprus-1: first byte 0x00, with
  * the Quai-ledger bit clear), so clients mine `salt` off-chain with predictWalletAddress.
@@ -15,11 +15,11 @@ import {SafeBuddyVaultProxy} from "./SafeBuddyVaultProxy.sol";
  * There is deliberately no way to register an externally deployed wallet: isWallet is true
  * only for vaults this factory created and initialised itself.
  */
-contract SafeBuddyVaultFactory {
+contract DarkSafeVaultFactory {
     error InvalidImplementation();
 
     address public immutable implementation;
-    /// @notice keccak256 of every SafeBuddyVaultProxy's runtime code (identical across instances).
+    /// @notice keccak256 of every DarkSafeVaultProxy's runtime code (identical across instances).
     bytes32 public immutable proxyCodeHash;
 
     mapping(address => bool) public isWallet;
@@ -39,10 +39,10 @@ contract SafeBuddyVaultFactory {
     constructor(address implementation_) {
         if (implementation_.code.length == 0) revert InvalidImplementation();
         implementation = implementation_;
-        proxyCodeHash = keccak256(type(SafeBuddyVaultProxy).runtimeCode);
+        proxyCodeHash = keccak256(type(DarkSafeVaultProxy).runtimeCode);
     }
 
-    /// @notice Validation happens in SafeBuddyVault.initialize; its errors bubble up unchanged.
+    /// @notice Validation happens in DarkSafeVault.initialize; its errors bubble up unchanged.
     function createWallet(
         address[] calldata owners,
         uint256 threshold,
@@ -50,7 +50,7 @@ contract SafeBuddyVaultFactory {
         bytes32 salt
     ) external returns (address wallet) {
         wallet = address(
-            new SafeBuddyVaultProxy{salt: _fullSalt(msg.sender, salt)}(
+            new DarkSafeVaultProxy{salt: _fullSalt(msg.sender, salt)}(
                 implementation,
                 _initData(owners, threshold, minExecutionDelay)
             )
@@ -74,7 +74,7 @@ contract SafeBuddyVaultFactory {
         // is a compile-time constant, so the packed encoding cannot collide.
         bytes memory args = abi.encode(implementation, _initData(owners, threshold, minExecutionDelay));
         // forge-lint: disable-next-line(encode-packed-collision)
-        bytes32 initCodeHash = keccak256(abi.encodePacked(type(SafeBuddyVaultProxy).creationCode, args));
+        bytes32 initCodeHash = keccak256(abi.encodePacked(type(DarkSafeVaultProxy).creationCode, args));
         return address(
             uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), _fullSalt(creator, salt), initCodeHash))))
         );
@@ -89,6 +89,6 @@ contract SafeBuddyVaultFactory {
         pure
         returns (bytes memory)
     {
-        return abi.encodeCall(SafeBuddyVault.initialize, (owners, threshold, minExecutionDelay));
+        return abi.encodeCall(DarkSafeVault.initialize, (owners, threshold, minExecutionDelay));
     }
 }

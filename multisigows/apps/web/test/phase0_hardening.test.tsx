@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { MAINNET_CONFIG, TESTNET_CONFIG } from '@safebuddy/core';
+import { MAINNET_CONFIG, TESTNET_CONFIG } from '@darksafe/core';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -49,7 +49,7 @@ describe('app shell', () => {
 });
 
 describe('adding an existing vault', () => {
-  it('rejects a contract whose code is not a pinned SafeBuddy vault and offers no override', async () => {
+  it('rejects a contract whose code is not a pinned DarkSafe vault and offers no override', async () => {
     const { fakeQuaiNode } = await import('./fakeQuaiNode.js');
     const factory = '0x0011111111111111111111111111111111111111';
     const impostor = '0x0060938367f4F711A467e2f562ECe51A7a7158f0';
@@ -72,9 +72,9 @@ describe('adding an existing vault', () => {
     fireEvent.click(add);
 
     const warning = await screen.findByTestId('unknown-code-warning');
-    expect(warning.textContent).toMatch(/Not a recognised SafeBuddy vault/);
+    expect(warning.textContent).toMatch(/Not a recognised DarkSafe vault/);
     expect(screen.queryByText(/Add unverified contract anyway/)).toBeNull();
-    expect(window.localStorage.getItem('safebuddy.vaults.v2')).toBeNull();
+    expect(window.localStorage.getItem('darksafe.vaults.v2')).toBeNull();
   });
 });
 

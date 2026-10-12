@@ -5,16 +5,16 @@ import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {console2} from "forge-std/console2.sol";
 import {VaultTestBase} from "../Base.sol";
 import {VaultHandler, Sink} from "./VaultHandler.sol";
-import {SafeBuddyVault} from "../../../contracts/v2/SafeBuddyVault.sol";
+import {DarkSafeVault} from "../../../contracts/v2/DarkSafeVault.sol";
 
 /**
  * Stateful invariant campaign over the shipped vault bytecode. The numbered invariants refer
  * to the security plan (I2 quorum/timelock/expiry, I3 approvedAt, I4 epochs, I6 gas, I9 bounds,
  * I11 delay cap, I12 enumeration).
  */
-contract SafeBuddyVaultInvariantTest is VaultTestBase {
+contract DarkSafeVaultInvariantTest is VaultTestBase {
     VaultHandler internal handler;
-    SafeBuddyVault internal vault;
+    DarkSafeVault internal vault;
     Sink internal sink;
 
     function setUp() public {
@@ -92,14 +92,14 @@ contract SafeBuddyVaultInvariantTest is VaultTestBase {
     function invariant_terminalStatesConsistent() public view {
         for (uint256 k = 0; k < handler.hashCount(); k++) {
             bytes32 h = handler.hashes(k);
-            SafeBuddyVault.Transaction memory t = vault.getTransaction(h);
+            DarkSafeVault.Transaction memory t = vault.getTransaction(h);
             assertFalse(t.executed && t.cancelled, "executed and cancelled");
             if (t.failed) assertTrue(t.executed);
             if (t.to == address(vault)) assertFalse(t.failed, "admin calls never fail terminally");
-            SafeBuddyVault.TxStatus s = vault.status(h);
-            if (t.executed) assertTrue(s == (t.failed ? SafeBuddyVault.TxStatus.Failed : SafeBuddyVault.TxStatus.Executed));
-            else if (t.cancelled) assertTrue(s == SafeBuddyVault.TxStatus.Cancelled);
-            else if (t.expired || block.timestamp > t.expiration) assertTrue(s == SafeBuddyVault.TxStatus.Expired);
+            DarkSafeVault.TxStatus s = vault.status(h);
+            if (t.executed) assertTrue(s == (t.failed ? DarkSafeVault.TxStatus.Failed : DarkSafeVault.TxStatus.Executed));
+            else if (t.cancelled) assertTrue(s == DarkSafeVault.TxStatus.Cancelled);
+            else if (t.expired || block.timestamp > t.expiration) assertTrue(s == DarkSafeVault.TxStatus.Expired);
         }
     }
 
@@ -117,7 +117,7 @@ contract SafeBuddyVaultInvariantTest is VaultTestBase {
         for (uint256 i = 0; i < count; i++) {
             bytes32 h = vault.getTransactionHashes(i, 1)[0];
             assertEq(h, handler.hashes(i));
-            SafeBuddyVault.Transaction memory t = vault.getTransaction(h);
+            DarkSafeVault.Transaction memory t = vault.getTransaction(h);
             bytes32 expected = keccak256(
                 abi.encode(address(vault), block.chainid, t.to, t.value, keccak256(t.data), t.gasLimit, t.expiration, t.executionDelay, i)
             );

@@ -39,7 +39,7 @@ export interface TransactionReview {
   vault: VerifiedVault;
   tx: VaultTransaction;
   decoded: DecodedCall;
-  /** reviewDigest(): compare with other owners or with `safebuddy-verify tx`. */
+  /** reviewDigest(): compare with other owners or with `darksafe-verify tx`. */
   digest: string;
   digestDisplay: string;
   agreement: AgreementStatus;

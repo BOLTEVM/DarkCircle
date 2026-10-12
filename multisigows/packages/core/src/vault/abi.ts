@@ -1,7 +1,7 @@
 import { Interface } from 'ethers';
 
 /**
- * ABIs of the SafeBuddy v2 contracts. They must match the compiled artifacts exactly;
+ * ABIs of the DarkSafe v2 contracts. They must match the compiled artifacts exactly;
  * packages/contracts/test/v2/core-integration.test.ts fails if they drift.
  */
 export const VAULT_V2_ABI = [
@@ -167,7 +167,7 @@ export const erc20PermitInterface = new Interface(ERC20_PERMIT_ABI);
 export const agentPermitBatcherInterface = new Interface(AGENT_PERMIT_BATCHER_ABI);
 export const agentPermit2BatcherInterface = new Interface(AGENT_PERMIT2_BATCHER_ABI);
 
-/** Order matches SafeBuddyVault.TxStatus. */
+/** Order matches DarkSafeVault.TxStatus. */
 export const TX_STATUSES = [
   'None',
   'Pending',
@@ -180,7 +180,7 @@ export const TX_STATUSES = [
 ] as const;
 export type TxStatusName = (typeof TX_STATUSES)[number];
 
-/** The only self-calls the vault accepts (SafeBuddyVault._requireAdminSelector). */
+/** The only self-calls the vault accepts (DarkSafeVault._requireAdminSelector). */
 export const ADMIN_FUNCTIONS = [
   'addOwner',
   'removeOwner',

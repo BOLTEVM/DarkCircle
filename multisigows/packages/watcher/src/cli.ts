@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import { QuaiRpcClient } from '@safebuddy/core';
+import { QuaiRpcClient } from '@darksafe/core';
 import { validateConfig, runWatcher, consoleSink, webhookSink, AlertSink } from './runner.js';
 
-const USAGE = `Usage: safebuddy-watch --config <watcher.json> [--once]
+const USAGE = `Usage: darksafe-watch --config <watcher.json> [--once]
 
-Polls SafeBuddy v2 vaults at a confirmed depth and prints alerts as JSON lines (and POSTs them
+Polls DarkSafe v2 vaults at a confirmed depth and prints alerts as JSON lines (and POSTs them
 to webhookUrl if configured). See packages/watcher/README.md for the config format.`;
 
 async function main(argv: string[]): Promise<number> {

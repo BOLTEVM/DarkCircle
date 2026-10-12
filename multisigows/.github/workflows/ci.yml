@@ -35,21 +35,21 @@ jobs:
         run: pnpm build
 
       - name: Pinned code hashes match the compiled contracts
-        run: pnpm -F @safebuddy/contracts pin:check
+        run: pnpm -F @darksafe/contracts pin:check
 
       - name: Typecheck
         run: pnpm lint
 
       - name: Core tests
-        run: pnpm -F @safebuddy/core test
+        run: pnpm -F @darksafe/core test
 
       - name: Web tests (incl. security headers, QR round-trip, v2 review flow)
-        run: pnpm -F @safebuddy/web test
+        run: pnpm -F @darksafe/web test
 
       - name: Verifier and watcher unit tests
         run: |
-          pnpm -F @safebuddy/verify test
-          pnpm -F @safebuddy/watcher test
+          pnpm -F @darksafe/verify test
+          pnpm -F @darksafe/watcher test
 
       - name: Audit runtime dependencies
         run: pnpm audit --prod --audit-level high
@@ -70,17 +70,17 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Compile
-        run: pnpm -F @safebuddy/contracts compile
+        run: pnpm -F @darksafe/contracts compile
 
       # The integration tests drive core, the verifier CLI and the watcher against the real contracts.
       - name: Build the TypeScript packages the integration tests use
-        run: pnpm -F @safebuddy/core -F @safebuddy/verify -F @safebuddy/watcher build
+        run: pnpm -F @darksafe/core -F @darksafe/verify -F @darksafe/watcher build
 
       - name: Tests (v2 unit, stateful fuzz, core/verifier/watcher integration)
-        run: pnpm -F @safebuddy/contracts test
+        run: pnpm -F @darksafe/contracts test
 
       - name: v2 bytecode has no DELEGATECALL/CALLCODE/SELFDESTRUCT and no post-Paris opcodes
-        run: pnpm -F @safebuddy/contracts opcode:check
+        run: pnpm -F @darksafe/contracts opcode:check
 
       # foundry.toml sits next to hardhat.config.cjs, so the framework is named explicitly.
       - name: Slither (fail on medium or higher)
@@ -94,7 +94,7 @@ jobs:
       # Last on purpose: solidity-coverage rewrites artifacts/ with instrumented bytecode,
       # which would poison the opcode gate and Slither if they ran afterwards.
       - name: Coverage (v2 vault >= 95% branches, 100% functions)
-        run: pnpm -F @safebuddy/contracts coverage:check
+        run: pnpm -F @darksafe/contracts coverage:check
 
   foundry:
     name: Contracts (Foundry fuzz + invariants, TS differential, lint, gas)
@@ -118,22 +118,22 @@ jobs:
       # The Foundry suites deploy the Hardhat-compiled bytecode (the bytecode that is pinned
       # and shipped), so Hardhat compiles first.
       - name: Compile the shipped bytecode
-        run: pnpm -F @safebuddy/contracts compile
+        run: pnpm -F @darksafe/contracts compile
 
       - name: forge lint (warnings are errors)
-        run: pnpm -F @safebuddy/contracts forge:lint
+        run: pnpm -F @darksafe/contracts forge:lint
 
       - name: Fuzz and invariant suites
-        run: pnpm -F @safebuddy/contracts forge:test
+        run: pnpm -F @darksafe/contracts forge:test
 
       - name: Gas snapshot unchanged
-        run: pnpm -F @safebuddy/contracts forge:snapshot:check
+        run: pnpm -F @darksafe/contracts forge:snapshot:check
 
       - name: Build the TypeScript packages the differential suite and soak use
-        run: pnpm -F @safebuddy/core -F @safebuddy/verify -F @safebuddy/watcher build
+        run: pnpm -F @darksafe/core -F @darksafe/verify -F @darksafe/watcher build
 
       - name: TypeScript core agrees with the contracts (differential, ffi)
-        run: pnpm -F @safebuddy/contracts forge:diff
+        run: pnpm -F @darksafe/contracts forge:diff
 
       # anvil run as Orchard behind a quai_* proxy; the whole lifecycle through the app's pipeline.
       - name: End-to-end soak on a local chain
@@ -141,4 +141,4 @@ jobs:
           node packages/contracts/scripts/local-quai-chain.mjs > "$RUNNER_TEMP/local-chain.log" 2>&1 &
           for i in $(seq 1 90); do [ -f packages/contracts/.localchain.json ] && break; sleep 1; done
           test -f packages/contracts/.localchain.json || { cat "$RUNNER_TEMP/local-chain.log"; exit 1; }
-          pnpm -F @safebuddy/contracts soak:local
+          pnpm -F @darksafe/contracts soak:local

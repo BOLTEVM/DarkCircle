@@ -9,7 +9,7 @@ import {
   PINNED_CONTRACTS,
   ERC1967_IMPLEMENTATION_SLOT,
   TX_STATUSES,
-} from '@safebuddy/core';
+} from '@darksafe/core';
 
 /**
  * A small in-memory Quai node for the web tests. It serves the real pinned bytecode (from
@@ -21,7 +21,7 @@ const ARTIFACTS = path.resolve(__dirname, '../../../packages/contracts/artifacts
 
 function runtime(name: string): string {
   const file = path.join(ARTIFACTS, `${name}.sol`, `${name}.json`);
-  if (!fs.existsSync(file)) throw new Error(`Missing ${file}: run \`pnpm -F @safebuddy/contracts compile\` first.`);
+  if (!fs.existsSync(file)) throw new Error(`Missing ${file}: run \`pnpm -F @darksafe/contracts compile\` first.`);
   return JSON.parse(fs.readFileSync(file, 'utf8')).deployedBytecode;
 }
 
@@ -74,8 +74,8 @@ export interface FakeReceipt {
 export function fakeQuaiNode(opts: FakeNodeOptions) {
   const head = opts.head ?? 1000n;
   const timestamp = opts.timestamp ?? 1_790_000_000;
-  const factoryCode = runtime('SafeBuddyVaultFactory');
-  const implCode = runtime('SafeBuddyVault');
+  const factoryCode = runtime('DarkSafeVaultFactory');
+  const implCode = runtime('DarkSafeVault');
   const receipts = new Map<string, FakeReceipt>();
   const calls: string[] = [];
   const lc = (a: string) => a.toLowerCase();
@@ -179,7 +179,7 @@ export function fakeQuaiNode(opts: FakeNodeOptions) {
       case 'implementation':
         return factoryInterface.encodeFunctionResult('implementation', [opts.implementation]);
       case 'proxyCodeHash':
-        return factoryInterface.encodeFunctionResult('proxyCodeHash', [PINNED_CONTRACTS.SafeBuddyVaultProxyV2.runtimeCodeHash]);
+        return factoryInterface.encodeFunctionResult('proxyCodeHash', [PINNED_CONTRACTS.DarkSafeVaultProxyV2.runtimeCodeHash]);
       case 'isWallet':
         return factoryInterface.encodeFunctionResult('isWallet', [Boolean(vaultAt(fn.args[0])?.registered ?? true)]);
       default:

@@ -31,7 +31,7 @@ export function factorySalt(creator: string, salt: string): string {
   return keccak256(solidityPacked(['address', 'bytes32'], [creator, salt]));
 }
 
-/** Mirrors SafeBuddyVaultFactory.predictWalletAddress. */
+/** Mirrors DarkSafeVaultFactory.predictWalletAddress. */
 export function predictVaultAddress(args: {
   factory: string;
   implementation: string;

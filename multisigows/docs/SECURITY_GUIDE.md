@@ -1,6 +1,6 @@
-# Using a SafeBuddy vault safely
+# Using a DarkSafe vault safely
 
-For vault owners. SafeBuddy v2 is **unaudited beta**. Until the audit closes and this notice is
+For vault owners. DarkSafe v2 is **unaudited beta**. Until the audit closes and this notice is
 removed, keep amounts small.
 
 ## 1. Choose the configuration
@@ -46,14 +46,14 @@ removed, keep amounts small.
    - a "could not verify" notice;
    - an admin change you did not expect;
    - an unlimited token approval;
-   - a call SafeBuddy cannot decode.
+   - a call DarkSafe cannot decode.
 
    Do not approve, and tell the other owners. Look first: the review offers "Revoke my approval"
    only if you have already approved.
 
 ## 4. Watch the vault
 
-Run `safebuddy-watch` (see `packages/watcher/README.md`) with a webhook into a channel the owners
+Run `darksafe-watch` (see `packages/watcher/README.md`) with a webhook into a channel the owners
 read. It alerts on:
 - every proposal, with admin changes and large transfers as critical or high;
 - quorum being reached, with when the transaction becomes executable;
@@ -72,7 +72,7 @@ watching during it.
 - **Some exchanges cannot pay into the vault.** They send with a fixed 21,000 gas limit, and the
   vault's `receive()` needs a little more. Send a small test amount first.
 
-## 6. What SafeBuddy cannot protect you from
+## 6. What DarkSafe cannot protect you from
 
 - A quorum of owners (or their keys) acting against the vault.
 - Approving something you did not read.

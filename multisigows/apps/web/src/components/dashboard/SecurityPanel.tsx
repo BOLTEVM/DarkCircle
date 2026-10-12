@@ -1,6 +1,6 @@
 import React from 'react';
 import { ShieldCheck, ShieldAlert, Shield } from 'lucide-react';
-import { assessVaultConfig, clockSkewIsSuspicious, formatDuration, shortAddress } from '@safebuddy/core';
+import { assessVaultConfig, clockSkewIsSuspicious, formatDuration, shortAddress } from '@darksafe/core';
 import { useSafe } from '../../context/SafeContext.js';
 import { resolveWebNetworkConfig } from '../../config/network.js';
 

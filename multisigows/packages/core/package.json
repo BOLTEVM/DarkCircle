@@ -1,9 +1,9 @@
 {
-  "name": "@safebuddy/core",
+  "name": "@darksafe/core",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Quai Network (Cyprus-1) Core SDK & Cryptographic Enclave for SafeBuddy",
+  "description": "Quai Network (Cyprus-1) Core SDK & Cryptographic Enclave for DarkSafe",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",

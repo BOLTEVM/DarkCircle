@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Shield, Plus, Check, Trash2, AlertCircle, AlertTriangle, Loader2 } from 'lucide-react';
-import { UnknownVaultCodeError, shortAddress } from '@safebuddy/core';
+import { UnknownVaultCodeError, shortAddress } from '@darksafe/core';
 import { useSafe } from '../../context/SafeContext.js';
 
 interface VaultSwitcherModalProps {
@@ -122,8 +122,8 @@ export const VaultSwitcherModal: React.FC<VaultSwitcherModalProps> = ({ isOpen, 
             <div className="flex items-start space-x-2">
               <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-400" />
               <span>
-                <strong>Not a recognised SafeBuddy vault.</strong> {unknownCode.detail} Any contract can report owners and a
-                threshold, so SafeBuddy only opens vaults its verified factory created. Do not send funds to{' '}
+                <strong>Not a recognised DarkSafe vault.</strong> {unknownCode.detail} Any contract can report owners and a
+                threshold, so DarkSafe only opens vaults its verified factory created. Do not send funds to{' '}
                 <span className="font-mono">{shortAddress(unknownCode.address)}</span> on the strength of this app.
               </span>
             </div>

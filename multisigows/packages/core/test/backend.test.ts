@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Interface, getAddress } from 'ethers';
 import {
-  safeBuddyBackend,
+  darkSafeBackend,
   quaiVaultBackend,
   multisigBackends,
   vaultInterface,
@@ -36,17 +36,17 @@ function selectorRpc(iface: Interface, handlers: Record<string, (args: any) => a
   };
 }
 
-describe('safeBuddyBackend', () => {
+describe('darkSafeBackend', () => {
   const call = { to: TARGET, value: 0n, data: '0xdeadbeef' };
 
   it('requires gasLimit, expiration and requestedDelay to propose', () => {
-    expect(() => safeBuddyBackend.encodePropose(call, {})).toThrow(/gasLimit/);
-    expect(() => safeBuddyBackend.encodePropose(call, { gasLimit: 1n })).toThrow(/expiration/);
-    expect(() => safeBuddyBackend.encodePropose(call, { gasLimit: 1n, expiration: 2 })).toThrow(/requestedDelay/);
+    expect(() => darkSafeBackend.encodePropose(call, {})).toThrow(/gasLimit/);
+    expect(() => darkSafeBackend.encodePropose(call, { gasLimit: 1n })).toThrow(/expiration/);
+    expect(() => darkSafeBackend.encodePropose(call, { gasLimit: 1n, expiration: 2 })).toThrow(/requestedDelay/);
   });
 
   it('encodes a proposal that round-trips through the vault ABI', () => {
-    const data = safeBuddyBackend.encodePropose(call, { gasLimit: 90_000n, expiration: 123456, requestedDelay: 3600 });
+    const data = darkSafeBackend.encodePropose(call, { gasLimit: 90_000n, expiration: 123456, requestedDelay: 3600 });
     const decoded = vaultInterface.decodeFunctionData('proposeTransaction', data);
     expect(getAddress(decoded[0])).toBe(getAddress(TARGET));
     expect(decoded[3]).toBe(90_000n);
@@ -56,8 +56,8 @@ describe('safeBuddyBackend', () => {
 
   it('encodes approve/execute', () => {
     const hash = '0x' + 'ab'.repeat(32);
-    expect(vaultInterface.decodeFunctionData('approveTransaction', safeBuddyBackend.encodeApprove(hash))[0]).toBe(hash);
-    expect(vaultInterface.decodeFunctionData('executeTransaction', safeBuddyBackend.encodeExecute(hash))[0]).toBe(hash);
+    expect(vaultInterface.decodeFunctionData('approveTransaction', darkSafeBackend.encodeApprove(hash))[0]).toBe(hash);
+    expect(vaultInterface.decodeFunctionData('executeTransaction', darkSafeBackend.encodeExecute(hash))[0]).toBe(hash);
   });
 
   it('reads owners and threshold', async () => {
@@ -65,14 +65,14 @@ describe('safeBuddyBackend', () => {
       'getOwners()': () => [[OWNER_A, OWNER_B]],
       'threshold()': () => [2n],
     });
-    await expect(safeBuddyBackend.readOwners(rpc, VAULT)).resolves.toEqual([getAddress(OWNER_A), getAddress(OWNER_B)]);
-    await expect(safeBuddyBackend.readThreshold(rpc, VAULT)).resolves.toBe(2n);
+    await expect(darkSafeBackend.readOwners(rpc, VAULT)).resolves.toEqual([getAddress(OWNER_A), getAddress(OWNER_B)]);
+    await expect(darkSafeBackend.readThreshold(rpc, VAULT)).resolves.toBe(2n);
   });
 
   it('resolves the same hash computeVaultTxHash would, reading txNonce from the vault', async () => {
     const rpc = selectorRpc(vaultInterface, { 'txNonce()': () => [7n] });
     const opts = { gasLimit: 90_000n, expiration: 123456, requestedDelay: 3600 };
-    const resolved = await safeBuddyBackend.resolveTxHash(rpc, VAULT, CHAIN_ID, call, opts);
+    const resolved = await darkSafeBackend.resolveTxHash(rpc, VAULT, CHAIN_ID, call, opts);
     const expected = computeVaultTxHash({
       vault: VAULT,
       chainId: CHAIN_ID,
@@ -157,7 +157,7 @@ describe('quaiVaultBackend', () => {
 
 describe('multisigBackends', () => {
   it('maps both backend kinds', () => {
-    expect(multisigBackends['safebuddy-v2']).toBe(safeBuddyBackend);
+    expect(multisigBackends['darksafe-v2']).toBe(darkSafeBackend);
     expect(multisigBackends.quaivault).toBe(quaiVaultBackend);
   });
 });

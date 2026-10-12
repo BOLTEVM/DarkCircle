@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {SafeBuddyVault} from "../../../contracts/v2/SafeBuddyVault.sol";
+import {DarkSafeVault} from "../../../contracts/v2/DarkSafeVault.sol";
 
 /// Receives value from the vault; reverts on request so external-call failures are exercised.
 contract Sink {
@@ -20,7 +20,7 @@ contract Sink {
  * recorded in `violations` and fails invariant_noUnsafeExecution.
  */
 contract VaultHandler is Test {
-    SafeBuddyVault public immutable vault;
+    DarkSafeVault public immutable vault;
     Sink public immutable sink;
     address[] public actors;
     bytes32[] public hashes;
@@ -45,7 +45,7 @@ contract VaultHandler is Test {
     /// First non-zero approvedAt seen for each transaction (I3: it must never change).
     mapping(bytes32 => uint64) public seenApprovedAt;
 
-    constructor(SafeBuddyVault vault_, Sink sink_, address[] memory actors_) {
+    constructor(DarkSafeVault vault_, Sink sink_, address[] memory actors_) {
         vault = vault_;
         sink = sink_;
         actors = actors_;
@@ -78,7 +78,7 @@ contract VaultHandler is Test {
 
     /// A random transaction among the last 20 whose status is `wanted`, or zero. Random rather
     /// than newest, so one transaction the vault keeps refusing cannot stall the campaign.
-    function _pickWithStatus(SafeBuddyVault.TxStatus wanted, uint256 seed) internal view returns (bytes32) {
+    function _pickWithStatus(DarkSafeVault.TxStatus wanted, uint256 seed) internal view returns (bytes32) {
         uint256 stop = hashes.length > 20 ? hashes.length - 20 : 0;
         bytes32[] memory found = new bytes32[](20);
         uint256 n;
@@ -156,21 +156,21 @@ contract VaultHandler is Test {
             // Mostly someone who is not an owner yet; one time in six anyone (possibly a duplicate).
             address candidate = argSeed % 6 == 0 ? actors[argSeed % actors.length] : _nonOwner(argSeed);
             if (candidate == address(0)) return;
-            data = abi.encodeCall(SafeBuddyVault.addOwner, (candidate, bound(thresholdSeed, 1, ownerCount + 1)));
+            data = abi.encodeCall(DarkSafeVault.addOwner, (candidate, bound(thresholdSeed, 1, ownerCount + 1)));
         } else if (k == 1) {
             address[] memory o = vault.getOwners();
             uint256 maxT = ownerCount > 1 ? ownerCount - 1 : 1;
-            data = abi.encodeCall(SafeBuddyVault.removeOwner, (o[argSeed % o.length], bound(thresholdSeed, 1, maxT)));
+            data = abi.encodeCall(DarkSafeVault.removeOwner, (o[argSeed % o.length], bound(thresholdSeed, 1, maxT)));
         } else if (k == 2) {
-            data = abi.encodeCall(SafeBuddyVault.changeThreshold, (bound(thresholdSeed, 1, ownerCount)));
+            data = abi.encodeCall(DarkSafeVault.changeThreshold, (bound(thresholdSeed, 1, ownerCount)));
         } else if (k == 3) {
             // Occasionally over the 30-day cap, which must fail at execution and roll back.
             uint256 d = argSeed % 10 == 0 ? 31 days : bound(argSeed, 0, 3 days);
-            data = abi.encodeCall(SafeBuddyVault.setMinExecutionDelay, (uint32(d)));
+            data = abi.encodeCall(DarkSafeVault.setMinExecutionDelay, (uint32(d)));
         } else {
             bytes32 target = _tx(argSeed);
             if (target == bytes32(0)) return;
-            data = abi.encodeCall(SafeBuddyVault.cancelByConsensus, (target));
+            data = abi.encodeCall(DarkSafeVault.cancelByConsensus, (target));
         }
         uint64 exp = uint64(block.timestamp + bound(window, 1 hours, 10 days));
         vm.prank(_caller(callerSeed));
@@ -182,7 +182,7 @@ contract VaultHandler is Test {
 
     function approve(uint256 callerSeed, uint256 txSeed) external recordsApprovedAt {
         // Three times in four, push the newest pending transaction towards quorum.
-        bytes32 h = txSeed % 4 != 0 ? _pickWithStatus(SafeBuddyVault.TxStatus.Pending, txSeed / 4) : bytes32(0);
+        bytes32 h = txSeed % 4 != 0 ? _pickWithStatus(DarkSafeVault.TxStatus.Pending, txSeed / 4) : bytes32(0);
         address caller = h != bytes32(0) ? _ownerWithoutApproval(h, callerSeed) : _caller(callerSeed);
         if (h == bytes32(0)) h = _tx(txSeed);
         if (h == bytes32(0)) return;
@@ -206,7 +206,7 @@ contract VaultHandler is Test {
     function cancel(uint256 callerSeed, uint256 txSeed) external recordsApprovedAt {
         bytes32 h = _tx(txSeed);
         if (h == bytes32(0)) return;
-        SafeBuddyVault.Transaction memory t = vault.getTransaction(h);
+        DarkSafeVault.Transaction memory t = vault.getTransaction(h);
         address caller = _caller(callerSeed);
         vm.prank(caller);
         try vault.cancelTransaction(h) {
@@ -230,13 +230,13 @@ contract VaultHandler is Test {
         // Three times in four, pick something that is executable (or whose clock needs starting).
         bytes32 h;
         if (txSeed % 4 != 0) {
-            h = _pickWithStatus(SafeBuddyVault.TxStatus.Executable, txSeed / 4);
-            if (h == bytes32(0)) h = _pickWithStatus(SafeBuddyVault.TxStatus.Timelocked, txSeed / 4);
+            h = _pickWithStatus(DarkSafeVault.TxStatus.Executable, txSeed / 4);
+            if (h == bytes32(0)) h = _pickWithStatus(DarkSafeVault.TxStatus.Timelocked, txSeed / 4);
         }
         if (h == bytes32(0)) h = _tx(txSeed);
         if (h == bytes32(0)) return;
         address caller = _caller(callerSeed);
-        SafeBuddyVault.Transaction memory b = vault.getTransaction(h);
+        DarkSafeVault.Transaction memory b = vault.getTransaction(h);
         uint256 approvalCount = vault.getApprovalCount(h);
         uint256 threshold = vault.threshold();
         bool callerIsOwner = vault.isOwner(caller);
@@ -245,8 +245,8 @@ contract VaultHandler is Test {
         uint256 gas = gasSeed % 4 == 0 ? bound(gasSeed, 30_000, 450_000) : 4_000_000;
 
         vm.prank(caller);
-        (bool ok, bytes memory ret) = address(vault).call{gas: gas}(abi.encodeCall(SafeBuddyVault.executeTransaction, (h)));
-        SafeBuddyVault.Transaction memory a = vault.getTransaction(h);
+        (bool ok, bytes memory ret) = address(vault).call{gas: gas}(abi.encodeCall(DarkSafeVault.executeTransaction, (h)));
+        DarkSafeVault.Transaction memory a = vault.getTransaction(h);
 
         if (!b.executed && a.executed) {
             if (!callerIsOwner) _violate("non-owner executed");

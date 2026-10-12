@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { getAddress } from 'ethers';
-import { adminCalls, vaultCalls, vaultInterface } from '@safebuddy/core';
+import { adminCalls, vaultCalls, vaultInterface } from '@darksafe/core';
 import { fakeQuaiNode, fakePelagus, FakeVault } from './fakeQuaiNode.js';
 
 const FACTORY = getAddress('0x0011111111111111111111111111111111111111');
@@ -34,7 +34,7 @@ function adminProposal() {
 }
 
 function rememberVault() {
-  window.localStorage.setItem('safebuddy.vaults.v2', JSON.stringify([{ address: VAULT, chainId: CHAIN, addedAt: 1, factory: FACTORY }]));
+  window.localStorage.setItem('darksafe.vaults.v2', JSON.stringify([{ address: VAULT, chainId: CHAIN, addedAt: 1, factory: FACTORY }]));
 }
 
 async function renderApp() {
@@ -72,7 +72,7 @@ describe('opening a vault', () => {
     await waitFor(() => expect(within(panel).getByTestId('verification-status').textContent).toMatch(/one source only/));
     expect(panel.textContent).toContain('2 of 3');
     expect(panel.textContent).toContain('1d');
-    expect(JSON.parse(window.localStorage.getItem('safebuddy.vaults.v2')!)[0]).toMatchObject({ address: VAULT, factory: FACTORY });
+    expect(JSON.parse(window.localStorage.getItem('darksafe.vaults.v2')!)[0]).toMatchObject({ address: VAULT, factory: FACTORY });
   });
 
   it('refuses a proxy the factory did not create and offers no override', async () => {
@@ -88,12 +88,12 @@ describe('opening a vault', () => {
     fireEvent.click(add);
 
     const warning = await screen.findByTestId('unknown-code-warning');
-    expect(warning.textContent).toMatch(/was not created by the SafeBuddy factory/);
+    expect(warning.textContent).toMatch(/was not created by the DarkSafe factory/);
     expect(screen.queryByText(/Add unverified contract anyway/)).toBeNull();
-    expect(window.localStorage.getItem('safebuddy.vaults.v2')).toBeNull();
+    expect(window.localStorage.getItem('darksafe.vaults.v2')).toBeNull();
   });
 
-  it('explains that vaults cannot be created where SafeBuddy v2 is not deployed', async () => {
+  it('explains that vaults cannot be created where DarkSafe v2 is not deployed', async () => {
     const node = fakeQuaiNode({ chainId: CHAIN, factory: FACTORY, implementation: IMPL, vaults: [], timestamp: TS });
     vi.stubGlobal('fetch', node.fetch);
     await renderApp();

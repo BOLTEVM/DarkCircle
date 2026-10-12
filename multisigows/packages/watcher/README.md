@@ -1,6 +1,6 @@
-# @safebuddy/watcher
+# @darksafe/watcher
 
-`safebuddy-watch` monitors SafeBuddy v2 vaults and raises alerts as JSON lines on stdout, and as
+`darksafe-watch` monitors DarkSafe v2 vaults and raises alerts as JSON lines on stdout, and as
 POSTs to a webhook if configured.
 
 At each poll it reads every vault's views at a confirmed block (head minus `confirmations`) and
@@ -22,7 +22,7 @@ unseen.
 | `heartbeat` | info, every `heartbeatMinutes`, so silence can be told apart from a dead watcher |
 
 ```bash
-pnpm -F @safebuddy/watcher build
+pnpm -F @darksafe/watcher build
 node packages/watcher/dist/cli.js --config watcher.json          # runs until stopped
 node packages/watcher/dist/cli.js --config watcher.json --once   # one poll, e.g. from cron
 ```

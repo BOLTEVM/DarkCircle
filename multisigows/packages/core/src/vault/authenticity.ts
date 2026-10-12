@@ -17,7 +17,7 @@ export interface VaultDeployment {
 
 export class NoDeploymentError extends Error {
   constructor(readonly chainId: number) {
-    super(`SafeBuddy v2 has no recorded deployment on chain ${chainId}.`);
+    super(`DarkSafe v2 has no recorded deployment on chain ${chainId}.`);
     this.name = 'NoDeploymentError';
   }
 }
@@ -35,7 +35,7 @@ export class UnknownVaultCodeError extends Error {
       detail ??
         (codeHash === null
           ? `${address} has no contract code. It is not a vault.`
-          : `${address} is a contract, but its code (hash ${codeHash}) is not a SafeBuddy v2 vault. ` +
+          : `${address} is a contract, but its code (hash ${codeHash}) is not a DarkSafe v2 vault. ` +
             'Any contract can answer getOwners()/getThreshold() with made-up values, so it is not treated as a vault.')
     );
     this.name = 'UnknownVaultCodeError';
@@ -60,29 +60,29 @@ async function readFactory<T = any>(rpc: RpcLike, factory: string, fn: string, a
 }
 
 /**
- * Proves `factory` is a genuine SafeBuddyVaultFactory pointing at the genuine vault
+ * Proves `factory` is a genuine DarkSafeVaultFactory pointing at the genuine vault
  * implementation: its code equals the compiled template outside the immutable ranges, and
  * the immutables themselves (implementation, proxyCodeHash) match the pinned builds.
  */
 export async function verifyFactory(rpc: RpcLike, factoryAddress: string, tag: BlockTag = 'latest'): Promise<{ factory: string; implementation: string }> {
   if (!isCyprus1QuaiAddress(factoryAddress)) throw new FactoryAuthenticityError(`${factoryAddress} is not a Cyprus-1 Quai address.`);
   const factory = getAddress(factoryAddress);
-  const pin = PINNED_CONTRACTS.SafeBuddyVaultFactoryV2;
+  const pin = PINNED_CONTRACTS.DarkSafeVaultFactoryV2;
   const code = await codeAt(rpc, factory, tag);
-  if (code === '0x') throw new FactoryAuthenticityError(`${factory} has no code; it is not the SafeBuddy factory.`);
+  if (code === '0x') throw new FactoryAuthenticityError(`${factory} has no code; it is not the DarkSafe factory.`);
   if ((code.length - 2) / 2 !== pin.runtimeBytes || keccak256(maskImmutables(code, pin.immutableRanges)) !== pin.runtimeCodeHash) {
-    throw new FactoryAuthenticityError(`${factory} is not a SafeBuddy v2 factory: its code differs from the pinned build.`);
+    throw new FactoryAuthenticityError(`${factory} is not a DarkSafe v2 factory: its code differs from the pinned build.`);
   }
   const [implementation, proxyCodeHash] = await Promise.all([
     readFactory<string>(rpc, factory, 'implementation', [], tag),
     readFactory<string>(rpc, factory, 'proxyCodeHash', [], tag),
   ]);
-  if (proxyCodeHash !== PINNED_CONTRACTS.SafeBuddyVaultProxyV2.runtimeCodeHash) {
-    throw new FactoryAuthenticityError(`Factory ${factory} deploys a proxy that is not the pinned SafeBuddyVaultProxy.`);
+  if (proxyCodeHash !== PINNED_CONTRACTS.DarkSafeVaultProxyV2.runtimeCodeHash) {
+    throw new FactoryAuthenticityError(`Factory ${factory} deploys a proxy that is not the pinned DarkSafeVaultProxy.`);
   }
   const implCode = await codeAt(rpc, implementation, tag);
-  if (keccak256(implCode) !== PINNED_CONTRACTS.SafeBuddyVaultV2.runtimeCodeHash) {
-    throw new FactoryAuthenticityError(`Factory ${factory} points at ${implementation}, which is not the pinned SafeBuddyVault implementation.`);
+  if (keccak256(implCode) !== PINNED_CONTRACTS.DarkSafeVaultV2.runtimeCodeHash) {
+    throw new FactoryAuthenticityError(`Factory ${factory} points at ${implementation}, which is not the pinned DarkSafeVault implementation.`);
   }
   return { factory, implementation: getAddress(implementation) };
 }
@@ -121,7 +121,7 @@ export interface VerifiedVault {
 }
 
 /**
- * Proves an address is a genuine SafeBuddy v2 vault before anything treats it as one:
+ * Proves an address is a genuine DarkSafe v2 vault before anything treats it as one:
  *  1. its code is exactly the pinned proxy,
  *  2. the proxy's ERC-1967 slot points at the deployment's implementation,
  *  3. the deployment's factory created it (isWallet), which also means it was initialised
@@ -140,16 +140,16 @@ export async function assertVaultAuthentic(
   const code = await codeAt(rpc, address, tag);
   if (code === '0x') throw new UnknownVaultCodeError(address, null);
   const codeHash = keccak256(code);
-  if (codeHash !== PINNED_CONTRACTS.SafeBuddyVaultProxyV2.runtimeCodeHash) throw new UnknownVaultCodeError(address, codeHash);
+  if (codeHash !== PINNED_CONTRACTS.DarkSafeVaultProxyV2.runtimeCodeHash) throw new UnknownVaultCodeError(address, codeHash);
 
   const word = (await storageAt(rpc, address, ERC1967_IMPLEMENTATION_SLOT, tag)).replace(/^0x/, '').padStart(64, '0');
   const implementation = getAddress('0x' + word.slice(24));
   if (!/^0{24}$/.test(word.slice(0, 24)) || implementation.toLowerCase() !== deployment.implementation.toLowerCase()) {
-    throw new UnknownVaultCodeError(address, codeHash, `${address} runs implementation ${implementation}, not the SafeBuddy implementation ${deployment.implementation}.`);
+    throw new UnknownVaultCodeError(address, codeHash, `${address} runs implementation ${implementation}, not the DarkSafe implementation ${deployment.implementation}.`);
   }
   const created = await readFactory<boolean>(rpc, deployment.factory, 'isWallet', [address], tag);
   if (!created) {
-    throw new UnknownVaultCodeError(address, codeHash, `${address} was not created by the SafeBuddy factory ${deployment.factory}.`);
+    throw new UnknownVaultCodeError(address, codeHash, `${address} was not created by the DarkSafe factory ${deployment.factory}.`);
   }
 
   const snapshot = await readVaultSnapshot(rpc, address, tag);

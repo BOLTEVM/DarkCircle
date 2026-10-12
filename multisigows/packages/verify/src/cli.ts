@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { QuaiRpcClient } from '@safebuddy/core';
+import { QuaiRpcClient } from '@darksafe/core';
 import { runVerify } from './run.js';
 
 runVerify(process.argv.slice(2), {

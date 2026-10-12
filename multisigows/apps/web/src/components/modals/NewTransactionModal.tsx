@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { parseUnits } from 'ethers';
 import { X, Send, AlertCircle, Settings, Loader2 } from 'lucide-react';
-import { adminCalls, validateCyprus1Address, VAULT_LIMITS, shortAddress, summarizeCall, decodeVaultCall } from '@safebuddy/core';
+import { adminCalls, validateCyprus1Address, VAULT_LIMITS, shortAddress, summarizeCall, decodeVaultCall } from '@darksafe/core';
 import { useSafe } from '../../context/SafeContext.js';
 import { buildDraft } from '../../lib/drafts.js';
 import type { ReviewTarget } from './TransactionReviewModal.js';

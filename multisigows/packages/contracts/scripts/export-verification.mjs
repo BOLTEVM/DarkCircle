@@ -23,14 +23,14 @@ const network = i > 0 ? process.argv[i + 1] : null;
 const record = network ? JSON.parse(fs.readFileSync(path.join(ROOT, 'deployments', `v2-${network}.json`), 'utf8')) : null;
 
 const CONTRACTS = [
-  { name: 'SafeBuddyVault', source: 'contracts/v2/SafeBuddyVault.sol', address: record?.implementation.address, args: '0x' },
+  { name: 'DarkSafeVault', source: 'contracts/v2/DarkSafeVault.sol', address: record?.implementation.address, args: '0x' },
   {
-    name: 'SafeBuddyVaultFactory',
-    source: 'contracts/v2/SafeBuddyVaultFactory.sol',
+    name: 'DarkSafeVaultFactory',
+    source: 'contracts/v2/DarkSafeVaultFactory.sol',
     address: record?.factory.address,
     args: record ? AbiCoder.defaultAbiCoder().encode(['address'], [record.implementation.address]) : null,
   },
-  { name: 'SafeBuddyVaultProxy', source: 'contracts/v2/SafeBuddyVaultProxy.sol', address: null, args: null },
+  { name: 'DarkSafeVaultProxy', source: 'contracts/v2/DarkSafeVaultProxy.sol', address: null, args: null },
 ];
 
 const outDir = path.join(ROOT, 'deployments', 'verification');

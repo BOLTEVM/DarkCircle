@@ -6,7 +6,7 @@ import {
   readChainClock,
   recommendGasLimit,
   validateDraft,
-} from '@safebuddy/core';
+} from '@darksafe/core';
 
 export interface DraftRequest {
   vault: string;

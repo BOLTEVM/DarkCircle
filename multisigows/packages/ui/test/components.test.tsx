@@ -28,7 +28,7 @@ import { AddressAvatar } from '../src/components/AddressAvatar';
 import { CopyButton } from '../src/components/CopyButton';
 import { Dropdown } from '../src/components/Dropdown';
 
-describe('@safebuddy/ui Theme & Helpers', () => {
+describe('@darksafe/ui Theme & Helpers', () => {
   it('exports valid Safe{Wallet} theme tokens', () => {
     expect(themeTokens.colors.primary.DEFAULT).toBe('#10b981');
     expect(themeTokens.colors.surfaces.background).toBe('#0b0f17');

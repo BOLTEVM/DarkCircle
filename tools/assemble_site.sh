@@ -39,7 +39,7 @@ mkdir -p "$OUT/q0" "$OUT/circleswap"
 cp -r q0/apps/stats-app/dist/. "$OUT/q0/"
 cp -r q0/apps/stats-app/dist/. "$OUT/circleswap/"
 
-# DarkSafe / SafeBuddy web vault (vite build, base './')
+# DarkSafe web vault (vite build, base './')
 mkdir -p "$OUT/multisigows" "$OUT/darksafe"
 cp -r multisigows/apps/web/dist/. "$OUT/multisigows/"
 cp -r multisigows/apps/web/dist/. "$OUT/darksafe/"

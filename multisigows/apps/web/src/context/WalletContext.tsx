@@ -9,7 +9,7 @@ import {
   readWalletChainId,
   sendPreparedTransaction,
   ChainMismatchError,
-} from '@safebuddy/core';
+} from '@darksafe/core';
 import { ConnectedSigner, SignerMode } from '../types/index.js';
 import { resolveWebNetworkConfig } from '../config/network.js';
 
@@ -138,7 +138,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
       const detected = detectInjectedWallet();
       if (!detected) {
-        throw new Error('No Quai wallet found. Install Pelagus (recommended) to sign with SafeBuddy.');
+        throw new Error('No Quai wallet found. Install Pelagus (recommended) to sign with DarkSafe.');
       }
       setWallet(detected);
       const { provider, providerName, isQuaiNative } = detected;

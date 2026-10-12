@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="0logov3.png" alt="SafeBuddy logo" width="120" />
+  <img src="0.png" alt="DarkSafe logo" width="120" />
 </p>
 
-<h1 align="center">SafeBuddy</h1>
+<h1 align="center">DarkSafe</h1>
 
 <p align="center">
   Browser-based multi-signature vault dashboard for Quai Network's Cyprus-1 execution shard.
@@ -12,12 +12,12 @@
 
 ## Overview
 
-**SafeBuddy** is a Safe{Wallet}-style multi-signature dashboard for Quai Network. It unites:
+**DarkSafe** is a Safe{Wallet}-style multi-signature dashboard for Quai Network. It unites:
 
-- **On-chain multi-sig contracts (v2)** — `SafeBuddyVault`: owners propose, approve and execute
+- **On-chain multi-sig contracts (v2)** — `DarkSafeVault`: owners propose, approve and execute
   on chain, with a required expiry, a native timelock and no DELEGATECALL. Vaults are ERC-1967
-  proxies created by `SafeBuddyVaultFactory`.
-- **A Quai Cyprus-1 core SDK** (`@safebuddy/core`) — address validation, Quai JSON-RPC and the
+  proxies created by `DarkSafeVaultFactory`.
+- **A Quai Cyprus-1 core SDK** (`@darksafe/core`) — address validation, Quai JSON-RPC and the
   transaction pipeline, plus the v2 vault library. That library covers hashing, vault-address
   mining, calldata decoding, risk rules, authenticity checks, reads compared across sources, and
   transaction verification.
@@ -27,8 +27,8 @@
 - **Extension-only signing** — every transaction is sent through a connected Quai wallet
   (Pelagus, Blip). Approvals are on-chain transactions, so nothing is signed off chain, and no
   signer is bundled in the app.
-- **Independent tools** — `safebuddy-verify` (`packages/verify`) checks a vault or transaction
-  outside the app. `safebuddy-watch` (`packages/watcher`) alerts on governance changes,
+- **Independent tools** — `darksafe-verify` (`packages/verify`) checks a vault or transaction
+  outside the app. `darksafe-watch` (`packages/watcher`) alerts on governance changes,
   proposals, quorum and reorgs.
 
 ---
@@ -39,19 +39,19 @@ Managed with **pnpm workspaces** and **Turborepo**:
 
 ```
 multisigows/
-├── 0logov3.png             # Brand logo
+├── 0.png                   # Brand logo
 ├── package.json            # Root Turborepo scripts
 ├── pnpm-workspace.yaml
 ├── turbo.json               # build → test/dev task pipeline
 ├── tsconfig.base.json        # Shared strict TypeScript config
 ├── packages/
-│   ├── contracts/            # @safebuddy/contracts — Hardhat, Solidity, Cyprus-1 deploy scripts
-│   ├── core/                 # @safebuddy/core — addresses, RPC, tx pipeline, v2 vault library
-│   ├── ui/                   # @safebuddy/ui — shared UI primitives & theme tokens
-│   ├── verify/               # @safebuddy/verify — safebuddy-verify CLI (read-only)
-│   └── watcher/              # @safebuddy/watcher — safebuddy-watch monitor
+│   ├── contracts/            # @darksafe/contracts — Hardhat, Solidity, Cyprus-1 deploy scripts
+│   ├── core/                 # @darksafe/core — addresses, RPC, tx pipeline, v2 vault library
+│   ├── ui/                   # @darksafe/ui — shared UI primitives & theme tokens
+│   ├── verify/               # @darksafe/verify — darksafe-verify CLI (read-only)
+│   └── watcher/              # @darksafe/watcher — darksafe-watch monitor
 └── apps/
-    └── web/                  # @safebuddy/web — React 18 + Vite + Tailwind dashboard
+    └── web/                  # @darksafe/web — React 18 + Vite + Tailwind dashboard
 ```
 
 ---
@@ -59,7 +59,7 @@ multisigows/
 ## Vault creation
 
 The "Create Vault" wizard (connect → owners → security → review) creates a vault through the
-SafeBuddy v2 factory. It:
+DarkSafe v2 factory. It:
 1. mines a CREATE2 salt so the address lands in Cyprus-1 on the Quai ledger;
 2. checks that address against the factory's own `predictWalletAddress`;
 3. simulates the creation, sends it, and waits for confirmations;
@@ -96,11 +96,11 @@ Every propose, approve and execute goes through a review screen. The screen:
   native timelock, epoch-invalidated approvals, no DELEGATECALL, no modules, no upgrade path.
   The app runs on v2 only (v1 was removed). v2 is not deployed yet, so until a factory is
   recorded or configured the app explains that vaults cannot be created or opened. Deploy with
-  `pnpm -F @safebuddy/contracts deploy:testnet` (simulates by default; `--sign-only`, or
+  `pnpm -F @darksafe/contracts deploy:testnet` (simulates by default; `--sign-only`, or
   `--keystore <file> --broadcast` to send). Mainnet broadcasts also require `--mainnet-audited`.
 - The app only treats an address as a vault if its code is the pinned proxy, it points at the
   pinned implementation, and the verified factory created it (`packages/core/src/pinned.ts`).
-  Regenerate after any contract change with `pnpm -F @safebuddy/contracts pin`; CI fails if it
+  Regenerate after any contract change with `pnpm -F @darksafe/contracts pin`; CI fails if it
   is stale.
 - Security headers live in `apps/web/vercel.json` (mirrored in `nginx.conf.example`, and a
   test keeps them in sync).
@@ -156,5 +156,5 @@ VITE_QUAI_SECONDARY_RPC_URL=<url>   # optional: a second RPC to cross-check vaul
 
 - **Strict TypeScript** across all packages (`strict`, `noImplicitAny`, `strictNullChecks`, …).
 - **No hardcoded balances or demo state** — enforced in tests via `assertZeroHardcoding` /
-  `FORBIDDEN_MOCK_BALANCE` in `@safebuddy/core`.
+  `FORBIDDEN_MOCK_BALANCE` in `@darksafe/core`.
 - **No bundled signing keys** — every signature comes from a connected wallet extension.

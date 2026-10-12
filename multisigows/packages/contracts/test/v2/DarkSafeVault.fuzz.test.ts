@@ -1,5 +1,5 @@
 /**
- * Stateful differential fuzz test for SafeBuddyVault.
+ * Stateful differential fuzz test for DarkSafeVault.
  *
  * A small, independent model of the vault's rules (written from the spec, not from the
  * Solidity) predicts whether each random action must succeed or revert. The run fails on
@@ -71,7 +71,7 @@ function encodeAdmin(a: Admin): string {
   }
 }
 
-describe("SafeBuddyVault v2: stateful differential fuzz", function () {
+describe("DarkSafeVault v2: stateful differential fuzz", function () {
   this.timeout(600_000);
   let pool: Wallet[];
   let recorder: any;

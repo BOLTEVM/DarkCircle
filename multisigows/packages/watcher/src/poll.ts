@@ -16,7 +16,7 @@ import {
   summarizeCall,
   formatDuration,
   formatUtc,
-} from '@safebuddy/core';
+} from '@darksafe/core';
 
 /**
  * One poll of the watcher. It reads each vault's views at a confirmed block (head minus

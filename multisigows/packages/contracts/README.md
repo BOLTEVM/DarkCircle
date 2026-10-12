@@ -1,20 +1,20 @@
-# @safebuddy/contracts
+# @darksafe/contracts
 
-SafeBuddy v2 multi-signature vault contracts for Quai Network's Cyprus-1 zone. Not deployed
+DarkSafe v2 multi-signature vault contracts for Quai Network's Cyprus-1 zone. Not deployed
 yet, and not independently audited.
 
 ## Contracts (`contracts/v2`)
 
-- **SafeBuddyVault**: an owner proposes a transaction (and thereby approves it), other owners
+- **DarkSafeVault**: an owner proposes a transaction (and thereby approves it), other owners
   approve on chain, and once quorum is reached and the timelock has passed, any owner executes
   it. Every transaction carries a required expiry. Removing an owner invalidates their
   approvals for good. A failed external call is final only when it was given its full committed
   gas, so an executor cannot burn an approved transaction by under-gassing it. There is no
   DELEGATECALL, no modules, no upgrade path and no admin key.
-- **SafeBuddyVaultProxy**: an ERC-1967 proxy with its own `receive()`, initialised in the same
+- **DarkSafeVaultProxy**: an ERC-1967 proxy with its own `receive()`, initialised in the same
   transaction that creates it. Every vault has identical runtime code, so clients recognise a
   genuine vault by its code hash.
-- **SafeBuddyVaultFactory**: CREATE2 factory with the creator folded into the salt, so nobody
+- **DarkSafeVaultFactory**: CREATE2 factory with the creator folded into the salt, so nobody
   can take a salt someone else mined. `isWallet` is true only for vaults it created.
 - **AgentPermitBatcher**: redeems a batch of off-chain ERC-2612 permits from independent agents
   and sweeps every authorized amount into one immutable, constructor-fixed vault in a single
@@ -125,7 +125,7 @@ Mainnet broadcasts also need `--mainnet-audited <tag>`, and are refused unless:
 - revoke, cancel, expire;
 - threshold, owner and timelock changes, including the stale-approval check;
 - cancel by consensus;
-- the watcher and `safebuddy-verify`.
+- the watcher and `darksafe-verify`.
 
 After each step it asserts the vault's state and records estimated, limit and used gas.
 

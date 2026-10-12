@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import {VaultTestBase} from "./Base.sol";
-import {SafeBuddyVault} from "../../contracts/v2/SafeBuddyVault.sol";
+import {DarkSafeVault} from "../../contracts/v2/DarkSafeVault.sol";
 import {AgentPermit2Batcher} from "../../contracts/v2/AgentPermit2Batcher.sol";
 import {MockPermit2} from "../../contracts/test/MockPermit2.sol";
 import {MockERC20} from "../../contracts/test/MockERC20.sol";
@@ -20,7 +20,7 @@ contract AgentPermit2BatcherTest is VaultTestBase {
         "PermitTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline)TokenPermissions(address token,uint256 amount)"
     );
 
-    SafeBuddyVault internal vault;
+    DarkSafeVault internal vault;
     address[] internal team;
     MockPermit2 internal permit2;
     AgentPermit2Batcher internal batcher;

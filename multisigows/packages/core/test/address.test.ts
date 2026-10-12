@@ -11,7 +11,7 @@ import {
   isQiUtxoAddress
 } from '../src/address.js';
 
-describe('@safebuddy/core: address module', () => {
+describe('@darksafe/core: address module', () => {
   const validEvmAddress = '0x00eDf2d16AfbC028FB1e879559b07997Af79539f';
   const validUtxoAddress = '0x0093F3c023941CB49cb19e76C465168e19d2C428';
 

@@ -97,7 +97,7 @@ function adminFlags(call: AdminCall, ctx: RiskContext): RiskFlag[] {
   switch (call.fn) {
     case 'addOwner': {
       const o = call.owner.toLowerCase();
-      // Mirrors SafeBuddyVault._validateNewOwner.
+      // Mirrors DarkSafeVault._validateNewOwner.
       if (BigInt(o) <= 1n || o === ctx.vault.toLowerCase() || o.slice(2, 4) !== '00') {
         flags.push({ level: 'critical', code: 'invalid-owner', message: `${call.owner} cannot be an owner; the vault will reject this.` });
       } else if (!isCyprus1QuaiAddress(call.owner)) {
@@ -216,7 +216,7 @@ export function describeRisk(decoded: DecodedCall, ctx: RiskContext): RiskFlag[]
       flags.push({
         level: 'high',
         code: 'unknown-function',
-        message: `Calls function ${decoded.selector} with ${decoded.dataBytes} bytes of data. SafeBuddy cannot show what it does; decode it independently before approving.`,
+        message: `Calls function ${decoded.selector} with ${decoded.dataBytes} bytes of data. DarkSafe cannot show what it does; decode it independently before approving.`,
       });
       if (decoded.note) flags.push({ level: 'high', code: 'non-canonical-encoding', message: `The calldata ${decoded.note}.` });
       if (decoded.value > 0n) flags.push({ level: 'medium', code: 'value-to-contract', message: 'Sends QUAI along with the call.' });

@@ -20,10 +20,10 @@ importers:
 
   apps/web:
     dependencies:
-      '@safebuddy/core':
+      '@darksafe/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@safebuddy/ui':
+      '@darksafe/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       clsx:
@@ -108,13 +108,13 @@ importers:
       '@openzeppelin/contracts':
         specifier: 5.2.0
         version: 5.2.0
-      '@safebuddy/core':
+      '@darksafe/core':
         specifier: workspace:*
         version: link:../core
-      '@safebuddy/verify':
+      '@darksafe/verify':
         specifier: workspace:*
         version: link:../verify
-      '@safebuddy/watcher':
+      '@darksafe/watcher':
         specifier: workspace:*
         version: link:../watcher
       '@typechain/ethers-v6':
@@ -221,7 +221,7 @@ importers:
 
   packages/verify:
     dependencies:
-      '@safebuddy/core':
+      '@darksafe/core':
         specifier: workspace:*
         version: link:../core
       ethers:
@@ -240,7 +240,7 @@ importers:
 
   packages/watcher:
     dependencies:
-      '@safebuddy/core':
+      '@darksafe/core':
         specifier: workspace:*
         version: link:../core
       ethers:

@@ -1,4 +1,4 @@
-# SafeBuddy v2 audit package
+# DarkSafe v2 audit package
 
 Everything an independent auditor needs. Mainnet is gated on this audit closing:
 - `VITE_ALLOW_MAINNET_VAULTS` stays off;
@@ -8,7 +8,7 @@ Everything an independent auditor needs. Mainnet is gated on this audit closing:
 
 Freeze a commit, tag it and push the tag:
 ```bash
-git tag -a v2.0.0-rc.1 -m "SafeBuddy v2 audit candidate"
+git tag -a v2.0.0-rc.1 -m "DarkSafe v2 audit candidate"
 git push origin v2.0.0-rc.1
 ```
 Everything below refers to that tag. Findings get fixed on follow-up commits, which are reviewed
@@ -19,7 +19,7 @@ value `--mainnet-audited` takes.
 
 | Part | Files | Lines |
 |---|---|---|
-| **Contracts (primary)** | `packages/contracts/contracts/v2/SafeBuddyVault.sol`, `SafeBuddyVaultProxy.sol`, `SafeBuddyVaultFactory.sol` | ~690 |
+| **Contracts (primary)** | `packages/contracts/contracts/v2/DarkSafeVault.sol`, `DarkSafeVaultProxy.sol`, `DarkSafeVaultFactory.sol` | ~690 |
 | Pre-signing verification | `packages/core/src/vault/*` (hash, decode, risk, reader, authenticity, multisource, verifier, clock, actions, create2), `packages/core/src/tx.ts`, `packages/core/src/pinned.ts` | ~2,150 |
 | Signing flows | `apps/web/src/components/modals/TransactionReviewModal.tsx`, `CreateVaultModal.tsx`, `apps/web/src/context/SafeContext.tsx`, `WalletContext.tsx`, `apps/web/src/lib/drafts.ts`, `apps/web/vercel.json` | ~1,850 |
 | Tools | `packages/verify/src`, `packages/watcher/src` | ~670 |
@@ -66,7 +66,7 @@ in progress on permit batchers.
 
 | ID | Invariant | Tests |
 |---|---|---|
-| I1 | No DELEGATECALL, CALLCODE or SELFDESTRUCT; no modules | `scripts/check-opcodes.js`; the bytecode test in `test/v2/SafeBuddyVault.test.ts` |
+| I1 | No DELEGATECALL, CALLCODE or SELFDESTRUCT; no modules | `scripts/check-opcodes.js`; the bytecode test in `test/v2/DarkSafeVault.test.ts` |
 | I2 | An external call runs only with a quorum of currently valid approvals, the timelock elapsed and before expiry; the caller is an owner | Foundry `invariant_noUnsafeExecution`; Hardhat unit tests; the stateful JS-model fuzz |
 | I3 | `approvedAt` is set once and never cleared | `invariant_approvedAtNeverChanges`; the revoke tests |
 | I4 | A removed owner's approvals never count again, even after re-adding | `invariant_approvalsOnlyFromCurrentOwners`, `testFuzz_removedOwnersApprovalsNeverCountAgain`, soak step `admin-and-epochs` |
@@ -93,24 +93,24 @@ The TypeScript library the app ships is checked against the contracts by
 ## Reproducing everything
 
 ```bash
-git clone --recurse-submodules https://github.com/BOLTEVM/SafeBuddy && cd SafeBuddy
+git clone --recurse-submodules https://github.com/BOLTEVM/DarkCircle && cd DarkCircle/multisigows
 git checkout v2.0.0-rc.1
 pnpm install --frozen-lockfile --ignore-scripts
 pnpm build                                      # compiles contracts (the pinned bytecode) and all packages
-pnpm -F @safebuddy/contracts pin:check          # pinned.ts matches the artifacts
-pnpm -F @safebuddy/contracts test               # Hardhat: unit, stateful fuzz, core/verify/watcher integration
-pnpm -F @safebuddy/contracts forge:test         # Foundry fuzz + invariants on the shipped bytecode
-pnpm -F @safebuddy/contracts forge:diff         # TypeScript <-> Solidity agreement (ffi)
-pnpm -F @safebuddy/contracts forge:deep         # long campaign (20k fuzz runs, 1000 x 400 invariant calls)
-pnpm -F @safebuddy/contracts opcode:check
-pnpm -F @safebuddy/contracts coverage:check     # run last: rewrites artifacts/
+pnpm -F @darksafe/contracts pin:check          # pinned.ts matches the artifacts
+pnpm -F @darksafe/contracts test               # Hardhat: unit, stateful fuzz, core/verify/watcher integration
+pnpm -F @darksafe/contracts forge:test         # Foundry fuzz + invariants on the shipped bytecode
+pnpm -F @darksafe/contracts forge:diff         # TypeScript <-> Solidity agreement (ffi)
+pnpm -F @darksafe/contracts forge:deep         # long campaign (20k fuzz runs, 1000 x 400 invariant calls)
+pnpm -F @darksafe/contracts opcode:check
+pnpm -F @darksafe/contracts coverage:check     # run last: rewrites artifacts/
 pnpm test                                       # every package's unit tests
 ```
 
 End to end against a local chain run as Orchard:
 ```bash
-pnpm -F @safebuddy/contracts local-chain        # anvil + quai proxy, deploys v2, seeds a vault
-pnpm -F @safebuddy/contracts soak:local         # full lifecycle through the app's own pipeline
+pnpm -F @darksafe/contracts local-chain        # anvil + quai proxy, deploys v2, seeds a vault
+pnpm -F @darksafe/contracts soak:local         # full lifecycle through the app's own pipeline
 ```
 
 ## Known issues and accepted findings

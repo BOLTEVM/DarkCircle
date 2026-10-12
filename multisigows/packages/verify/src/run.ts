@@ -15,10 +15,10 @@ import {
   formatDuration,
   formatUtc,
   isCyprus1QuaiAddress,
-} from '@safebuddy/core';
+} from '@darksafe/core';
 
 /**
- * safebuddy-verify: checks a SafeBuddy v2 factory, vault or transaction straight from the
+ * darksafe-verify: checks a DarkSafe v2 factory, vault or transaction straight from the
  * chain, independently of the web app. Owners use it to confirm what they are approving
  * when they do not trust (or cannot inspect) the UI in front of them.
  */
@@ -31,9 +31,9 @@ export interface VerifyDeps {
 }
 
 const USAGE = `Usage:
-  safebuddy-verify factory <address>          check a factory against the pinned build
-  safebuddy-verify vault <address>            check a vault and print its governance state
-  safebuddy-verify tx <vault> <txHash>        check a transaction and print what it does
+  darksafe-verify factory <address>          check a factory against the pinned build
+  darksafe-verify vault <address>            check a vault and print its governance state
+  darksafe-verify tx <vault> <txHash>        check a transaction and print what it does
 
 Options:
   --network testnet|mainnet   default testnet (Orchard)
@@ -122,7 +122,7 @@ export async function runVerify(argv: string[], deps: VerifyDeps): Promise<numbe
 
     if (o.command === 'factory') {
       const f = await verifyFactory(primary, o.args[0]!);
-      say(`✔ ${f.factory} is a genuine SafeBuddy v2 factory`);
+      say(`✔ ${f.factory} is a genuine DarkSafe v2 factory`);
       say(`  implementation ${f.implementation} (pinned vault code)`);
       report.factory = f;
       return finish(EXIT.OK);
@@ -139,7 +139,7 @@ export async function runVerify(argv: string[], deps: VerifyDeps): Promise<numbe
       report.vault = { address: read.value.address, codeHash: read.value.codeHash, ...snapshot };
       report.agreement = read.status;
       report.problems = read.problems;
-      say(`✔ ${read.value.address} runs the pinned SafeBuddyVaultProxy code, points at the implementation, and was created by the factory`);
+      say(`✔ ${read.value.address} runs the pinned DarkSafeVaultProxy code, points at the implementation, and was created by the factory`);
       say(agreementLine(read.status, read.block, read.reports.filter((r) => r.outcome === 'ok').length));
       read.problems.forEach((p) => say(`  ${p}`));
       say(`owners (${snapshot.owners.length}):`);

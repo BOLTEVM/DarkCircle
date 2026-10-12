@@ -20,7 +20,7 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
-    console.error('SafeBuddy dashboard crashed:', error, info.componentStack);
+    console.error('DarkSafe dashboard crashed:', error, info.componentStack);
   }
 
   private handleReload = (): void => {

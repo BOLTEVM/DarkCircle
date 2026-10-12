@@ -130,7 +130,7 @@ export function walletCreatedFromLogs(logs: readonly LogLike[], factory: string)
       // not a factory event
     }
   }
-  throw new Error('The receipt has no WalletCreated event from the SafeBuddy factory.');
+  throw new Error('The receipt has no WalletCreated event from the DarkSafe factory.');
 }
 
 /** Human-readable name for a vault revert, e.g. "TimelockNotElapsed(1790000000)". */

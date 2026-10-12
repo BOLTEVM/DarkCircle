@@ -25,7 +25,7 @@ import {
   computeVaultTxHash,
   formatDuration,
   formatUtc,
-} from '@safebuddy/core';
+} from '@darksafe/core';
 import { useSafe, ActionKind, ActionResult } from '../../context/SafeContext.js';
 import { useWallet } from '../../context/WalletContext.js';
 import { resolveWebNetworkConfig } from '../../config/network.js';
@@ -237,7 +237,7 @@ export const TransactionReviewModal: React.FC<Props> = ({ target, onClose }) => 
         <h3 className="text-base font-bold text-white mb-1">{target.mode === 'propose' ? 'Review before proposing' : 'Review transaction'}</h3>
         <p className="text-slate-400 mb-4">
           Your wallet will only show a call to the vault. Everything that matters is here: check it, and compare the digest with
-          the other owners or with <span className="font-mono">safebuddy-verify</span>.
+          the other owners or with <span className="font-mono">darksafe-verify</span>.
         </p>
 
         {loadError && (

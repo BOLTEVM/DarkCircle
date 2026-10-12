@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 /**
  * @title MockERC20
- * @notice Standard ERC-20 token implementation for testing Qi / USDT asset transfers with SafeBuddy.
+ * @notice Standard ERC-20 token implementation for testing Qi / USDT asset transfers with DarkSafe.
  */
 contract MockERC20 {
     string public name;

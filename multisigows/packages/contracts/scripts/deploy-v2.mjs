@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Deploys the SafeBuddy v2 implementation and factory to Quai Cyprus-1.
+ * Deploys the DarkSafe v2 implementation and factory to Quai Cyprus-1.
  *
  *   node scripts/deploy-v2.mjs --network orchard --from 0x00...        simulate only (default)
  *   node scripts/deploy-v2.mjs --network orchard --sign-only           sign with a throwaway key, never send
@@ -8,7 +8,7 @@
  *   node scripts/deploy-v2.mjs --network mainnet --keystore k.json --broadcast --mainnet-audited <audited-git-tag>
  *
  * Key handling: the deployer key comes only from an encrypted JSON keystore. The password
- * is read from the file named by SAFEBUDDY_KEYSTORE_PASSWORD_FILE, or typed at a hidden
+ * is read from the file named by DARKSAFE_KEYSTORE_PASSWORD_FILE, or typed at a hidden
  * prompt. There is no private-key flag or env var, and the key is never printed.
  *
  * Quai specifics handled here (see packages/core/src/tx.ts for the reasons):
@@ -118,7 +118,7 @@ function fmtQuai(wei) {
 }
 
 async function hiddenPrompt(question) {
-  if (!process.stdin.isTTY) fail('no TTY for the password prompt; set SAFEBUDDY_KEYSTORE_PASSWORD_FILE');
+  if (!process.stdin.isTTY) fail('no TTY for the password prompt; set DARKSAFE_KEYSTORE_PASSWORD_FILE');
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
   const write = rl._writeToOutput.bind(rl);
   rl._writeToOutput = (s) => (s.includes(question) ? write(s) : undefined);
@@ -130,7 +130,7 @@ async function hiddenPrompt(question) {
 
 async function loadKeystoreWallet(file, provider) {
   if (!fs.existsSync(file)) fail(`keystore ${file} not found`);
-  const pwFile = process.env.SAFEBUDDY_KEYSTORE_PASSWORD_FILE;
+  const pwFile = process.env.DARKSAFE_KEYSTORE_PASSWORD_FILE;
   const password = pwFile ? fs.readFileSync(pwFile, 'utf8').replace(/\r?\n$/, '') : await hiddenPrompt('Keystore password: ');
   const wallet = await Wallet.fromEncryptedJson(fs.readFileSync(file, 'utf8'), password);
   return wallet.connect(provider);
@@ -219,9 +219,9 @@ async function main() {
   const deployer = getAddress(wallet ? wallet.address : args.from ?? fail('pass --from <Cyprus-1 address> to simulate'));
   if (!isCyprus1Quai(deployer)) fail(`deployer ${deployer} is not a Cyprus-1 Quai address`);
 
-  const vaultArt = artifact('SafeBuddyVault');
-  const factoryArt = artifact('SafeBuddyVaultFactory');
-  const proxyArt = artifact('SafeBuddyVaultProxy');
+  const vaultArt = artifact('DarkSafeVault');
+  const factoryArt = artifact('DarkSafeVaultFactory');
+  const proxyArt = artifact('DarkSafeVaultProxy');
   const gasPrice = BigInt(await rpc(net.rpc, 'quai_gasPrice', []));
   const balance = BigInt(await rpc(net.rpc, 'quai_getBalance', [deployer, 'latest']));
   let nonce = parseInt(await rpc(net.rpc, 'quai_getTransactionCount', [deployer, 'pending']), 16);
@@ -231,10 +231,10 @@ async function main() {
 
   const plan = [];
   const implGround = grind(deployer, nonce, vaultArt.bytecode);
-  plan.push({ label: 'SafeBuddyVault (implementation)', data: implGround.data, predicted: implGround.predicted, gasLimit: creationGasLimit(vaultArt.deployedBytecode), nonce });
+  plan.push({ label: 'DarkSafeVault (implementation)', data: implGround.data, predicted: implGround.predicted, gasLimit: creationGasLimit(vaultArt.deployedBytecode), nonce });
   const factoryData = factoryArt.bytecode + AbiCoder.defaultAbiCoder().encode(['address'], [implGround.predicted]).slice(2);
   const factGround = grind(deployer, nonce + 1, factoryData);
-  plan.push({ label: 'SafeBuddyVaultFactory', data: factGround.data, predicted: factGround.predicted, gasLimit: creationGasLimit(factoryArt.deployedBytecode), nonce: nonce + 1 });
+  plan.push({ label: 'DarkSafeVaultFactory', data: factGround.data, predicted: factGround.predicted, gasLimit: creationGasLimit(factoryArt.deployedBytecode), nonce: nonce + 1 });
 
   let total = 0n;
   for (const step of plan) {
@@ -253,7 +253,7 @@ async function main() {
 
   const results = [];
   for (const step of plan) {
-    if (step.label.startsWith('SafeBuddyVaultFactory')) {
+    if (step.label.startsWith('DarkSafeVaultFactory')) {
       if (signOnly) {
         console.log(`  ${step.label}: not signed; its constructor needs the implementation on chain, which sign-only never creates`);
         continue;

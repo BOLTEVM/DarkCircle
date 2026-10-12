@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { parseUnits } from 'ethers';
 import { X, Send, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { validateCyprus1Address, erc20TransferCall } from '@safebuddy/core';
+import { validateCyprus1Address, erc20TransferCall } from '@darksafe/core';
 import { useSafe } from '../../context/SafeContext.js';
 import { useMarketData } from '../../context/MarketDataContext.js';
 import { buildDraft } from '../../lib/drafts.js';
