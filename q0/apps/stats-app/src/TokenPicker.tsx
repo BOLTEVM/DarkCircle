@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, ChevronDown, Plus, RefreshCw, Search } from 'lucide-react';
 import { formatUnits, shortAddress, splitDisplayName, type TokenInfo } from 'quai-service';
 import TokenBubble, { TokenAvatar, type TokenBubbleMetadata } from './TokenBubble';
@@ -57,6 +58,7 @@ export default function TokenPicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const selected = tokens.find(token => token.symbol === value);
 
   const rows = useMemo<Row[]>(() => {
@@ -109,8 +111,20 @@ export default function TokenPicker({
   const liveCount = tokens.filter(token => !token.isNative && metadata?.[token.address.toLowerCase()]).length;
 
   useEffect(() => {
-    if (open) setTimeout(() => searchRef.current?.focus(), 0);
-    else setQuery('');
+    if (!open) {
+      setQuery('');
+      return;
+    }
+    // Only a mouse-and-keyboard device gets the search box focused for it. Focusing a field on a phone raises the soft
+    // keyboard at once, which covers the lower half of the sheet (the token list) before anyone has seen it; there the
+    // dialog itself takes focus, which raises nothing, and a tap on the search box brings the keyboard up on demand.
+    const typesAtOnce = typeof window.matchMedia === 'function'
+      && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    const timer = setTimeout(() => {
+      if (typesAtOnce) searchRef.current?.focus();
+      else panelRef.current?.focus({ preventScroll: true });
+    }, 0);
+    return () => clearTimeout(timer);
   }, [open]);
 
   const choose = (symbol: string) => {
@@ -175,9 +189,14 @@ export default function TokenPicker({
         <ChevronDown size={17} />
       </button>
 
-      {open && (
+      {/* Rendered into <body>, not in place. The swap card is a `backdrop-filter` + `overflow: hidden` box, and that makes it
+          the containing block for `position: fixed` children: in place, this "full-screen" overlay was only as large as the
+          card, centred in the card (not the screen), clipped by it, and painted under the sticky nav. */}
+      {open && createPortal(
         <div className="token-picker-backdrop" onMouseDown={() => setOpen(false)}>
           <div
+            ref={panelRef}
+            tabIndex={-1}
             className="token-picker-modal"
             role="dialog"
             aria-modal="true"
@@ -255,7 +274,8 @@ export default function TokenPicker({
             </button>
             <p className="token-picker-warning">Anyone can create a token. Verify the contract address before trading.</p>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
