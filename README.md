@@ -148,10 +148,12 @@ On Windows Blender lives at `C:\Program Files\Blender Foundation\Blender 5.2\ble
 
 `.github/workflows/deploy-pages.yml` runs on every push to `main`:
 
-1. Verify the 3D asset, check portal sources are pure ASCII, test the redirect router
-2. Build Circleswap and DarkSafe
+1. Verify the 3D asset, check portal sources are pure ASCII, test the redirect router, run the Circleswap unit tests
+2. Refresh the Quainance launchpad snapshot (best effort), then build Circleswap and DarkSafe
 3. `tools/assemble_site.sh _site`
 4. Upload and deploy to GitHub Pages
+
+`.github/workflows/ci.yml` runs on every push and pull request and is what says a change is safe: Circleswap (types, unit tests, bun tests, the contract suites, production build), DarkSafe (build, types, core / web / verifier / watcher tests) and the DarkCircle console (types and its 915 tests), each with a production dependency audit. DarkSafe's contract jobs (Slither, Foundry, coverage) are in `multisigows/.github/workflows/ci.yml` and run when that folder is its own repository.
 
 The bundle contains `index.html`, `404.html`, the `.glb`, the vendored three.js, and each app's static build under its route (plus the `circleswap/`, `darksafe/` and `darkcircle/` aliases). The `.blend` is source and is not published.
 
@@ -174,8 +176,9 @@ The bundle contains `index.html`, `404.html`, the `.glb`, the vendored three.js,
 
 These are tracked, not hidden:
 
-- **DarkCircle on static hosting.** Its UI expects the local API from `pnpm ui` in `x402tumbler/`; on Pages it is a static shell and its `/api/*` calls fail.
-- **Circleswap on static hosting.** The Quainance TVL request to `explorer.qu.ai/api/stats/tvl` is blocked by CORS without the dev proxy. Token metadata is unaffected: it uses the CORS-open `/api/token/<address>` endpoint and the RPC.
+- **DarkCircle on static hosting.** Its UI expects the local API from `pnpm ui` in `x402tumbler/`. On Pages there is no server, so the page recognises that, shows a "Static preview" banner, switches its actions off and makes no API calls.
+- **Circleswap on static hosting.** Neither the explorer's indexed stats nor Quainance's launchpad catalog send a CORS header, so the hosted page does not request them: USD values come from pool reserves, and Hartii / POOP / curve launches come from a snapshot taken at deploy time and labelled with its date. Token metadata is unaffected: it uses the CORS-open `/api/token/<address>` endpoint and the RPC.
+- **Wallet extensions.** Every app treats an injected wallet as untrusted input: a provider that throws or lacks events is reported as absent rather than allowed to break the page, and Circleswap shows a crash screen with details instead of a blank page.
 - **Portal metrics.** The hover readout shows the Cyprus-1 block height only. Pool TVL and vault status are not wired in.
 - **No licence file yet.** Until one is added, reuse rights are unspecified. The vendored three.js keeps its MIT licence in `assets/3d/vendor/three/LICENSE`.
 
