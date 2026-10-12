@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Shield, Plus } from 'lucide-react';
 import { Header } from './Header.js';
 import { Sidebar } from './Sidebar.js';
+import { PoweredByBolt } from '../PoweredByBolt.js';
 import { BalanceCard } from '../dashboard/BalanceCard.js';
 import { TopAssets } from '../dashboard/TopAssets.js';
 import { ExploreCarousel } from '../dashboard/ExploreCarousel.js';
@@ -38,7 +39,7 @@ export const AppShell: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0b0f17] text-slate-100 flex flex-col selection:bg-emerald-500/30 selection:text-emerald-300">
+    <div className="h-screen bg-[#0b0f17] text-slate-100 flex flex-col selection:bg-emerald-500/30 selection:text-emerald-300">
       <div
         className="bg-amber-950/60 border-b border-amber-800/50 text-amber-200 text-[11px] text-center px-4 py-1.5"
         data-testid="beta-banner"
@@ -55,7 +56,7 @@ export const AppShell: React.FC = () => {
       />
 
       {/* Body: Sidebar + Main Area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         <Sidebar
           activeTab={activeTab}
           setActiveTab={setActiveTab}
@@ -127,6 +128,11 @@ export const AppShell: React.FC = () => {
           )}
         </main>
       </div>
+
+      {/* Page credit: present on every screen of the dashboard */}
+      <footer className="border-t border-slate-800/80 bg-[#0b0f17] px-4 lg:px-6 py-2" data-testid="app-footer">
+        <PoweredByBolt />
+      </footer>
 
       {/* Modals */}
       <NewTransactionModal isOpen={isNewTxOpen} onClose={() => setIsNewTxOpen(false)} onReview={setReviewTarget} />

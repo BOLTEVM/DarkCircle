@@ -19,9 +19,7 @@ cp index.html 404.html "$OUT/"
 if [ -f CNAME ]; then
   cp CNAME "$OUT/"
 fi
-if [ -f 0.png ]; then
-  cp 0.png "$OUT/"
-fi
+cp 0.png Boltfont.png "$OUT/"
 touch "$OUT/.nojekyll"
 
 # 3D assets: the GLB and the vendored three.js only (the .blend is source, not a web asset)
@@ -46,13 +44,13 @@ cp -r multisigows/apps/web/dist/. "$OUT/darksafe/"
 
 # integrity: everything the portal links to or loads must exist in the bundle
 missing=0
-for f in index.html 404.html 0.png \
+for f in index.html 404.html 0.png Boltfont.png \
          assets/3d/qrb_chamber.glb assets/3d/vendor/three/three.module.js \
          assets/3d/vendor/three/addons/controls/OrbitControls.js \
          assets/3d/vendor/three/addons/loaders/GLTFLoader.js \
          assets/3d/vendor/three/addons/postprocessing/EffectComposer.js \
          assets/3d/vendor/three/addons/postprocessing/OutputPass.js \
-         q0/0logov3.png \
+         q0/0logov3.png q0/Boltfont.png x402tumbler/Boltfont.png multisigows/Boltfont.png \
          x402tumbler/index.html q0/index.html multisigows/index.html \
          darkcircle/index.html circleswap/index.html darksafe/index.html; do
   if [ ! -f "$OUT/$f" ]; then

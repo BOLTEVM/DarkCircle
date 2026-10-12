@@ -31,7 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const vaultInitial = (safeState.name || 'Vault').charAt(0).toUpperCase();
 
   return (
-    <aside className="w-64 border-r border-slate-800/80 bg-[#0c121d] flex flex-col h-[calc(100vh-4rem)] p-4 select-none">
+    <aside className="w-64 border-r border-slate-800/80 bg-[#0c121d] flex flex-col h-full overflow-y-auto p-4 select-none">
       {/* Workspace Selector */}
       <div className="mb-4">
         <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">

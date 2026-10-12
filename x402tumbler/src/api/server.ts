@@ -49,14 +49,16 @@ import { createAdminModule, type AdminModule, type AdminOptions } from "../admin
 const MAX_BODY = 64 * 1024;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const UI_DIR = path.resolve(HERE, "..", "..", "ui");
-const STATIC: Record<string, { file: string; type: string }> = {
+const STATIC: Record<string, { file: string; type: string; binary?: boolean }> = {
   "/": { file: "index.html", type: "text/html; charset=utf-8" },
   "/index.html": { file: "index.html", type: "text/html; charset=utf-8" },
   "/app.css": { file: "app.css", type: "text/css; charset=utf-8" },
   "/app.js": { file: "app.js", type: "text/javascript; charset=utf-8" },
   "/theme.js": { file: "theme.js", type: "text/javascript; charset=utf-8" },
   "/agent.js": { file: "agent.js", type: "text/javascript; charset=utf-8" },
-  "/wallet.js": { file: "wallet.js", type: "text/javascript; charset=utf-8" }
+  "/wallet.js": { file: "wallet.js", type: "text/javascript; charset=utf-8" },
+  // The "Powered by" wordmark in the page footer. Binary: it must not go through the utf8 path below.
+  "/Boltfont.png": { file: "Boltfont.png", type: "image/png", binary: true }
 };
 
 export interface ApiServerOptions {
@@ -590,7 +592,7 @@ export async function startApiServer(options: ApiServerOptions = {}): Promise<Ru
   let agentChain: Promise<unknown> = Promise.resolve();
 
   const server = http.createServer((req, res) => {
-    const send = (code: number, type: string, payload: string, extra: Record<string, string> = {}) => {
+    const send = (code: number, type: string, payload: string | Buffer, extra: Record<string, string> = {}) => {
       res.writeHead(code, {
         "Content-Type": type,
         "Cache-Control": "no-store",
@@ -628,6 +630,7 @@ export async function startApiServer(options: ApiServerOptions = {}): Promise<Ru
     if (req.method === "GET" && STATIC[urlPath]) {
       const entry = STATIC[urlPath];
       try {
+        if (entry.binary) return send(200, entry.type, fs.readFileSync(path.join(UI_DIR, entry.file)));
         let content = fs.readFileSync(path.join(UI_DIR, entry.file), "utf8");
         if (entry.file === "index.html") content = content.replace("__SESSION_TOKEN__", token);
         // @admin:begin

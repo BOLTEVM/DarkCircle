@@ -103,10 +103,11 @@
     }
     .brand-title { display: flex; align-items: center; gap: 0.9rem; min-width: 0; flex: 1 1 auto; }
     .brand-logo {
-      width: 38px; height: 38px;
-      border-radius: 50%;
-      box-shadow: 0 0 15px var(--accent-glow);
+      /* 0.png is 255x190 black glyphs with white outlines, drawn for dark grounds: keep its aspect
+         (it used to be squeezed into a 38px circle) and reverse it so it stays crisp at this size */
+      height: 34px; width: auto;
       flex: none;
+      filter: invert(1) drop-shadow(0 0 8px var(--accent-glow));
     }
     .brand-text h1 {
       font-family: var(--font-display);
@@ -271,6 +272,9 @@
     .bottom-bar a { color: var(--text-muted); text-decoration: none; transition: color 0.2s ease; }
     .bottom-bar a:hover { color: #fff; }
     .bottom-bar .net-status { white-space: nowrap; }
+    .powered-by { display: inline-flex; align-items: center; gap: 0.5rem; white-space: nowrap; letter-spacing: 0.08em; text-transform: uppercase; }
+    .powered-by img { height: 18px; width: auto; filter: invert(1); opacity: 0.8; transition: opacity 0.2s ease; }
+    .powered-by:hover img { opacity: 1; }
 
     /* Warp flash */
     .warp-flash {
@@ -334,6 +338,7 @@
       .station-footer span:first-child { display: none; }
       .station-footer { justify-content: center; }
       .brand-text .shard-tag { font-size: 0.6rem; }
+      .bottom-bar { flex-wrap: wrap; justify-content: center; row-gap: 0.4rem; }
     }
     @media (prefers-reduced-motion: reduce) {
       .station-card, .warp-flash, .boot { transition: none; }
@@ -362,7 +367,7 @@
   <div class="hud">
     <header class="header-bar">
       <div class="brand-title">
-        <img src="./0.png" alt="BOLTEVM logo" class="brand-logo" onerror="this.style.display='none'">
+        <img src="./0.png" alt="BOLTEVM logo" class="brand-logo" width="46" height="34" onerror="this.style.display='none'">
         <div class="brand-text">
           <h1>DarkCircle Suite</h1>
           <div class="shard-tag">&#x25CF; Cyprus-1 shard [0x00]<span class="shard-extra"> &middot; chain id 9</span></div>
@@ -426,6 +431,7 @@
     <footer class="bottom-bar">
       <div class="keys">ORBIT: drag &middot; WARP: click a node or press [1] DarkCircle [2] Circleswap [3] DarkSafe</div>
       <div class="net-status" id="net-status" title="The portal makes no network request to a Quai RPC until you first target a node.">RPC idle</div>
+      <div class="powered-by"><span>Powered by</span><img src="./Boltfont.png" alt="BOLT" width="63" height="18"></div>
       <div><a href="https://github.com/BOLTEVM/DarkCircle" target="_blank" rel="noopener">BOLTEVM/DarkCircle</a></div>
     </footer>
   </div>

@@ -24,7 +24,7 @@ function raw(
   method: string,
   path: string,
   opts: { headers?: Record<string, string>; body?: unknown; host?: string; session?: boolean } = {}
-): Promise<{ status: number; headers: http.IncomingHttpHeaders; json: any; text: string }> {
+): Promise<{ status: number; headers: http.IncomingHttpHeaders; json: any; text: string; body: Buffer }> {
   return new Promise((resolve, reject) => {
     const body = opts.body === undefined ? undefined : typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body);
     const req = http.request(
@@ -44,10 +44,11 @@ function raw(
         const chunks: Buffer[] = [];
         res.on("data", (c) => chunks.push(c));
         res.on("end", () => {
-          const text = Buffer.concat(chunks).toString("utf8");
+          const body = Buffer.concat(chunks);
+          const text = body.toString("utf8");
           let json: any;
           try { json = JSON.parse(text); } catch { json = undefined; }
-          resolve({ status: res.statusCode!, headers: res.headers, json, text });
+          resolve({ status: res.statusCode!, headers: res.headers, json, text, body });
         });
       }
     );
@@ -224,6 +225,18 @@ describe("local API server", () => {
     assert.equal((await raw(api, "GET", "/app.css", { session: false })).status, 200);
     assert.equal((await raw(api, "GET", "/../package.json", { session: false })).status, 404);
     assert.equal((await raw(api, "GET", "/ui/app.js", { session: false })).status, 404);
+  });
+
+  it("serves the footer wordmark byte-for-byte as an image the CSP allows", async () => {
+    const res = await raw(api, "GET", "/Boltfont.png", { session: false });
+    assert.equal(res.status, 200);
+    assert.equal(res.headers["content-type"], "image/png");
+    assert.match(String(res.headers["content-security-policy"]), /img-src 'self'/);
+    const onDisk = fs.readFileSync(new URL("../../ui/Boltfont.png", import.meta.url));
+    assert.ok(res.body.equals(onDisk), "the served bytes must equal the file (no text re-encoding)");
+    assert.deepEqual([...res.body.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    // and the page actually references it
+    assert.match((await raw(api, "GET", "/", { session: false })).text, /<img src="\.\/Boltfont\.png" alt="BOLT"/);
   });
 
   it("the UI script contains no inline handlers, innerHTML or third-party URLs", async () => {

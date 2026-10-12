@@ -43,11 +43,18 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Left: Brand logo & Active Safe Chip */}
       <div className="flex items-center space-x-3 lg:space-x-4">
         <div className="flex items-center space-x-2">
-          <img
-            src={`${import.meta.env.BASE_URL}0.png`}
-            alt="DarkSafe Logo"
-            className="w-8 h-8 rounded-lg shadow-sm border border-emerald-500/20 object-contain bg-slate-900"
-          />
+          {/* The filter lives on the inner image: on the tile itself it would invert the tile's own
+              background and border. 0.png is black glyphs with white outlines (255x190), drawn for
+              dark grounds; reversed it stays crisp at 32 px. */}
+          <span className="w-9 h-8 rounded-lg shadow-sm border border-emerald-500/20 bg-slate-900 flex items-center justify-center">
+            <img
+              src={`${import.meta.env.BASE_URL}0.png`}
+              alt="DarkSafe Logo"
+              width={32}
+              height={24}
+              className="h-6 w-auto invert"
+            />
+          </span>
           <span className="font-bold text-lg tracking-tight text-white hidden sm:inline-block">
             Dark<span className="text-emerald-400">Safe</span>
           </span>

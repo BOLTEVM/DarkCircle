@@ -13,6 +13,13 @@ describe('DarkSafe Visual Architecture & Layout Verification', () => {
     expect(logoImg).toBeInTheDocument();
     expect(logoImg.getAttribute('src')).toMatch(/(^|\/)0\.png$/);
 
+    // Page credit in the footer, with a real image and text fallback
+    const footer = screen.getByTestId('app-footer');
+    expect(footer).toHaveTextContent(/powered by/i);
+    const bolt = screen.getByAltText('BOLT');
+    expect(bolt.getAttribute('src')).toMatch(/(^|\/)Boltfont\.png$/);
+    expect(footer).toContainElement(bolt);
+
     // No vault pre-selected — nothing fabricated
     expect(screen.getAllByText('No Vault Selected').length).toBeGreaterThan(0);
     expect(screen.getByText('Create or Add a Vault')).toBeInTheDocument();

@@ -77,6 +77,7 @@ Each app has its own README with the details: [`x402tumbler/`](x402tumbler/READM
 .
 ├── index.html                  3D portal + subdomain router (single file, ASCII-only)
 ├── 404.html                    base-path-aware redirect for deep links and subdomains
+├── 0.png  Boltfont.png         brand mark and "Powered by" wordmark (copied into each app)
 ├── assets/3d/
 │   ├── qrb_chamber.glb         web asset (generated)
 │   ├── qrb_chamber.blend       Blender source (generated)
@@ -184,5 +185,7 @@ These are tracked, not hidden:
 <img src="q0/0logov3.png" alt="" width="48" />
 
 <sub>Built on **Quai Network** (Cyprus-1, chain id 9) &nbsp;·&nbsp; **BOLTEVM**</sub>
+
+<sub>Powered by</sub> <img src="Boltfont.png" alt="BOLT" height="18" />
 
 </div>

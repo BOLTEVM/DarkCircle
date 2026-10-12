@@ -1867,6 +1867,16 @@ export default function App() {
         <div>
           Circleswap DeFi Protocol &bull; Atomic Router Swaps &bull; Cyprus-1 Shard
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          <span>Powered by</span>
+          <img
+            src={`${import.meta.env.BASE_URL}Boltfont.png`}
+            alt="BOLT"
+            width={63}
+            height={18}
+            style={{ height: '18px', width: 'auto', filter: 'invert(1)', opacity: 0.8 }}
+          />
+        </div>
       </footer>
 
       {poolModalOpen && (
