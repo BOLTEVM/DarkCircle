@@ -16,6 +16,12 @@ mkdir -p "$OUT"
 
 # portal shell
 cp index.html 404.html "$OUT/"
+if [ -f CNAME ]; then
+  cp CNAME "$OUT/"
+fi
+if [ -f 0.png ]; then
+  cp 0.png "$OUT/"
+fi
 touch "$OUT/.nojekyll"
 
 # 3D assets: the GLB and the vendored three.js only (the .blend is source, not a web asset)
@@ -40,7 +46,7 @@ cp -r multisigows/apps/web/dist/. "$OUT/darksafe/"
 
 # integrity: everything the portal links to or loads must exist in the bundle
 missing=0
-for f in index.html 404.html \
+for f in index.html 404.html 0.png \
          assets/3d/qrb_chamber.glb assets/3d/vendor/three/three.module.js \
          assets/3d/vendor/three/addons/controls/OrbitControls.js \
          assets/3d/vendor/three/addons/loaders/GLTFLoader.js \
