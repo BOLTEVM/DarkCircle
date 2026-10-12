@@ -61,6 +61,9 @@ jobs:
       - name: Test who may see the Circleswap Deploy tab
         run: node --test q0/apps/stats-app/test/adminAccess.test.ts
 
+      - name: Test the Quainance pair and launchpad aggregate
+        run: node --test q0/packages/quai-service/test/quainance.test.ts
+
       - name: Build Q0 / Circleswap
         run: |
           cd q0

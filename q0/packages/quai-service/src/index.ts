@@ -12,6 +12,7 @@ export * from './pairs';
 export * from './eip1967';
 export * from './tokenMetadata';
 export * from './farm';
+export * from './quainance';
 
 import { findPool, tokenAddress, orientedPath, type SwapRoute, type CrossDexRoute, type PoolInfo, POOL_REGISTRY, orientedSegments } from './registries/pools';
 import { clampSlippagePct } from './units';
@@ -343,71 +344,18 @@ export async function getTokenDetailV2(tokenAddress: string, explorerUrl: string
     return await res.json();
 }
 
-// Fetch Quainance DEX pool/TVL data with on-chain fallback
+// Fetch the explorer's indexed Quainance stats (USD value, volume, transaction counts).
+//
+// This is only the indexed view, and it is partial: it lists the top 25 pools (`current.poolsTruncated`) and its
+// endpoint sends no CORS header, so it fails from a browser in production. There is deliberately no hard-coded
+// "fallback" here: numbers that look live but are not are worse than none. The complete list of Quainance pairs comes
+// from the factory (see mergeQuainance in quainance.ts); callers treat a failure here as "no indexed stats".
 export async function getQuainanceTVL(days: number = 1, explorerUrl: string = EXPLORER_V2): Promise<QuainanceTVL> {
-    try {
-        const res = await fetch(`${explorerUrl}/api/stats/tvl?days=${days}`, {
-            headers: { 'User-Agent': 'Mozilla/5.0' }
-        });
-        if (res.ok) {
-            return await res.json();
-        }
-    } catch (e) {
-        console.warn("Explorer v2 TVL API fetch failed, switching to on-chain fallback:", e);
-    }
-
-    // On-chain Cyprus-1 RPC Fallback: query reserves directly for verified Quainance pools
-    try {
-        const [resLaptopWquai, resLaptopQgirl] = await Promise.all([
-            getLPReserves(CONTRACTS.LP_LAPTOP_WQUAI),
-            getLPReserves(CONTRACTS.LP_LAPTOP_QGIRL)
-        ]);
-
-        const pools: QuainancePool[] = [
-            {
-                address: CONTRACTS.LP_LAPTOP_WQUAI,
-                name: 'LAPTOP/WQUAI',
-                token0: { address: CONTRACTS.LAPTOP, symbol: 'LAPTOP' },
-                token1: { address: CONTRACTS.WQUAI, symbol: 'WQUAI' },
-                reserve0: (Number(resLaptopWquai.reserve0) / 1e18).toString(),
-                reserve1: (Number(resLaptopWquai.reserve1) / 1e18).toString(),
-                tvlUsd: '534.11',
-                totalVolumeUsd: '749.07',
-                volume24hUsd: '25.55',
-                estimatedFees24hUsd: '0.08',
-                txCount: '59'
-            },
-            {
-                address: CONTRACTS.LP_LAPTOP_QGIRL,
-                name: 'LAPTOP/QGIRL',
-                token0: { address: CONTRACTS.LAPTOP, symbol: 'LAPTOP' },
-                token1: { address: CONTRACTS.QGIRL, symbol: 'QGIRL' },
-                reserve0: (Number(resLaptopQgirl.reserve0) / 1e18).toString(),
-                reserve1: (Number(resLaptopQgirl.reserve1) / 1e18).toString(),
-                tvlUsd: '190.34',
-                totalVolumeUsd: '0',
-                volume24hUsd: '0',
-                estimatedFees24hUsd: '0',
-                txCount: '12'
-            }
-        ];
-
-        return {
-            days,
-            stale: false,
-            current: {
-                tvlUsd: '724.45',
-                totalVolumeUsd: '749.07',
-                volume24hUsd: '25.55',
-                pairCount: '2',
-                txCount: '71'
-            },
-            pools
-        };
-    } catch (onChainErr) {
-        console.error("On-chain fallback for Quainance reserves failed:", onChainErr);
-        throw new Error("Unable to retrieve Quainance pool reserves via API or on-chain RPC.");
-    }
+    const res = await fetch(`${explorerUrl}/api/stats/tvl?days=${days}`, {
+        headers: { 'User-Agent': 'Mozilla/5.0' }
+    });
+    if (!res.ok) throw new Error(`Quainance TVL endpoint answered ${res.status}`);
+    return await res.json();
 }
 
 // Find all Quainance pools that include a given token address or symbol

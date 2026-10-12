@@ -12,6 +12,18 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api-explorer/, '')
       },
+      // Quainance's launchpad catalog (Hartii incl. QAXE, POOP, curves): no CORS header, so development reads it through here.
+      '/api-quainance': {
+        target: 'https://www.quainance.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api-quainance/, ''),
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.removeHeader('origin');
+            proxyReq.removeHeader('referer');
+          });
+        }
+      },
       '/api-quai-v2': {
         target: 'https://explorer.qu.ai',
         changeOrigin: true,

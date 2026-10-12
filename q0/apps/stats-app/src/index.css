@@ -2711,3 +2711,133 @@ tr:hover td {
     align-items: flex-start;
   }
 }
+
+/* ==========================================================================
+   Quainance: every pair and launchpad market (QuainanceMarkets)
+   ========================================================================== */
+
+.qn-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.qn-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.qn-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--panel-border);
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.qn-chip span {
+  color: var(--text-dim);
+  font-weight: 600;
+  margin-left: 0.2rem;
+}
+
+.qn-chip.active {
+  color: #fff;
+  border-color: rgba(255, 215, 0, 0.5);
+  background: rgba(255, 215, 0, 0.1);
+}
+
+.qn-list {
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.qn-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.5fr) minmax(110px, 0.9fr) minmax(110px, 0.9fr) minmax(170px, 1.4fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.7rem 0.9rem;
+}
+
+.qn-row + .qn-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.qn-row:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.qn-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.qn-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.qn-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  font-size: 0.85rem;
+}
+
+.qn-cell small {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  overflow-wrap: anywhere;
+}
+
+.qn-actions {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.qn-empty {
+  padding: 1.2rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 860px) {
+  .qn-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .qn-main,
+  .qn-actions {
+    grid-column: 1 / -1;
+  }
+
+  .qn-actions {
+    justify-content: flex-start;
+  }
+
+  .qn-cell[data-label]::before {
+    content: attr(data-label);
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+}

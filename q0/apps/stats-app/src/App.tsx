@@ -57,7 +57,13 @@ import {
   quaiRpcCall,
   getTokenDetailV2,
   getQuainanceTVL,
-  findQuainancePools,
+  mergeQuainance,
+  loadPairSnapshots,
+  analyzePairs,
+  fetchQuaiUsd,
+  getTokenByAddress,
+  type PairSnapshot,
+  type QuainanceAggregate,
   TokenMetadata,
   type TokenInfo,
   LPReserves,
@@ -73,6 +79,8 @@ import { formatUsd } from './TokenPicker';
 import { toBubbleMetadata, useTokenProfiles } from './useTokenProfiles';
 import ImportTokenModal from './ImportTokenModal';
 import FarmsPage from './FarmsPage';
+import QuainanceMarkets from './QuainanceMarkets';
+import { loadQuainanceCatalog, type CatalogLoad } from './quainanceCatalog';
 import { useAdministrator } from './useAdministrator';
 import { deployTabVisible } from './adminAccess';
 import TokenAnalyticsPage from './TokenAnalyticsPage';
@@ -177,6 +185,11 @@ export default function App() {
 
   // Quainance DEX States
   const [quainanceTvl, setQuainanceTvl] = useState<QuainanceTVL | null>(null);
+  // Every pair the Quainance factory reports, merged with the explorer's indexed stats (see quai-service/quainance.ts).
+  const [quainanceAgg, setQuainanceAgg] = useState<QuainanceAggregate | null>(null);
+  // The launchpad catalog behind it (Hartii, QAXE, POOP, curves): live, or a dated snapshot, or null when unreadable.
+  const [quainanceCatalog, setQuainanceCatalog] = useState<CatalogLoad | null>(null);
+  const [quaiUsdNow, setQuaiUsdNow] = useState<number | null>(null);
   
   // Swap States
   // Pools created after the registry was written (e.g. via the Create Pool modal), found by factory.getPair().
@@ -410,6 +423,27 @@ export default function App() {
       } catch (e) {
         console.warn('Circleswap pool discovery failed:', e);
       }
+      // Quainance: take EVERY pair its factory reports, by default (not only the ones named in CANDIDATE_POOLS). A pair
+      // whose two tokens the app lists is routable straight away; the rest still appear in the Quainance list and on the
+      // Pairs page, and become tradable here once their tokens are imported.
+      let quainanceSnapshots: PairSnapshot[] = [];
+      let quainanceFactoryTotal = 0;
+      try {
+        const snap = await loadPairSnapshots(['QUAINANCE'], { maxPerDex: 1000 });
+        quainanceSnapshots = snap.pairs;
+        quainanceFactoryTotal = snap.totals.QUAINANCE ?? snap.pairs.length;
+        for (const p of snap.pairs) {
+          const a = getTokenByAddress(p.token0.address);
+          const b = getTokenByAddress(p.token1.address);
+          if (!a || !b || a.deployed === false || b.deployed === false || a.isNative || b.isNative) continue;
+          const key = p.pair.toLowerCase();
+          if (POOL_REGISTRY.some(r => r.pair.toLowerCase() === key) || found.some(f => f.pair.toLowerCase() === key)) continue;
+          reservesMap[key] = { reserve0: p.reserve0.toString(), reserve1: p.reserve1.toString(), blockTime: 0, token0: p.token0.address, token1: p.token1.address };
+          found.push({ pair: p.pair, dex: 'QUAINANCE', tokens: [a.symbol, b.symbol] });
+        }
+      } catch (e) {
+        console.warn('Quainance pair discovery failed:', e);
+      }
       setDiscoveredPools(found);
       setPoolReserves(reservesMap);
       const wquaiRes = reservesMap[CONTRACTS.LP_WQUAI.toLowerCase()];
@@ -433,11 +467,34 @@ export default function App() {
         }));
       setTopHolders(parsedHolders);
 
+      // The explorer's indexed stats are optional: partial (top 25 pools) and blocked from browsers in production.
+      let indexed: QuainanceTVL | null = null;
       try {
-        const tvl = await getQuainanceTVL(1, import.meta.env.DEV ? '/api-quai-v2' : 'https://explorer.qu.ai');
-        setQuainanceTvl(tvl);
+        indexed = await getQuainanceTVL(1, import.meta.env.DEV ? '/api-quai-v2' : 'https://explorer.qu.ai');
+        setQuainanceTvl(indexed);
       } catch (tvlErr) {
-        console.error("Error loading Quainance TVL data:", tvlErr);
+        console.warn('Quainance indexed stats unavailable; values come from pool reserves:', tvlErr);
+        setQuainanceTvl(null);
+      }
+      try {
+        const [quaiUsd, catalog] = await Promise.all([fetchQuaiUsd(), loadQuainanceCatalog()]);
+        setQuaiUsdNow(quaiUsd);
+        setQuainanceCatalog(catalog);
+        setQuainanceAgg(
+          mergeQuainance({
+            snapshots: quainanceSnapshots,
+            analysis: analyzePairs(quainanceSnapshots, { quaiUsd }),
+            explorer: indexed,
+            factoryTotal: quainanceFactoryTotal,
+            launches: catalog ? catalog.launches : undefined,
+            isListed: address => {
+              const t = getTokenByAddress(address);
+              return Boolean(t) && t!.deployed !== false && !t!.isNative;
+            }
+          })
+        );
+      } catch (aggErr) {
+        console.warn('Could not aggregate Quainance pairs:', aggErr);
       }
 
     } catch (e) {
@@ -1057,7 +1114,32 @@ export default function App() {
       })()}
 
       {/* TAB 5: ALL PAIRS & LIQUIDITY */}
-      {activeTab === 'PAIRS' && <PairsPage onOpenLiquidity={() => setPoolModalOpen(true)} />}
+      {activeTab === 'PAIRS' && (
+        <>
+          <PairsPage onOpenLiquidity={() => setPoolModalOpen(true)} />
+          {/* Quainance DEX: every factory pair and every launchpad market (Hartii incl. QAXE), by default */}
+          <QuainanceMarkets
+            agg={quainanceAgg}
+            stale={Boolean(quainanceTvl?.stale)}
+            loading={loading}
+            catalog={quainanceCatalog}
+            quaiUsd={quaiUsdNow}
+            tradeRouteFor={pool => {
+              const a = getTokenByAddress(pool.token0.address)?.symbol;
+              const b = getTokenByAddress(pool.token1.address)?.symbol;
+              if (!a || !b) return null;
+              const hit = availableRoutes.find(
+                r => 'dex' in r && r.dex === 'QUAINANCE' && r.path.length === 2 && ((r.path[0] === a && r.path[1] === b) || (r.path[0] === b && r.path[1] === a))
+              );
+              return hit ? hit.id : null;
+            }}
+            onTrade={routeId => {
+              selectRoute(routeId);
+              setActiveTab('SWAP');
+            }}
+          />
+        </>
+      )}
 
       {/* TAB 6: DEPLOYMENT (lazy: carries the contracts' bytecode; administrator only) */}
       {deployVisible && activeTab === 'DEPLOY' && (
@@ -1633,76 +1715,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Quainance DEX Card */}
-              <div className="glass-card">
-                <h2 className="section-title">
-                  <TrendingUp size={20} style={{ color: 'var(--accent-gold)' }} />
-                  Quainance DEX &mdash; LAPTOP Pairs
-                  {quainanceTvl?.stale && (
-                    <span className="lp-badge" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.6rem', marginLeft: '0.5rem' }}>STALE</span>
-                  )}
-                </h2>
-                <div className="lp-price-metric" style={{ marginBottom: '1rem' }}>
-                  <span className="lp-price-label">Network-Wide Quainance TVL</span>
-                  <span className="lp-price-value">${Number(quainanceTvl?.current?.tvlUsd || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                </div>
 
-                {(quainanceTvl ? findQuainancePools(quainanceTvl, CONTRACTS.LAPTOP) : []).map((pool, idx, arr) => {
-                  const laptopIsToken0 = pool.token0.address.toLowerCase() === CONTRACTS.LAPTOP.toLowerCase();
-                  const otherSymbol = laptopIsToken0 ? pool.token1.symbol : pool.token0.symbol;
-                  const laptopReserve = laptopIsToken0 ? pool.reserve0 : pool.reserve1;
-                  const otherReserve = laptopIsToken0 ? pool.reserve1 : pool.reserve0;
-                  const rate = Number(otherReserve) / Number(laptopReserve);
-                  return (
-                    <div key={pool.address} style={{ marginBottom: idx === arr.length - 1 ? 0 : '1.5rem', paddingBottom: idx === arr.length - 1 ? 0 : '1.5rem', borderBottom: idx === arr.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)' }}>
-                      <div className="lp-header">
-                        <div className="lp-title">
-                          <span>{pool.name}</span>
-                        </div>
-                        <div className="lp-badges" style={{ alignItems: 'center', gap: '0.5rem' }}>
-                          <span className="lp-badge lp-badge-address">{formatAddr(pool.address)}</span>
-                          <button
-                            className="btn-primary"
-                            style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', minHeight: 'auto', borderRadius: '8px', cursor: 'pointer' }}
-                            onClick={() => {
-                              const tab = pool.name === 'LAPTOP/QGIRL' ? 'LAPTOP_QGIRL' : 'LAPTOP_WQUAI';
-                              selectRoute(tab);
-                              setActiveTab('SWAP');
-                            }}
-                          >
-                            Trade
-                          </button>
-                          <a
-                            href={`https://explorer.qu.ai/address/${pool.address}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="btn-primary"
-                            style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', minHeight: 'auto', borderRadius: '8px', textDecoration: 'none' }}
-                          >
-                            <ExternalLink size={12} /> View Pool
-                          </a>
-                        </div>
-                      </div>
-                      <div className="lp-reserves-row">
-                        <div className="lp-reserve-box">
-                          <div className="lp-reserve-label">LAPTOP Reserve</div>
-                          <div className="lp-reserve-value">{Number(laptopReserve).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                        </div>
-                        <div className="lp-reserve-box">
-                          <div className="lp-reserve-label">{otherSymbol} Reserve</div>
-                          <div className="lp-reserve-value">{Number(otherReserve).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-                        </div>
-                      </div>
-                      <div className="lp-price-metric">
-                        <span className="lp-price-label">Pool Stats</span>
-                        <span className="lp-price-value">
-                          1 LAPTOP = {rate.toFixed(6)} {otherSymbol} &nbsp;|&nbsp; TVL ${Number(pool.tvlUsd).toLocaleString(undefined, { maximumFractionDigits: 2 })} &nbsp;|&nbsp; 24h Vol ${Number(pool.volume24hUsd).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
             </div>
 
             {/* Right Side: Top Holders & Transaction Ledger */}
