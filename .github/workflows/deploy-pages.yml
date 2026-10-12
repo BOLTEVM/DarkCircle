@@ -35,6 +35,20 @@ jobs:
         with:
           node-version: 22
 
+      # Gate the portal before spending minutes on the sub-app builds
+      - name: Verify QRB 3D asset (structure, scale, lights, animation)
+        run: node tools/verify_qrb_assets.mjs
+
+      - name: Verify portal sources are pure ASCII (encoding regression guard)
+        run: |
+          if LC_ALL=C grep -n '[^[:print:][:space:]]' index.html 404.html; then
+            echo "non-ASCII bytes found; use HTML entities or JS escapes" >&2
+            exit 1
+          fi
+
+      - name: Test 404 / subdomain redirect router
+        run: node tools/test_404_router.mjs
+
       - name: Build Q0 / Circleswap
         run: |
           cd q0
@@ -55,33 +69,7 @@ jobs:
           cd ..
 
       - name: Assemble Unified GitHub Pages Site
-        run: |
-          mkdir -p _site
-          cp index.html _site/index.html
-          cp 404.html _site/404.html
-          touch _site/.nojekyll
-
-          # 3D Assets (QRB Containment Chamber Scene)
-          mkdir -p _site/assets/3d
-          cp -r assets/3d/* _site/assets/3d/
-
-          # DarkCircle Tumbler UI
-          mkdir -p _site/x402tumbler
-          cp -r x402tumbler/ui/* _site/x402tumbler/
-          mkdir -p _site/darkcircle
-          cp -r x402tumbler/ui/* _site/darkcircle/
-
-          # Q0 / Circleswap Dashboard
-          mkdir -p _site/q0
-          cp -r q0/apps/stats-app/dist/* _site/q0/
-          mkdir -p _site/circleswap
-          cp -r q0/apps/stats-app/dist/* _site/circleswap/
-
-          # DarkSafe / SafeBuddy Web Vault
-          mkdir -p _site/multisigows
-          cp -r multisigows/apps/web/dist/* _site/multisigows/
-          mkdir -p _site/darksafe
-          cp -r multisigows/apps/web/dist/* _site/darksafe/
+        run: bash tools/assemble_site.sh _site
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

@@ -2,17 +2,15 @@
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>DarkCircle Suite — Quai Network 3D Ecosystem Experience</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>DarkCircle Suite &mdash; Quai Network 3D Ecosystem Experience</title>
   <meta name="description" content="Interactive 3D navigation experience for the DarkCircle decentralized suite on Quai Network: DarkCircle x402 Privacy, Circleswap AMM DEX, and DarkSafe Multi-Sig.">
+  <meta name="theme-color" content="#05070a">
   <link rel="icon" type="image/png" href="./q0/0logov3.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  
+
   <script>
-    // Immediate Subdomain Auto-Router
-    (function() {
+    // Immediate subdomain auto-router (runs before anything is painted or fetched)
+    (function () {
       var host = window.location.hostname.toLowerCase();
       var path = window.location.pathname;
       var search = window.location.search;
@@ -38,169 +36,170 @@
   <style>
     :root {
       --bg: #05070a;
-      --accent-red: #ff2a2a;
-      --accent-glow: rgba(255, 42, 42, 0.45);
-      --accent-cyan: #06b6d4;
-      --accent-purple: #a855f7;
-      --accent-green: #10b981;
+      --accent-red: #ff3b30;
+      --accent-glow: rgba(255, 59, 48, 0.45);
       --text: #f8fafc;
       --text-muted: #94a3b8;
       --hud-bg: rgba(10, 14, 22, 0.72);
       --hud-border: rgba(255, 255, 255, 0.1);
+      --font-ui: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+      --font-display: 'Outfit', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
       width: 100%; height: 100%;
       overflow: hidden;
       background: var(--bg);
       color: var(--text);
-      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      font-family: var(--font-ui);
+      -webkit-tap-highlight-color: transparent;
     }
+    .hud, .hud * { user-select: none; -webkit-user-select: none; }
 
     #webgl-canvas {
-      position: absolute;
-      top: 0; left: 0;
+      position: absolute; inset: 0;
       width: 100%; height: 100%;
       z-index: 1;
       display: block;
+      touch-action: none;
     }
 
-    /* Ambient CRT scanline overlay */
+    /* Ambient CRT scanline overlay + vignette (both inert to the pointer) */
     .scanlines {
-      position: absolute;
-      top: 0; left: 0; width: 100%; height: 100%;
-      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
-      background-size: 100% 3px, 3px 100%;
+      position: absolute; inset: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.22) 50%);
+      background-size: 100% 3px;
       pointer-events: none;
       z-index: 2;
-      opacity: 0.65;
+      opacity: 0.4;
     }
-
-    /* Vignette */
     .vignette {
-      position: absolute;
-      top: 0; left: 0; width: 100%; height: 100%;
-      background: radial-gradient(circle at center, transparent 45%, rgba(4, 5, 8, 0.82) 100%);
+      position: absolute; inset: 0;
+      background: radial-gradient(circle at center, transparent 50%, rgba(4, 5, 8, 0.78) 100%);
       pointer-events: none;
       z-index: 2;
     }
 
-    /* HUD Layer */
+    /* HUD layer: only real controls take the pointer, so the canvas stays draggable everywhere else */
     .hud {
-      position: absolute;
-      top: 0; left: 0; width: 100%; height: 100%;
+      position: absolute; inset: 0;
       z-index: 10;
       pointer-events: none;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
-      padding: 1.5rem 2rem;
+      gap: 0.75rem;
+      padding: 1.1rem 1.5rem calc(0.9rem + env(safe-area-inset-bottom));
     }
-    .hud * { pointer-events: auto; }
+    .hud a, .hud button, .hud nav { pointer-events: auto; }
+    .hud-spacer { flex: 1 1 auto; min-height: 0; }
 
-    /* Top Navigation Header */
     .header-bar {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 1rem;
       width: 100%;
     }
-    .brand-title {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-    }
+    .brand-title { display: flex; align-items: center; gap: 0.9rem; min-width: 0; flex: 1 1 auto; }
     .brand-logo {
-      width: 38px;
-      height: 38px;
+      width: 38px; height: 38px;
       border-radius: 50%;
       box-shadow: 0 0 15px var(--accent-glow);
+      flex: none;
     }
     .brand-text h1 {
-      font-family: 'Outfit', sans-serif;
-      font-size: 1.35rem;
+      font-family: var(--font-display);
+      font-size: 1.3rem;
       font-weight: 800;
       letter-spacing: -0.02em;
       line-height: 1.1;
       background: linear-gradient(135deg, #fff 50%, #94a3b8);
       -webkit-background-clip: text;
+      background-clip: text;
       -webkit-text-fill-color: transparent;
+      white-space: nowrap;
     }
     .brand-text .shard-tag {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.7rem;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
       color: var(--accent-red);
       letter-spacing: 0.05em;
       text-transform: uppercase;
+      white-space: nowrap;
     }
 
-    .top-controls {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
+    .top-controls { display: flex; align-items: center; gap: 0.6rem; }
     .btn-icon {
       background: var(--hud-bg);
       border: 1px solid var(--hud-border);
       color: var(--text-muted);
-      width: 38px;
-      height: 38px;
+      width: 38px; height: 38px;
       border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       cursor: pointer;
+      -webkit-backdrop-filter: blur(12px);
       backdrop-filter: blur(12px);
-      transition: all 0.2s ease;
+      transition: color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
       font-size: 0.95rem;
     }
-    .btn-icon:hover {
-      color: #fff;
-      border-color: rgba(255, 255, 255, 0.3);
-      box-shadow: 0 0 12px rgba(255, 255, 255, 0.1);
-    }
-    .btn-icon.active {
-      color: var(--accent-red);
-      border-color: var(--accent-red);
-      box-shadow: 0 0 10px var(--accent-glow);
-    }
+    .btn-icon:hover { color: #fff; border-color: rgba(255, 255, 255, 0.3); }
+    .btn-icon.active { color: var(--accent-red); border-color: var(--accent-red); box-shadow: 0 0 10px var(--accent-glow); }
 
-    /* App Nav Pills */
     .app-selector-pills {
       display: flex;
       background: var(--hud-bg);
       border: 1px solid var(--hud-border);
       border-radius: 9999px;
       padding: 0.3rem;
+      -webkit-backdrop-filter: blur(16px);
       backdrop-filter: blur(16px);
       gap: 0.25rem;
     }
     .app-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
+      display: inline-flex; align-items: center; gap: 0.5rem;
       padding: 0.45rem 1rem;
       border-radius: 9999px;
       font-size: 0.85rem;
       font-weight: 600;
       color: var(--text-muted);
       text-decoration: none;
-      transition: all 0.2s ease;
+      transition: color 0.2s ease, background 0.2s ease;
       cursor: pointer;
+      white-space: nowrap;
     }
-    .app-pill:hover, .app-pill.active {
-      color: #fff;
-      background: rgba(255, 255, 255, 0.08);
-    }
+    .app-pill:hover, .app-pill:focus-visible, .app-pill.active { color: #fff; background: rgba(255, 255, 255, 0.08); }
     .app-pill[data-app="darkcircle"]:hover { color: #34d399; background: rgba(16, 185, 129, 0.15); }
     .app-pill[data-app="circleswap"]:hover { color: #38bdf8; background: rgba(6, 182, 212, 0.15); }
     .app-pill[data-app="darksafe"]:hover { color: #c084fc; background: rgba(168, 85, 247, 0.15); }
 
-    /* Interactive Holographic Cards (Bottom Floating) */
+    /* Live telemetry readout for the targeted node */
+    .telemetry {
+      align-self: center;
+      min-height: 2.1rem;
+      max-width: min(92vw, 640px);
+      padding: 0.45rem 0.9rem;
+      border: 1px solid var(--hud-border);
+      border-radius: 10px;
+      background: var(--hud-bg);
+      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(14px);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.03em;
+      color: var(--text-muted);
+      text-align: center;
+      pointer-events: none;
+      transition: border-color 0.2s ease, color 0.2s ease;
+    }
+    .telemetry b { color: #fff; font-weight: 600; }
+    .telemetry.live { border-color: rgba(255, 255, 255, 0.3); color: #e2e8f0; }
+
+    /* Station cards */
     .portal-stations {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 1.5rem;
+      gap: 1.25rem;
       width: 100%;
       max-width: 1100px;
       margin: 0 auto;
@@ -209,214 +208,200 @@
       background: var(--hud-bg);
       border: 1px solid var(--hud-border);
       border-radius: 14px;
-      padding: 1.25rem;
+      padding: 1rem 1.15rem;
+      -webkit-backdrop-filter: blur(20px);
       backdrop-filter: blur(20px);
       cursor: pointer;
       text-decoration: none;
       color: inherit;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease, box-shadow 0.3s ease;
       position: relative;
       overflow: hidden;
     }
     .station-card::before {
       content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0;
+      position: absolute; top: 0; left: 0; right: 0;
       height: 2px;
-      background: linear-gradient(90deg, transparent, transparent);
+      background: transparent;
       transition: background 0.3s ease;
     }
-    .station-card:hover, .station-card.targeted {
-      transform: translateY(-6px);
+    .station-card:hover, .station-card:focus-visible, .station-card.targeted {
+      transform: translateY(-5px);
       border-color: rgba(255, 255, 255, 0.3);
       box-shadow: 0 16px 32px -10px rgba(0, 0, 0, 0.7);
+      outline: none;
     }
-    .station-darkcircle:hover::before, .station-darkcircle.targeted::before { background: linear-gradient(90deg, #10b981, #06b6d4); }
-    .station-circleswap:hover::before, .station-circleswap.targeted::before { background: linear-gradient(90deg, #06b6d4, #ff2a2a); }
-    .station-darksafe:hover::before, .station-darksafe.targeted::before { background: linear-gradient(90deg, #a855f7, #10b981); }
+    .station-darkcircle:hover::before, .station-darkcircle:focus-visible::before, .station-darkcircle.targeted::before { background: linear-gradient(90deg, #10b981, #06b6d4); }
+    .station-circleswap:hover::before, .station-circleswap:focus-visible::before, .station-circleswap.targeted::before { background: linear-gradient(90deg, #06b6d4, #ff3b30); }
+    .station-darksafe:hover::before, .station-darksafe:focus-visible::before, .station-darksafe.targeted::before { background: linear-gradient(90deg, #a855f7, #10b981); }
 
-    .station-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 0.5rem;
-    }
-    .station-title {
-      font-family: 'Outfit', sans-serif;
-      font-size: 1.15rem;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-    }
+    .station-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.4rem; }
+    .station-title { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 0.4rem; }
     .station-badge {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.65rem;
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
       padding: 0.15rem 0.45rem;
       border-radius: 4px;
       font-weight: 600;
       letter-spacing: 0.04em;
+      white-space: nowrap;
     }
     .badge-green { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
     .badge-cyan { background: rgba(6, 182, 212, 0.15); color: #38bdf8; border: 1px solid rgba(6, 182, 212, 0.3); }
     .badge-purple { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
 
-    .station-desc {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      line-height: 1.45;
-      margin-bottom: 0.85rem;
-    }
+    .station-desc { font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 0.7rem; }
     .station-footer {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 0.75rem;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.72rem;
       color: #64748b;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font-mono);
     }
-    .station-warp-hint {
-      display: flex;
-      align-items: center;
-      gap: 0.3rem;
-      color: var(--text);
-      font-weight: 600;
-    }
-    .station-card:hover .station-warp-hint {
-      color: var(--accent-red);
-    }
+    .station-warp-hint { color: var(--text); font-weight: 600; }
+    .station-card:hover .station-warp-hint, .station-card:focus-visible .station-warp-hint { color: var(--accent-red); }
 
-    /* Bottom Status Bar */
     .bottom-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 0.75rem;
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 1rem;
+      font-size: 0.72rem;
       color: #64748b;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font-mono);
       width: 100%;
-      margin-top: 1rem;
     }
-    .bottom-bar a {
-      color: var(--text-muted);
-      text-decoration: none;
-      transition: color 0.2s ease;
-    }
+    .bottom-bar a { color: var(--text-muted); text-decoration: none; transition: color 0.2s ease; }
     .bottom-bar a:hover { color: #fff; }
+    .bottom-bar .net-status { white-space: nowrap; }
 
-    /* Warp Overlay for Cinematic Jump */
+    /* Warp flash */
     .warp-flash {
-      position: absolute;
-      top: 0; left: 0; width: 100%; height: 100%;
+      position: absolute; inset: 0;
       background: #fff;
       z-index: 100;
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.45s cubic-bezier(0.8, 0, 0.2, 1);
+      transition: opacity 0.35s cubic-bezier(0.8, 0, 0.2, 1);
     }
-    .warp-flash.active {
-      opacity: 1;
-      pointer-events: all;
-    }
+    .warp-flash.active { opacity: 1; pointer-events: all; }
 
-    /* 3D Target Reticle */
-    .reticle-tip {
-      position: absolute;
-      top: 50%; left: 50%;
+    /* Loader line shown while the GLB streams in */
+    .boot {
+      position: absolute; left: 50%; top: 46%;
       transform: translate(-50%, -50%);
-      pointer-events: none;
       z-index: 5;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.5rem;
-      opacity: 0.85;
-      transition: opacity 0.3s ease;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255, 90, 80, 0.85);
+      pointer-events: none;
+      transition: opacity 0.6s ease;
     }
-    .reticle-ring {
-      width: 54px; height: 54px;
-      border: 1px dashed rgba(255, 42, 42, 0.6);
+    .boot.done { opacity: 0; }
+
+    /* 2D fallback: no WebGL, ?mode=2d, or the 3D engine failed to start */
+    .fallback-orb { display: none; }
+    html.no-webgl #webgl-canvas, html.no-webgl .boot { display: none; }
+    html.no-webgl .scanlines { opacity: 0.25; }
+    html.no-webgl body {
+      background:
+        radial-gradient(ellipse 60% 55% at 50% 38%, rgba(120, 12, 12, 0.55), rgba(40, 4, 4, 0.35) 45%, transparent 70%),
+        linear-gradient(#07090e, #05070a);
+    }
+    html.no-webgl .fallback-orb {
+      display: block;
+      position: absolute; left: 50%; top: 38%;
+      width: min(34vh, 220px); aspect-ratio: 1;
+      transform: translate(-50%, -50%);
       border-radius: 50%;
-      animation: spinReticle 12s linear infinite;
+      background: radial-gradient(circle at 36% 30%, #3a1a1a, #0b0505 55%, #000);
+      box-shadow: 0 0 0 3px rgba(255, 70, 50, 0.55), 0 0 40px 8px rgba(255, 50, 30, 0.45), inset 0 0 30px rgba(255, 40, 20, 0.25);
+      z-index: 3;
     }
-    @keyframes spinReticle { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    html.no-webgl .hud-spacer { flex: 1 1 0; }
 
     @media (max-width: 900px) {
-      .portal-stations {
-        grid-template-columns: 1fr;
-        max-height: 40vh;
-        overflow-y: auto;
-      }
-      .hud { padding: 1rem; }
+      .app-selector-pills { display: none; }
+      .portal-stations { gap: 0.6rem; }
+      .station-desc, .station-badge { display: none; }
+      .station-card { padding: 0.8rem 0.7rem; }
+      .station-title { font-size: 0.95rem; }
+      .station-header { margin-bottom: 0.3rem; }
+      .bottom-bar .keys { display: none; }
+      .hud { padding: 0.9rem 0.9rem calc(0.7rem + env(safe-area-inset-bottom)); }
+    }
+    @media (max-width: 520px) {
+      .shard-extra { display: none; }
+      .station-footer span:first-child { display: none; }
+      .station-footer { justify-content: center; }
+      .brand-text .shard-tag { font-size: 0.6rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .station-card, .warp-flash, .boot { transition: none; }
     }
   </style>
 
-  <!-- Three.js + PostProcessing Import Map -->
+  <!-- three.js is vendored (r160, MIT) so the portal never executes unpinned third-party code -->
   <script type="importmap">
     {
       "imports": {
-        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        "three": "./assets/3d/vendor/three/three.module.js",
+        "three/addons/": "./assets/3d/vendor/three/addons/"
       }
     }
   </script>
 </head>
 <body>
 
-  <!-- WebGL Render Canvas -->
-  <canvas id="webgl-canvas"></canvas>
-  
+  <canvas id="webgl-canvas" aria-hidden="true"></canvas>
+  <div class="fallback-orb" aria-hidden="true"></div>
   <div class="scanlines"></div>
   <div class="vignette"></div>
+  <div class="boot" id="boot" role="status">Charging containment field</div>
   <div class="warp-flash" id="warp-flash"></div>
 
-  <!-- Center Crosshair Reticle -->
-  <div class="reticle-tip" id="reticle">
-    <div class="reticle-ring"></div>
-  </div>
-
-  <!-- HUD Interface -->
   <div class="hud">
     <header class="header-bar">
       <div class="brand-title">
-        <img src="./q0/0logov3.png" alt="BOLTEVM Logo" class="brand-logo" onerror="this.style.display='none'">
+        <img src="./q0/0logov3.png" alt="BOLTEVM logo" class="brand-logo" onerror="this.style.display='none'">
         <div class="brand-text">
           <h1>DarkCircle Suite</h1>
-          <div class="shard-tag">? CYPRUS-1 SHARD [0x00] • CHAIN ID 9</div>
+          <div class="shard-tag">&#x25CF; Cyprus-1 shard [0x00]<span class="shard-extra"> &middot; chain id 9</span></div>
         </div>
       </div>
 
-      <nav class="app-selector-pills">
-        <a class="app-pill" data-app="darkcircle" href="./x402tumbler/">??? DarkCircle</a>
-        <a class="app-pill" data-app="circleswap" href="./q0/">? Circleswap</a>
-        <a class="app-pill" data-app="darksafe" href="./multisigows/">?? DarkSafe</a>
+      <nav class="app-selector-pills" aria-label="Applications">
+        <a class="app-pill" data-app="darkcircle" href="./x402tumbler/">&#x1F6E1;&#xFE0F; DarkCircle</a>
+        <a class="app-pill" data-app="circleswap" href="./q0/">&#x26A1; Circleswap</a>
+        <a class="app-pill" data-app="darksafe" href="./multisigows/">&#x1F510; DarkSafe</a>
       </nav>
 
       <div class="top-controls">
-        <button class="btn-icon" id="sound-btn" title="Toggle Synthesized Sci-Fi Audio" aria-label="Sound Toggle">??</button>
-        <button class="btn-icon" id="fullscreen-btn" title="Toggle Fullscreen" aria-label="Fullscreen Toggle">?</button>
+        <button class="btn-icon" id="sound-btn" type="button" title="Toggle synthesized sci-fi audio (muted by default)" aria-label="Sound off" aria-pressed="false">&#x1F507;</button>
+        <button class="btn-icon" id="fullscreen-btn" type="button" title="Toggle fullscreen" aria-label="Toggle fullscreen">&#x26F6;</button>
       </div>
     </header>
 
+    <div class="hud-spacer"></div>
+
+    <div class="telemetry" id="telemetry" role="status" aria-live="polite">Drag to orbit &middot; hover a node to read it &middot; click or press 1 / 2 / 3 to warp</div>
+
     <div class="portal-stations">
-      <!-- DarkCircle Station -->
       <a href="./x402tumbler/" class="station-card station-darkcircle" data-app="darkcircle">
         <div class="station-header">
-          <div class="station-title">??? DarkCircle</div>
+          <div class="station-title">&#x1F6E1;&#xFE0F; DarkCircle</div>
           <span class="station-badge badge-green">PPOI COMPLIANT</span>
         </div>
-        <p class="station-desc">x402 zero-knowledge payment privacy tumbler with dual WQUAI & WQI shielded pools and stealth payees.</p>
+        <p class="station-desc">x402 zero-knowledge payment privacy tumbler with dual WQUAI &amp; WQI shielded pools and stealth payees.</p>
         <div class="station-footer">
           <span>PORTAL [1]</span>
           <span class="station-warp-hint">ENTER POD &rarr;</span>
         </div>
       </a>
 
-      <!-- Circleswap Station -->
       <a href="./q0/" class="station-card station-circleswap" data-app="circleswap">
         <div class="station-header">
-          <div class="station-title">? Circleswap</div>
-          <span class="station-badge badge-cyan">AMM DEX & LPs</span>
+          <div class="station-title">&#x26A1; Circleswap</div>
+          <span class="station-badge badge-cyan">AMM DEX &amp; LPs</span>
         </div>
         <p class="station-desc">Quai DeFi protocol with live Cyprus-1 AMM pools (Q0/WQUAI/BOSS), real-time swap math, and farm rewards.</p>
         <div class="station-footer">
@@ -425,10 +410,9 @@
         </div>
       </a>
 
-      <!-- DarkSafe Station -->
       <a href="./multisigows/" class="station-card station-darksafe" data-app="darksafe">
         <div class="station-header">
-          <div class="station-title">?? DarkSafe</div>
+          <div class="station-title">&#x1F510; DarkSafe</div>
           <span class="station-badge badge-purple">MULTI-SIG VAULT</span>
         </div>
         <p class="station-desc">Browser-based multi-sig vault for Quai Cyprus-1 (SafeBuddy). Native timelocks, quorum checks, zero delegatecall.</p>
@@ -440,409 +424,627 @@
     </div>
 
     <footer class="bottom-bar">
-      <div>ORBIT: Drag Mouse • WARP: Click Node or Press [1], [2], [3]</div>
-      <div><a href="https://github.com/BOLTEVM/DarkCircle" target="_blank" rel="noopener">BOLTEVM/DarkCircle Open Source Monorepo</a></div>
+      <div class="keys">ORBIT: drag &middot; WARP: click a node or press [1] DarkCircle [2] Circleswap [3] DarkSafe</div>
+      <div class="net-status" id="net-status" title="The portal makes no network request to a Quai RPC until you first target a node.">RPC idle</div>
+      <div><a href="https://github.com/BOLTEVM/DarkCircle" target="_blank" rel="noopener">BOLTEVM/DarkCircle</a></div>
     </footer>
   </div>
 
-  <!-- Real-Time Interactive 3D WebGL Engine -->
   <script type="module">
-    import * as THREE from 'three';
-    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+    // ------------------------------------------------------------------------------
+    // Layout contract with assets/3d/qrb_chamber.glb (built by tools/build_qrb_scene.py):
+    //   Y-up, metres. Floor y=0, ceiling y=4.6, orb centre (0, 1.7, 0), orb radius 0.5,
+    //   default camera at (0, 1.7, 5.9) looking down -Z.
+    // ------------------------------------------------------------------------------
+    const ORB_Y = 1.7;
+    const NODES = [
+      { id: 'darkcircle', key: '1', title: 'DarkCircle', sub: 'x402 shielded pools', hint: 'ENTER POD',
+        url: './x402tumbler/', color: 0x10b981, pos: [-1.75, ORB_Y, 0.2] },
+      { id: 'circleswap', key: '2', title: 'Circleswap', sub: 'QRB core \u00B7 AMM DEX', hint: 'WARP CORE',
+        url: './q0/', color: 0x06b6d4, pos: [0, ORB_Y, 0], core: true },
+      { id: 'darksafe', key: '3', title: 'DarkSafe', sub: 'multi-sig vaults', hint: 'ACCESS VAULT',
+        url: './multisigows/', color: 0xa855f7, pos: [1.75, ORB_Y, 0.2] },
+    ];
+    const byId = Object.fromEntries(NODES.map((n) => [n.id, n]));
+    const params = new URLSearchParams(location.search);
+    const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const lowPower = matchMedia('(pointer: coarse)').matches || (navigator.hardwareConcurrency || 8) <= 4;
+    const $ = (sel) => document.querySelector(sel);
+    const cards = [...document.querySelectorAll('.station-card')];
+    const pills = [...document.querySelectorAll('.app-pill')];
+    const flash = $('#warp-flash');
+    const telemetryEl = $('#telemetry');
+    const netStatus = $('#net-status');
+    const bootEl = $('#boot');
+    let IDLE_TEXT = telemetryEl.textContent;
 
-    // Audio Synthesizer via Web Audio API
+    // --- audio: Web Audio synthesis, muted until the user opts in -----------------------
     class SciFiSoundEngine {
-      constructor() {
-        this.ctx = null;
-        this.muted = true;
-        this.humOsc = null;
-        this.humGain = null;
-      }
+      constructor() { this.ctx = null; this.muted = true; this.humGain = null; }
       init() {
         if (this.ctx) return;
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        this.ctx = new AudioContext();
-
-        // Ambient reactor hum
-        this.humOsc = this.ctx.createOscillator();
-        this.humOsc.type = 'sawtooth';
-        this.humOsc.frequency.setValueAtTime(55, this.ctx.currentTime); // 55 Hz A1 hum
-
-        const filter = this.ctx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(140, this.ctx.currentTime);
-
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        this.ctx = new AC();
+        const osc = this.ctx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(55, this.ctx.currentTime);
+        const lp = this.ctx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.setValueAtTime(140, this.ctx.currentTime);
         this.humGain = this.ctx.createGain();
-        this.humGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
-
-        this.humOsc.connect(filter);
-        filter.connect(this.humGain);
-        this.humGain.connect(this.ctx.destination);
-        this.humOsc.start();
+        this.humGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+        osc.connect(lp); lp.connect(this.humGain); this.humGain.connect(this.ctx.destination);
+        osc.start();
       }
       toggle() {
         this.init();
-        if (this.ctx.state === 'suspended') {
-          this.ctx.resume();
-        }
+        if (!this.ctx) return false;
+        if (this.ctx.state === 'suspended') this.ctx.resume();
         this.muted = !this.muted;
-        if (!this.muted) {
-          this.humGain.gain.setTargetAtTime(0.06, this.ctx.currentTime, 0.1);
-        } else {
-          this.humGain.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.1);
-        }
+        this.humGain.gain.setTargetAtTime(this.muted ? 0.0001 : 0.06, this.ctx.currentTime, 0.1);
         return !this.muted;
       }
-      playHover() {
+      blip(from, to, dur, gainPeak, type) {
         if (this.muted || !this.ctx) return;
+        const t = this.ctx.currentTime;
         const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(320, this.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(740, this.ctx.currentTime + 0.12);
-        gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.12);
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-        osc.start();
-        osc.stop(this.ctx.currentTime + 0.13);
+        const g = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(from, t);
+        osc.frequency.exponentialRampToValueAtTime(to, t + dur);
+        g.gain.setValueAtTime(gainPeak, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        osc.connect(g); g.connect(this.ctx.destination);
+        osc.start(t); osc.stop(t + dur + 0.02);
       }
-      playWarp() {
-        if (this.muted || !this.ctx) return;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(110, this.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(1800, this.ctx.currentTime + 0.45);
-        gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.5);
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-        osc.start();
-        osc.stop(this.ctx.currentTime + 0.52);
-      }
+      playHover() { this.blip(320, 740, 0.12, 0.05, 'sine'); }
+      playWarp() { this.blip(110, 1800, 0.45, 0.12, 'sawtooth'); }
+    }
+    const sound = new SciFiSoundEngine();
+    const soundBtn = $('#sound-btn');
+    soundBtn.addEventListener('click', () => {
+      const on = sound.toggle();
+      soundBtn.textContent = on ? '\u{1F50A}' : '\u{1F507}';
+      soundBtn.setAttribute('aria-pressed', String(on));
+      soundBtn.setAttribute('aria-label', on ? 'Sound on' : 'Sound off');
+      soundBtn.classList.toggle('active', on);
+    });
+    $('#fullscreen-btn').addEventListener('click', () => {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
+      else document.exitFullscreen?.().catch(() => {});
+    });
+
+    // --- live Cyprus-1 block height, fetched lazily on the first targeted node ------------
+    const RPC = 'https://rpc.quai.network/cyprus1';
+    const chain = { block: null, at: 0, pending: null, failed: false };
+    function refreshBlock() {
+      // `at` is stamped on failure too, so an unreachable RPC is retried at most every 20 s
+      if (chain.pending || (chain.at && Date.now() - chain.at < 20000)) return chain.pending;
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 4000);
+      netStatus.textContent = 'RPC querying\u2026';
+      chain.pending = fetch(RPC, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'quai_blockNumber', params: [] }),
+        signal: ctl.signal,
+        credentials: 'omit',
+        referrerPolicy: 'no-referrer',
+      })
+        .then((r) => r.json())
+        .then((j) => {
+          const n = parseInt(j.result, 16);
+          if (!Number.isFinite(n)) throw new Error('bad block number');
+          chain.block = n; chain.at = Date.now(); chain.failed = false;
+          netStatus.textContent = 'CYPRUS-1 #' + n.toLocaleString('en-US');
+        })
+        .catch(() => { chain.failed = true; chain.at = Date.now(); netStatus.textContent = 'RPC offline'; })
+        .finally(() => { clearTimeout(timer); chain.pending = null; if (current) showTelemetry(current); });
+      return chain.pending;
     }
 
-    const sound = new SciFiSoundEngine();
-    const soundBtn = document.getElementById('sound-btn');
-    soundBtn.addEventListener('click', () => {
-      const active = sound.toggle();
-      soundBtn.textContent = active ? '??' : '??';
-      soundBtn.classList.toggle('active', active);
-    });
-
-    const fullscreenBtn = document.getElementById('fullscreen-btn');
-    fullscreenBtn.addEventListener('click', () => {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      } else {
-        document.exitFullscreen().catch(() => {});
+    // --- telemetry + highlight ----------------------------------------------------------
+    let current = null;
+    function showTelemetry(node) {
+      current = node;
+      cards.forEach((c) => c.classList.toggle('targeted', !!node && c.dataset.app === node.id));
+      if (!node) {
+        telemetryEl.classList.remove('live');
+        telemetryEl.textContent = IDLE_TEXT;
+        return;
       }
+      refreshBlock();
+      const blk = chain.block !== null ? '#' + chain.block.toLocaleString('en-US')
+        : chain.failed ? 'RPC offline' : '\u2026';
+      telemetryEl.classList.add('live');
+      telemetryEl.replaceChildren();
+      const parts = [['NODE', node.title], ['ROUTE', node.url], ['CYPRUS-1 BLOCK', blk], ['KEY', '[' + node.key + ']']];
+      parts.forEach(([k, v], i) => {
+        if (i) telemetryEl.append(' \u00B7 ');
+        telemetryEl.append(k + ' ');
+        const b = document.createElement('b');
+        b.textContent = v;
+        telemetryEl.append(b);
+      });
+    }
+
+    // --- navigation (independent of WebGL) --------------------------------------------------
+    let scene3d = null;      // set once the 3D engine is up
+    let navigating = false;
+    function go(node) {
+      if (navigating || !node) return;
+      navigating = true;
+      sound.playWarp();
+      const arrive = () => { window.location.href = node.url; };
+      if (scene3d && !reducedMotion) scene3d.warp(node).then(arrive);
+      else { flash.classList.add('active'); setTimeout(arrive, reducedMotion ? 0 : 220); }
+    }
+    function resetNavigation() {      // back/forward cache restores this page mid-warp
+      navigating = false;
+      flash.classList.remove('active');
+      scene3d?.resetWarp();
+      showTelemetry(null);
+    }
+    window.addEventListener('pageshow', (e) => { if (e.persisted) resetNavigation(); });
+
+    function wireLink(el) {
+      const node = byId[el.dataset.app];
+      el.addEventListener('click', (e) => {
+        if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        go(node);
+      });
+      const on = () => { sound.playHover(); showTelemetry(node); scene3d?.focus(node); };
+      const off = () => { showTelemetry(null); scene3d?.focus(null); };
+      el.addEventListener('mouseenter', on);
+      el.addEventListener('mouseleave', off);
+      el.addEventListener('focus', on);
+      el.addEventListener('blur', off);
+    }
+    cards.forEach(wireLink);
+    pills.forEach(wireLink);
+
+    window.addEventListener('keydown', (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+      if (e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+      const node = NODES.find((n) => n.key === e.key);
+      if (node) go(node);
     });
 
-    // Three.js Scene Setup
-    const canvas = document.getElementById('webgl-canvas');
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
+    // ----------------------------------------------------------------------------------------
+    // 3D engine. Everything below may fail (no WebGL, blocked module, GPU loss): the page then
+    // stays a fully working 2D portal.
+    // ----------------------------------------------------------------------------------------
+    function webglAvailable() {
+      try {
+        const c = document.createElement('canvas');
+        return !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl')));
+      } catch (_) { return false; }
+    }
 
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x05070a);
-    scene.fog = new THREE.FogExp2(0x05070a, 0.055);
+    async function start3D() {
+      if (params.get('mode') === '2d' || !webglAvailable()) throw new Error('3D disabled or WebGL unavailable');
 
-    const camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(0, -6.6, 3.2);
+      const THREE = await import('three');
+      const [{ OrbitControls }, { GLTFLoader }, { EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }] =
+        await Promise.all([
+          import('three/addons/controls/OrbitControls.js'),
+          import('three/addons/loaders/GLTFLoader.js'),
+          import('three/addons/postprocessing/EffectComposer.js'),
+          import('three/addons/postprocessing/RenderPass.js'),
+          import('three/addons/postprocessing/UnrealBloomPass.js'),
+          import('three/addons/postprocessing/OutputPass.js'),
+        ]);
 
-    const controls = new OrbitControls(camera, canvas);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.maxPolarAngle = Math.PI / 2 + 0.12;
-    controls.minDistance = 3.5;
-    controls.maxDistance = 11.0;
-    controls.target.set(0, 0, 2.85);
+      const canvas = $('#webgl-canvas');
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, lowPower ? 1.5 : 2);
+      renderer.setPixelRatio(pixelRatio);
+      renderer.setSize(innerWidth, innerHeight, false);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;       // applied by OutputPass, after bloom
+      renderer.toneMappingExposure = 1.0;
 
-    // Post-Processing: UnrealBloomPass
-    const composer = new EffectComposer(renderer);
-    composer.addPass(new RenderPass(scene, camera));
-    const bloomPass = new UnrealBloomPass(
-      new THREE.Vector2(window.innerWidth, window.innerHeight),
-      1.75,  // strength
-      0.85,  // radius
-      0.18   // threshold
-    );
-    composer.addPass(bloomPass);
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x050202);
+      scene.fog = new THREE.FogExp2(0x1a0404, 0.03);
 
-    // Procedural Fallback / Core Geometry Elements
-    let coreMesh = null;
-    let plasmaCageGroup = new THREE.Group();
-    scene.add(plasmaCageGroup);
+      const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.1, 60);
+      const HOME = new THREE.Vector3(0, ORB_Y + 0.05, 5.9);
+      camera.position.copy(HOME);
 
-    // Load Blender GLB Model
-    const gltfLoader = new GLTFLoader();
-    gltfLoader.load(
-      './assets/3d/qrb_chamber.glb',
-      (gltf) => {
+      const controls = new OrbitControls(camera, canvas);
+      controls.target.set(0, ORB_Y, 0);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.06;
+      controls.enablePan = false;
+      controls.minDistance = 2.6;
+      controls.maxDistance = 6.4;           // keeps the camera inside the 7.2 m apothem
+      controls.minPolarAngle = 0.95;
+      controls.maxPolarAngle = 1.80;
+      controls.rotateSpeed = 0.6;
+
+      function fitCamera() {
+        const w = Math.max(innerWidth, 1), h = Math.max(innerHeight, 1);
+        const aspect = w / h;
+        const hfov = aspect < 1 ? 58 : 50;                      // reference footage is ~43; 50 keeps the top label clear of the header at 16:9
+        const vfov = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(hfov) / 2) / aspect);
+        camera.fov = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(vfov), 24, 80);
+        camera.aspect = aspect;
+        camera.updateProjectionMatrix();
+        const portrait = aspect < 0.8;
+        beacons.forEach((b) => {                                   // keep the side nodes inside a narrow frame
+          b.group.position.x = b.node.pos[0] * (portrait ? 0.74 : 1);
+          const k = portrait ? 1.35 : 1;
+          b.label.scale.set(b.label.userData.baseScale[0] * k, b.label.userData.baseScale[1] * k, 1);
+        });
+        renderer.setSize(w, h, false);
+        composer.setPixelRatio(pixelRatio);
+        composer.setSize(w, h);
+        bloom.resolution.set(w, h);
+      }
+
+      // --- post: HDR render -> bloom -> tone map + sRGB (OutputPass; without it the composer skips both)
+      const rt = new THREE.WebGLRenderTarget(innerWidth * pixelRatio, innerHeight * pixelRatio, {
+        type: THREE.HalfFloatType, samples: lowPower ? 0 : 4,
+      });
+      const composer = new EffectComposer(renderer, rt);
+      composer.addPass(new RenderPass(scene, camera));
+      const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.55, 0.55, 1.0);
+      composer.addPass(bloom);
+      composer.addPass(new OutputPass());
+      const BLOOM_BASE = bloom.strength;
+
+      // everything that rotates with pointer/gyro parallax lives under `world`
+      const world = new THREE.Group();
+      scene.add(world);
+
+      scene.add(new THREE.HemisphereLight(0x5a1410, 0x0a0303, 0.45));
+
+      // --- plasma shell: ridged-noise lightning veins + fresnel halo, additive -------------
+      const shellMat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+        uniforms: { uTime: { value: 0 }, uColor: { value: new THREE.Color(1.0, 0.16, 0.08) }, uGain: { value: 0.9 } },
+        vertexShader: `
+          varying vec3 vPos; varying vec3 vN; varying vec3 vV;
+          void main() {
+            vPos = position;
+            vec4 mv = modelViewMatrix * vec4(position, 1.0);
+            vN = normalize(normalMatrix * normal);
+            vV = normalize(-mv.xyz);
+            gl_Position = projectionMatrix * mv;
+          }`,
+        fragmentShader: `
+          varying vec3 vPos; varying vec3 vN; varying vec3 vV;
+          uniform float uTime; uniform vec3 uColor; uniform float uGain;
+          float hash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+          float noise(vec3 x) {
+            vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+            return mix(mix(mix(hash(i), hash(i + vec3(1,0,0)), f.x), mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x), f.y),
+                       mix(mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x), mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x), f.y), f.z);
+          }
+          float fbm(vec3 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++) { s += a * noise(p); p *= 2.07; a *= 0.5; } return s; }
+          void main() {
+            vec3 p = normalize(vPos);
+            float n1 = fbm(p * 3.4 + vec3(0.0, uTime * 0.55, uTime * 0.35));
+            float n2 = fbm(p * 7.5 - vec3(uTime * 0.5, 0.0, uTime * 0.8));
+            float v1 = pow(1.0 - abs(n1 * 2.0 - 1.0), 16.0);
+            float v2 = pow(1.0 - abs(n2 * 2.0 - 1.0), 22.0);
+            float rim = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.4);
+            float a = (v1 * 0.9 + v2 * 0.6) * (0.04 + rim * 1.9) + rim * 0.16;   // veins hug the silhouette; the face stays dark
+            gl_FragColor = vec4(uColor * a * uGain, a);
+          }`,
+      });
+      const shell = new THREE.Mesh(new THREE.SphereGeometry(0.72, 48, 32), shellMat);
+
+      // --- beacons ----------------------------------------------------------------------------
+      function labelTexture(node) {
+        const c = document.createElement('canvas');
+        c.width = 512; c.height = 160;
+        const g = c.getContext('2d');
+        g.textAlign = 'center';
+        g.shadowColor = '#' + new THREE.Color(node.color).getHexString();
+        g.shadowBlur = 18;
+        g.fillStyle = '#ffffff';
+        g.font = '700 54px "Outfit", "Segoe UI", system-ui, sans-serif';
+        g.fillText(node.title, 256, 70);
+        g.shadowBlur = 0;
+        g.fillStyle = 'rgba(203, 213, 225, 0.9)';
+        g.font = '500 26px "JetBrains Mono", ui-monospace, Consolas, monospace';
+        g.fillText('[' + node.key + ']  ' + node.sub, 256, 118);
+        const t = new THREE.CanvasTexture(c);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.anisotropy = 4;
+        return t;
+      }
+      const beacons = NODES.map((node) => {
+        const g = new THREE.Group();
+        const color = new THREE.Color(node.color);
+        const hot = color.clone();                                 // true hue: >1 would tone-map to white
+        g.position.set(...node.pos);
+        const ringR = node.core ? 0.92 : 0.38;
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(ringR, node.core ? 0.012 : 0.016, 12, 72),
+          new THREE.MeshBasicMaterial({ color: hot, toneMapped: true, transparent: true, opacity: node.core ? 0.55 : 0.95 }));
+        g.add(ring);
+        let crystal = null;
+        if (!node.core) {
+          crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.14, 0),
+            new THREE.MeshBasicMaterial({ color: hot, wireframe: true }));
+          g.add(crystal);
+        }
+        const label = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: labelTexture(node), transparent: true, depthWrite: false, depthTest: false, toneMapped: false, fog: false }));
+        label.scale.set(1.5, 0.47, 1);
+        label.userData.baseScale = [1.5, 0.47];
+        label.position.set(0, node.core ? 1.12 : 0.74, 0);
+        label.renderOrder = 10;
+        g.add(label);
+        // generous invisible hit target: the visible ring is far too thin to hover reliably
+        const hit = new THREE.Mesh(new THREE.SphereGeometry(node.core ? 0.95 : 0.62, 16, 12),
+          new THREE.MeshBasicMaterial({ visible: false }));
+        hit.userData.node = node;
+        g.add(hit);
+        world.add(g);
+        return { node, group: g, ring, crystal, hit, label, hover: 0 };
+      });
+      const hitMeshes = beacons.map((b) => b.hit);
+
+      // --- model ------------------------------------------------------------------------------
+      let mixer = null, core = null, corePulse = null, reflect = null, loadedModel = false;
+      // GLB lights ship as unitless candela (W / 4pi, COMPAT mode). Blender renders a W light at ~1/pi
+      // of that, and the orb's own light sits inside the plasma, so it gets less than the wall fills.
+      // Tuned by eye against the reference frames; the verifier bounds the raw GLB values.
+      const LIGHT_GAIN = 1.0;
+      const CORE_LIGHT_GAIN = 0.45;
+      const lightBase = new Map();
+
+      function buildFallbackChamber() {
+        // Same space as the GLB (Y-up): used only if the file fails to load.
+        const walls = new THREE.Mesh(new THREE.CylinderGeometry(7.8, 7.8, 4.6, 8, 1, true),
+          new THREE.MeshStandardMaterial({ color: 0x1a0c0c, metalness: 0.8, roughness: 0.5, side: THREE.BackSide }));
+        walls.position.y = 2.3; walls.rotation.y = Math.PI / 8;
+        const floor = new THREE.Mesh(new THREE.CircleGeometry(7.2, 48),
+          new THREE.MeshStandardMaterial({ color: 0x120808, metalness: 0.85, roughness: 0.4 }));
+        floor.rotation.x = -Math.PI / 2;
+        const orb = new THREE.Mesh(new THREE.SphereGeometry(0.5, 48, 32),
+          new THREE.MeshStandardMaterial({ color: 0x050505, metalness: 0.95, roughness: 0.08 }));
+        orb.position.set(0, ORB_Y, 0);
+        const light = new THREE.PointLight(0xff2a12, 30, 0, 2);
+        light.position.set(0, ORB_Y, 0);
+        world.add(walls, floor, orb, light);
+        core = orb;
+        corePulse = light;
+        lightBase.set(light, light.intensity);
+      }
+
+      function onModelLoaded(gltf) {
         const model = gltf.scene;
-        scene.add(model);
-        model.traverse((child) => {
-          if (child.isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-            if (child.material) {
-              if (child.name.includes('LightStrip') || child.name.includes('Neon') || child.name.includes('Plasma')) {
-                child.material.emissive = new THREE.Color(0xff1e0a);
-                child.material.emissiveIntensity = 4.5;
-              } else if (child.name.includes('Core')) {
-                child.material.roughness = 0.04;
-                child.material.metalness = 0.98;
-                child.material.color = new THREE.Color(0x050508);
-                coreMesh = child;
-              }
-            }
+        world.add(model);
+        core = model.getObjectByName('QRB_Core_Sphere');
+        model.traverse((o) => {
+          if (o.isLight) {
+            o.intensity *= o.name === 'Light_CorePulse' ? CORE_LIGHT_GAIN : LIGHT_GAIN;
+            lightBase.set(o, o.intensity);
+            o.castShadow = false;
+            if (o.name === 'Light_CorePulse') corePulse = o;
+          }
+          if (o.isMesh) {
+            o.castShadow = o.receiveShadow = false;
+            const m = o.material;
+            if (m && m.isMeshStandardMaterial && !m.emissiveIntensity) m.envMapIntensity = 0.6;
+            if (m && m.name === 'Mat_QRBCore') m.envMapIntensity = 1.7;
           }
         });
-      },
-      undefined,
-      (error) => {
-        console.warn('GLB load fallback to procedural chamber:', error);
-        buildProceduralChamberFallback();
+        if (lowPower) {                       // halve the point-light count on weak GPUs
+          ['Light_Fill_1', 'Light_Fill_3'].forEach((n) => { const l = model.getObjectByName(n); if (l) l.visible = false; });
+        }
+        mixer = new THREE.AnimationMixer(model);
+        gltf.animations.forEach((clip) => mixer.clipAction(clip).play());   // hover, plasma spin, camera loop
+        loadedModel = true;
       }
-    );
 
-    // Procedural Fallback if GLB is loading or running offline
-    function buildProceduralChamberFallback() {
-      // Octagonal Walls
-      const wallGeo = new THREE.CylinderGeometry(7.5, 7.5, 6.8, 8, 1, true);
-      const wallMat = new THREE.MeshStandardMaterial({
-        color: 0x080a0f,
-        metalness: 0.9,
-        roughness: 0.35,
-        side: THREE.BackSide
+      function buildEnvironment() {
+        // 1) chamber environment for every PBR surface (PMREM from the room itself, orb excluded)
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        const hidden = [core, shell, ...beacons.map((b) => b.group)].filter(Boolean);
+        hidden.forEach((o) => { o.visible = false; });
+        scene.environment = pmrem.fromScene(scene, 0.03).texture;
+        hidden.forEach((o) => { o.visible = true; });
+        pmrem.dispose();
+        // 2) the orb mirrors the live room (bars, plasma) through its own cube camera
+        if (core && core.material) {
+          const rtCube = new THREE.WebGLCubeRenderTarget(128, { type: THREE.HalfFloatType });
+          const cam = new THREE.CubeCamera(0.1, 40, rtCube);
+          core.add(cam);
+          core.material.envMap = rtCube.texture;
+          reflect = () => {
+            const prev = [core.visible, shell.visible];
+            core.visible = false; shell.visible = false;
+            beacons.forEach((b) => { b.group.visible = false; });
+            cam.update(renderer, scene);
+            beacons.forEach((b) => { b.group.visible = true; });
+            core.visible = prev[0]; shell.visible = prev[1];
+          };
+        }
+      }
+
+      const loader = new GLTFLoader();
+      try {
+        const gltf = await loader.loadAsync('./assets/3d/qrb_chamber.glb', (e) => {
+          if (e.lengthComputable) bootEl.textContent = 'Charging containment field ' + Math.round((e.loaded / e.total) * 100) + '%';
+        });
+        onModelLoaded(gltf);
+      } catch (err) {
+        console.warn('GLB failed to load; using procedural fallback chamber', err);
+        buildFallbackChamber();
+      }
+      if (core) core.add(shell);
+      buildEnvironment();
+      bootEl.classList.add('done');
+      setTimeout(() => bootEl.remove(), 700);
+
+      // --- interaction ------------------------------------------------------------------------
+      const raycaster = new THREE.Raycaster();
+      const ndc = new THREE.Vector2();
+      let pointerIn = false, hovered = null, focusedNode = null;
+      const parallax = { tx: 0, ty: 0, x: 0, y: 0 };
+
+      function pick() {
+        raycaster.setFromCamera(ndc, camera);
+        const hit = raycaster.intersectObjects(hitMeshes, false)[0];
+        return hit ? hit.object.userData.node : null;
+      }
+      function setHover(node) {
+        if (node === hovered) return;
+        hovered = node;
+        canvas.style.cursor = node ? 'pointer' : 'default';
+        if (node) sound.playHover();
+        showTelemetry(node || focusedNode);
+      }
+      function setNdc(e) {
+        ndc.x = (e.clientX / innerWidth) * 2 - 1;
+        ndc.y = -(e.clientY / innerHeight) * 2 + 1;
+        parallax.tx = ndc.x; parallax.ty = ndc.y;
+      }
+      canvas.addEventListener('pointermove', (e) => { pointerIn = true; setNdc(e); });
+      canvas.addEventListener('pointerleave', () => { pointerIn = false; setHover(null); parallax.tx = parallax.ty = 0; });
+      let downAt = null;
+      canvas.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; setNdc(e); });
+      canvas.addEventListener('click', (e) => {
+        if (downAt && Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;   // it was an orbit drag
+        setNdc(e);
+        const node = pick();
+        if (node) go(node);
       });
-      const wallMesh = new THREE.Mesh(wallGeo, wallMat);
-      wallMesh.position.y = 3.4;
-      scene.add(wallMesh);
 
-      // Floor Platform
-      const floorGeo = new THREE.CylinderGeometry(7.5, 7.5, 0.4, 32);
-      const floorMat = new THREE.MeshStandardMaterial({
-        color: 0x07080c,
-        metalness: 0.92,
-        roughness: 0.4
+      // device tilt (phones): same parallax channel as the pointer
+      function onTilt(e) {
+        if (e.gamma == null || e.beta == null) return;
+        parallax.tx = THREE.MathUtils.clamp(e.gamma / 30, -1, 1);
+        parallax.ty = THREE.MathUtils.clamp((e.beta - 45) / 30, -1, 1);
+      }
+      if ('DeviceOrientationEvent' in window) {
+        const needsPermission = typeof DeviceOrientationEvent.requestPermission === 'function';
+        if (!needsPermission) window.addEventListener('deviceorientation', onTilt);
+        else canvas.addEventListener('pointerdown', function ask() {
+          canvas.removeEventListener('pointerdown', ask);
+          DeviceOrientationEvent.requestPermission().then((s) => {
+            if (s === 'granted') window.addEventListener('deviceorientation', onTilt);
+          }).catch(() => {});
+        });
+      }
+
+      // --- warp ---------------------------------------------------------------------------------
+      let warping = null;
+      const baseFov = () => camera.fov;
+      function warp(node) {
+        const target = new THREE.Vector3();
+        beacons.find((b) => b.node === node).group.getWorldPosition(target);
+        const from = camera.position.clone();
+        const dir = from.clone().sub(target).normalize();
+        const to = target.clone().add(dir.multiplyScalar(node.core ? 0.55 : 0.9));
+        const fov0 = camera.fov, t0 = performance.now(), dur = 780;
+        controls.enabled = false;
+        return new Promise((resolve) => {
+          warping = { done: resolve, fov0 };
+          function step(now) {
+            if (!warping) return;                                  // reset by pageshow
+            const k = Math.min((now - t0) / dur, 1);
+            const e = k * k * k;                                   // ease-in: accelerate into the node
+            camera.position.lerpVectors(from, to, e);
+            camera.lookAt(target);
+            camera.fov = fov0 + 38 * e;                            // hyperspace stretch
+            camera.updateProjectionMatrix();
+            bloom.strength = BLOOM_BASE + 1.6 * e;
+            if (k > 0.62) flash.classList.add('active');
+            if (k < 1) requestAnimationFrame(step);
+            else resolve();
+          }
+          requestAnimationFrame(step);
+        });
+      }
+      function resetWarp() {
+        if (!warping) return;
+        warping = null;
+        controls.enabled = true;
+        camera.position.copy(HOME);
+        controls.target.set(0, ORB_Y, 0);
+        fitCamera();
+        bloom.strength = BLOOM_BASE;
+      }
+
+      function focus(node) {
+        focusedNode = node;
+        if (!hovered) showTelemetry(node);
+      }
+
+      // --- loop ---------------------------------------------------------------------------------
+      const clock = new THREE.Clock();
+      let frame = 0;
+      fitCamera();
+      window.addEventListener('resize', fitCamera);
+
+      renderer.setAnimationLoop(() => {
+        const dt = Math.min(clock.getDelta(), 0.1);
+        const t = clock.elapsedTime;
+        frame++;
+
+        if (mixer && !reducedMotion) mixer.update(dt);
+        shellMat.uniforms.uTime.value = reducedMotion ? 0 : t;
+        if (corePulse) {
+          const base = lightBase.get(corePulse) || 1;
+          corePulse.intensity = base * (1.0 + 0.10 * Math.sin(t * 5.1) + 0.05 * Math.sin(t * 13.7));
+        }
+
+        // pointer / tilt parallax: tilt the whole room a few degrees about the orb
+        parallax.x += (parallax.tx - parallax.x) * Math.min(dt * 4, 1);
+        parallax.y += (parallax.ty - parallax.y) * Math.min(dt * 4, 1);
+        if (!reducedMotion) {
+          world.rotation.y = parallax.x * 0.05;
+          world.rotation.x = parallax.y * 0.025;
+        }
+
+        // beacons: spin, breathe, lean towards the hovered/focused one
+        const active = hovered || focusedNode;
+        beacons.forEach((b, i) => {
+          const on = b.node === active;
+          b.hover += ((on ? 1 : 0) - b.hover) * Math.min(dt * 8, 1);
+          b.ring.rotation.z = t * (0.6 + i * 0.15);
+          b.ring.rotation.x = 0.35 * Math.sin(t * 0.7 + i);
+          if (b.crystal) { b.crystal.rotation.x = t * 1.4; b.crystal.rotation.y = t * 1.9; }
+          const s = (b.node.core ? 1 : 1) * (1 + b.hover * 0.28 + 0.03 * Math.sin(t * 2.4 + i));
+          b.ring.scale.setScalar(s);
+          b.ring.material.opacity = (b.node.core ? 0.45 : 0.85) + 0.15 * b.hover;
+          b.label.material.opacity = 0.7 + 0.3 * b.hover;
+        });
+
+        if (pointerIn && !warping) setHover(pick());
+
+        if (reflect && frame % (lowPower ? 8 : 3) === 0) reflect();
+
+        if (!warping) controls.update();
+        composer.render();
       });
-      const floorMesh = new THREE.Mesh(floorGeo, floorMat);
-      floorMesh.position.y = -0.2;
-      scene.add(floorMesh);
 
-      // Central Orb
-      const sphereGeo = new THREE.SphereGeometry(1.35, 64, 32);
-      const sphereMat = new THREE.MeshStandardMaterial({
-        color: 0x020204,
-        metalness: 0.98,
-        roughness: 0.05
-      });
-      coreMesh = new THREE.Mesh(sphereGeo, sphereMat);
-      coreMesh.position.set(0, 0, 2.85);
-      scene.add(coreMesh);
-    }
-
-    // Dynamic Electric Plasma Energy Ribbons (Direct Shader/Ribbon Mesh)
-    const plasmaArcs = [];
-    const ribbonMaterial = new THREE.MeshBasicMaterial({
-      color: 0xff3b14,
-      wireframe: false
-    });
-
-    const numArcs = 8;
-    for (let i = 0; i < numArcs; i++) {
-      const curve = new THREE.CatmullRomCurve3([
-        new THREE.Vector3(Math.cos(i) * 1.5, Math.sin(i) * 1.5, 2.1),
-        new THREE.Vector3(Math.cos(i + 1.2) * 1.6, Math.sin(i + 1.2) * 1.6, 2.85),
-        new THREE.Vector3(Math.cos(i + 2.5) * 1.45, Math.sin(i + 2.5) * 1.45, 3.6),
-        new THREE.Vector3(Math.cos(i + 3.8) * 1.55, Math.sin(i + 3.8) * 1.55, 2.85)
-      ], true);
-      const tubeGeo = new THREE.TubeGeometry(curve, 32, 0.038, 6, true);
-      const arc = new THREE.Mesh(tubeGeo, ribbonMaterial);
-      plasmaCageGroup.add(arc);
-      plasmaArcs.push(arc);
-    }
-
-    // Interactive 3D Holographic Waypoints
-    const waypointGroup = new THREE.Group();
-    scene.add(waypointGroup);
-
-    const waypoints = [
-      { id: 'darkcircle', title: 'DarkCircle', pos: new THREE.Vector3(-3.2, -0.6, 2.85), color: 0x10b981, url: './x402tumbler/' },
-      { id: 'circleswap', title: 'Circleswap', pos: new THREE.Vector3(0.0, 0.0, 4.45), color: 0x06b6d4, url: './q0/' },
-      { id: 'darksafe',   title: 'DarkSafe',   pos: new THREE.Vector3(3.2, -0.6, 2.85), color: 0xa855f7, url: './multisigows/' }
-    ];
-
-    const waypointObjects = [];
-    waypoints.forEach((wp) => {
-      // Beacon Halo Ring
-      const ringGeo = new THREE.TorusGeometry(0.55, 0.025, 16, 48);
-      const ringMat = new THREE.MeshBasicMaterial({ color: wp.color, wireframe: false });
-      const ring = new THREE.Mesh(ringGeo, ringMat);
-      ring.position.copy(wp.pos);
-      ring.rotation.x = Math.PI / 2;
-      ring.userData = wp;
-      waypointGroup.add(ring);
-      waypointObjects.push(ring);
-
-      // Inner Core Crystal
-      const octGeo = new THREE.OctahedronGeometry(0.24, 0);
-      const octMat = new THREE.MeshBasicMaterial({ color: wp.color, wireframe: true });
-      const crystal = new THREE.Mesh(octGeo, octMat);
-      crystal.position.copy(wp.pos);
-      waypointGroup.add(crystal);
-      ring.userData.crystal = crystal;
-    });
-
-    // Dynamic Lights
-    const corePointLight = new THREE.PointLight(0xff220a, 4.2, 12, 1.2);
-    corePointLight.position.set(0, 0, 2.85);
-    scene.add(corePointLight);
-
-    const ambientLight = new THREE.AmbientLight(0x1a0505, 0.6);
-    scene.add(ambientLight);
-
-    // Mouse Interaction & Raycasting
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-    let hoveredWaypoint = null;
-    let isWarping = false;
-
-    window.addEventListener('mousemove', (e) => {
-      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    });
-
-    // Card hover integration
-    const cards = document.querySelectorAll('.station-card');
-    cards.forEach(card => {
-      card.addEventListener('mouseenter', () => {
-        sound.playHover();
-        const app = card.getAttribute('data-app');
-        highlightWaypointById(app);
-      });
-      card.addEventListener('click', (e) => {
+      // survive GPU context loss instead of freezing on a dead canvas
+      canvas.addEventListener('webglcontextlost', (e) => {
         e.preventDefault();
-        const targetUrl = card.getAttribute('href');
-        executeWarpTransition(targetUrl);
-      });
-    });
-
-    function highlightWaypointById(id) {
-      waypointObjects.forEach(obj => {
-        if (obj.userData.id === id) {
-          obj.scale.set(1.3, 1.3, 1.3);
-          controls.target.lerp(obj.position, 0.08);
-        } else {
-          obj.scale.set(1.0, 1.0, 1.0);
-        }
-      });
-    }
-
-    // Canvas click to warp
-    canvas.addEventListener('click', () => {
-      if (hoveredWaypoint && !isWarping) {
-        executeWarpTransition(hoveredWaypoint.userData.url);
-      }
-    });
-
-    function executeWarpTransition(targetUrl) {
-      if (isWarping) return;
-      isWarping = true;
-      sound.playWarp();
-      const flash = document.getElementById('warp-flash');
-      flash.classList.add('active');
-
-      // Animate camera hyperspace dive
-      const startPos = camera.position.clone();
-      const targetPos = hoveredWaypoint ? hoveredWaypoint.position.clone() : new THREE.Vector3(0, 0, 2.85);
-      let progress = 0;
-
-      function dive() {
-        progress += 0.045;
-        camera.position.lerpVectors(startPos, targetPos, progress);
-        if (progress < 1.0) {
-          requestAnimationFrame(dive);
-        } else {
-          window.location.href = targetUrl;
-        }
-      }
-      dive();
-    }
-
-    // Keyboard Shortcuts: 1, 2, 3
-    window.addEventListener('keydown', (e) => {
-      if (e.key === '1') executeWarpTransition('./x402tumbler/');
-      if (e.key === '2') executeWarpTransition('./q0/');
-      if (e.key === '3') executeWarpTransition('./multisigows/');
-    });
-
-    // Window Resize
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      composer.setSize(window.innerWidth, window.innerHeight);
-    });
-
-    // Render Animation Loop
-    let clock = new THREE.Clock();
-    function animate() {
-      requestAnimationFrame(animate);
-      const time = clock.getElapsedTime();
-
-      // Levitating QRB Core Floating
-      if (coreMesh) {
-        coreMesh.position.z = 2.85 + Math.sin(time * 1.8) * 0.12;
-        coreMesh.rotation.y = time * 0.15;
-      }
-
-      // Rotating Plasma Energy Cage
-      plasmaCageGroup.rotation.z = time * 0.65;
-      plasmaCageGroup.rotation.x = Math.sin(time * 0.4) * 0.15;
-      corePointLight.intensity = 3.8 + Math.sin(time * 5.0) * 0.7;
-
-      // Animate Waypoints
-      waypointObjects.forEach((wpObj, idx) => {
-        wpObj.rotation.z = time * (1.2 + idx * 0.3);
-        if (wpObj.userData.crystal) {
-          wpObj.userData.crystal.rotation.x = time * 1.5;
-          wpObj.userData.crystal.rotation.y = time * 2.0;
-        }
+        renderer.setAnimationLoop(null);
+        document.documentElement.classList.add('no-webgl');
       });
 
-      // Raycasting for interactive waypoints
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(waypointObjects);
-      if (intersects.length > 0) {
-        if (hoveredWaypoint !== intersects[0].object) {
-          hoveredWaypoint = intersects[0].object;
-          canvas.style.cursor = 'pointer';
-          sound.playHover();
-          cards.forEach(c => c.classList.toggle('targeted', c.getAttribute('data-app') === hoveredWaypoint.userData.id));
-        }
-      } else {
-        if (hoveredWaypoint) {
-          canvas.style.cursor = 'default';
-          cards.forEach(c => c.classList.remove('targeted'));
-        }
-        hoveredWaypoint = null;
-      }
-
-      controls.update();
-      composer.render();
+      if (params.has('debug')) window.__QRB__ = { THREE, scene, camera, controls, world, beacons, bloom, renderer, composer, get core() { return core; } };
+      return { warp, resetWarp, focus };
     }
-    animate();
+
+    start3D().then((api) => { scene3d = api; }).catch((err) => {
+      console.warn('3D experience unavailable; showing the 2D portal:', err && err.message ? err.message : err);
+      document.documentElement.classList.add('no-webgl');
+      IDLE_TEXT = 'Click a card or press 1 / 2 / 3 to enter';
+      if (!current) telemetryEl.textContent = IDLE_TEXT;
+      const keys = document.querySelector('.bottom-bar .keys');
+      if (keys) keys.textContent = 'WARP: click a card or press [1] DarkCircle [2] Circleswap [3] DarkSafe';
+    });
   </script>
 </body>
 </html>

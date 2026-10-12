@@ -2,44 +2,57 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Redirecting — DarkCircle Suite</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Redirecting &mdash; DarkCircle Suite</title>
   <script>
-    (function() {
+    (function () {
       var host = window.location.hostname.toLowerCase();
       var path = window.location.pathname;
       var search = window.location.search;
       var hash = window.location.hash;
 
+      // The suite is served either from a domain root or, on GitHub project pages, from
+      // /<repo>/. Redirect targets must keep that prefix, or they leave the site.
+      var base = '/';
+      if (/\.github\.io$/.test(host)) {
+        var first = path.split('/')[1];
+        // app folders are lowercase; the repo folder ("DarkCircle") is not, so match case-sensitively
+        if (first && !/^(q0|circleswap|multisigows|darksafe|x402tumbler|darkcircle)$/.test(first)) {
+          base = '/' + first + '/';
+        }
+      }
+
       // 1. Subdomain matching
       if (host.startsWith('q0.') || host.startsWith('circleswap.') || host.includes('q0-')) {
-        window.location.replace('/q0/' + search + hash);
+        window.location.replace(base + 'q0/' + search + hash);
         return;
       }
       if (host.startsWith('darksafe.') || host.startsWith('safe.') || host.startsWith('multisig.') || host.includes('darksafe-')) {
-        window.location.replace('/multisigows/' + search + hash);
+        window.location.replace(base + 'multisigows/' + search + hash);
         return;
       }
       if (host.startsWith('tumbler.') || host.startsWith('privacy.') || host.startsWith('x402.') || host.includes('tumbler-')) {
-        window.location.replace('/x402tumbler/' + search + hash);
+        window.location.replace(base + 'x402tumbler/' + search + hash);
         return;
       }
 
-      // 2. SPA subpath fallback
-      if (path.indexOf('/q0') !== -1 || path.indexOf('/circleswap') !== -1) {
-        window.location.replace('/q0/' + search + hash);
+      // 2. Sub-path fallback: a deep link into an app that has no such file
+      var rest = path.slice(base.length - 1);
+      if (/^\/(q0|circleswap)(\/|$)/i.test(rest)) {
+        window.location.replace(base + 'q0/' + search + hash);
         return;
       }
-      if (path.indexOf('/multisigows') !== -1 || path.indexOf('/darksafe') !== -1) {
-        window.location.replace('/multisigows/' + search + hash);
+      if (/^\/(multisigows|darksafe)(\/|$)/i.test(rest)) {
+        window.location.replace(base + 'multisigows/' + search + hash);
         return;
       }
-      if (path.indexOf('/x402tumbler') !== -1 || path.indexOf('/darkcircle') !== -1) {
-        window.location.replace('/x402tumbler/' + search + hash);
+      if (/^\/(x402tumbler|darkcircle)(\/|$)/i.test(rest)) {
+        window.location.replace(base + 'x402tumbler/' + search + hash);
         return;
       }
 
-      // Default fallback to portal
-      window.location.replace('/' + search + hash);
+      // 3. Default: the portal
+      window.location.replace(base + search + hash);
     })();
   </script>
 </head>

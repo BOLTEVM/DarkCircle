@@ -152,3 +152,6 @@ desktop.ini
 *~
 *.bak
 *.tmp
+
+# Blender save backups
+*.blend1
