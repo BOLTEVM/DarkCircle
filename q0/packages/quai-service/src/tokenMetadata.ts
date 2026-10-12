@@ -208,6 +208,19 @@ interface Net {
   explorerUrl: string;
 }
 
+/**
+ * Run many read-only `quai_call`s as JSON-RPC batch requests (40 per request), falling back to single calls when a
+ * node rejects batches. Every call is isolated: a failure yields `undefined` for that call only. Shared by the farm
+ * reader so the browser, the CLI and the tests all go through one implementation.
+ */
+export async function batchQuaiCall(
+  calls: { to: string; data: string }[],
+  net: { fetch?: FetchLike; rpcUrl?: string } = {}
+): Promise<(string | undefined)[]> {
+  const fetchImpl: FetchLike = net.fetch ?? ((input, init) => globalThis.fetch(input, init));
+  return rpcCalls(calls, { fetch: fetchImpl, rpcUrl: net.rpcUrl ?? DEFAULT_RPC_URL, explorerUrl: DEFAULT_EXPLORER_URL });
+}
+
 async function rpcCalls(calls: { to: string; data: string }[], net: Net): Promise<(string | undefined)[]> {
   const results: (string | undefined)[] = new Array(calls.length).fill(undefined);
   const request = (id: number, c: { to: string; data: string }) => ({
