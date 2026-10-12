@@ -15,6 +15,7 @@ import {
     getPairAddress,
     quoteRoute,
     CIRCLESWAP_MAX_POOLS,
+    DEPLOYED,
     type PoolInfo,
     type LPReserves
 } from '../packages/quai-service/src/index';
@@ -44,36 +45,70 @@ async function withCircleswapLive<T>(fn: () => Promise<T> | T): Promise<T> {
     }
 }
 
+/** Runs `fn` as if Circleswap had never been deployed (factory and router read null), then puts it back. */
+async function withCircleswapUndeployed<T>(fn: () => Promise<T> | T): Promise<T> {
+    const before = {
+        factory: Object.getOwnPropertyDescriptor(DEXES.CIRCLESWAP, 'factory')!,
+        router: Object.getOwnPropertyDescriptor(DEXES.CIRCLESWAP, 'router')!
+    };
+    Object.defineProperty(DEXES.CIRCLESWAP, 'factory', { value: null, configurable: true, writable: true, enumerable: true });
+    Object.defineProperty(DEXES.CIRCLESWAP, 'router', { value: null, configurable: true, writable: true, enumerable: true });
+    try {
+        return await fn();
+    } finally {
+        Object.defineProperty(DEXES.CIRCLESWAP, 'factory', before.factory);
+        Object.defineProperty(DEXES.CIRCLESWAP, 'router', before.router);
+    }
+}
+
 const cs = (a: string, b: string, pair = '0x0000000000000000000000000000000000000abc'): PoolInfo => ({ pair, dex: 'CIRCLESWAP', tokens: [a, b] });
 
 describe('the Circleswap DEX before it is deployed', () => {
-    test('is not live, and nothing can be sent to it', () => {
-        expect(DEXES.CIRCLESWAP.factory).toBeNull();
-        expect(DEXES.CIRCLESWAP.router).toBeNull();
-        expect(isDexLive('CIRCLESWAP')).toBe(false);
-        expect(() => requireDex('CIRCLESWAP')).toThrow('Circleswap is not deployed yet');
+    // These properties must hold for any network where it has not been deployed (a fresh testnet, a fork), whatever the
+    // checked-in deployed.ts says today, so the undeployed state is created here instead of read from the registry.
+    test('is not live, and nothing can be sent to it', async () => {
+        await withCircleswapUndeployed(() => {
+            expect(DEXES.CIRCLESWAP.factory).toBeNull();
+            expect(DEXES.CIRCLESWAP.router).toBeNull();
+            expect(isDexLive('CIRCLESWAP')).toBe(false);
+            expect(() => requireDex('CIRCLESWAP')).toThrow('Circleswap is not deployed yet');
+        });
     });
 
-    test('the other two DEXes are unaffected', () => {
-        expect(isDexLive('QUAISWAP')).toBe(true);
-        expect(isDexLive('QUAINANCE')).toBe(true);
-        expect(requireDex('QUAISWAP').router).toBe(DEXES.QUAISWAP.router);
+    test('the other two DEXes are unaffected', async () => {
+        await withCircleswapUndeployed(() => {
+            expect(isDexLive('QUAISWAP')).toBe(true);
+            expect(isDexLive('QUAINANCE')).toBe(true);
+            expect(requireDex('QUAISWAP').router).toBe(DEXES.QUAISWAP.router);
+        });
     });
 
     test('pool lookup refuses instead of querying a null factory', async () => {
-        await expect(getPairAddress('CIRCLESWAP', 'BDELTA', 'Q0')).rejects.toThrow('not deployed yet');
+        await withCircleswapUndeployed(async () => {
+            await expect(getPairAddress('CIRCLESWAP', 'BDELTA', 'Q0')).rejects.toThrow('not deployed yet');
+        });
     });
 
     test('discovery is empty, not an error, and makes no network call', async () => {
-        const realFetch = globalThis.fetch;
-        let calls = 0;
-        globalThis.fetch = (async () => { calls++; throw new Error('no network expected'); }) as any;
-        try {
-            expect(await discoverCircleswapPools()).toEqual({ pools: [], total: 0, unlisted: 0 });
-            expect(calls).toBe(0);
-        } finally {
-            globalThis.fetch = realFetch;
-        }
+        await withCircleswapUndeployed(async () => {
+            const realFetch = globalThis.fetch;
+            let calls = 0;
+            globalThis.fetch = (async () => { calls++; throw new Error('no network expected'); }) as any;
+            try {
+                expect(await discoverCircleswapPools()).toEqual({ pools: [], total: 0, unlisted: 0 });
+                expect(calls).toBe(0);
+            } finally {
+                globalThis.fetch = realFetch;
+            }
+        });
+    });
+});
+
+describe('the Circleswap DEX as deployed', () => {
+    test('reads its factory and router from the generated deployment record, and is live exactly when both exist', () => {
+        expect(DEXES.CIRCLESWAP.factory).toBe(DEPLOYED.AMM_FACTORY);
+        expect(DEXES.CIRCLESWAP.router).toBe(DEPLOYED.AMM_ROUTER);
+        expect(isDexLive('CIRCLESWAP')).toBe(DEPLOYED.AMM_FACTORY !== null && DEPLOYED.AMM_ROUTER !== null);
     });
 });
 

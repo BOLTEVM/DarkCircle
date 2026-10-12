@@ -132,6 +132,45 @@ interface BoundaryState {
   error: Error | null;
 }
 
+/**
+ * Contains a failure to one section of the page. The navigation, the wallet button and the other tabs keep working, and
+ * switching tabs (a new `key`) or pressing Try again re-renders the section from scratch.
+ */
+export class SectionBoundary extends Component<{ children: ReactNode; label?: string }, BoundaryState> {
+  state: BoundaryState = { error: null };
+
+  static getDerivedStateFromError(error: Error): BoundaryState {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    // eslint-disable-next-line no-console
+    console.error(`[Circleswap] ${this.props.label ?? 'section'} failed:`, error, info.componentStack);
+  }
+
+  render() {
+    const { error } = this.state;
+    if (!error) return this.props.children;
+    return (
+      <div
+        role="alert"
+        style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: 14, padding: '1rem 1.1rem', margin: '1rem 0', color: '#f3f4f6' }}
+      >
+        <strong>{this.props.label ?? 'This section'} could not be shown.</strong>
+        <p style={{ margin: '0.4rem 0 0.7rem', color: '#9ca3af', fontSize: '0.85rem', wordBreak: 'break-word' }}>
+          {error.message || String(error)} Nothing was sent from your wallet. The rest of the app is unaffected.
+        </p>
+        <button type="button" style={btn} onClick={() => this.setState({ error: null })}>
+          Try again
+        </button>{' '}
+        <button type="button" style={btn} onClick={() => location.reload()}>
+          Reload
+        </button>
+      </div>
+    );
+  }
+}
+
 /** Catches anything the app throws while rendering or in an effect, which React 19 otherwise answers by unmounting everything. */
 export class AppErrorBoundary extends Component<{ children: ReactNode }, BoundaryState> {
   state: BoundaryState = { error: null };

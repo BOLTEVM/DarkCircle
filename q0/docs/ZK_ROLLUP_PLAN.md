@@ -4,7 +4,7 @@
 
 `q0/` is currently a read-only analytics/swap dashboard:
 - `packages/quai-service` — RPC client (`quai_call`, `quai_getBalance`), ERC20/AMM decoding helpers, hardcoded contract addresses (Q0, WQUAI, BOSS, two LP pairs).
-- `apps/stats-app` — React dashboard + a `SwapModule`/`WalletPipeline` that does direct-to-pair swaps via Pelagus.
+- `apps/stats-app` — React dashboard that swaps through the DEX routers via the user's own wallet (the earlier direct-to-pair `SwapModule`/`WalletPipeline` was removed: it quoted from placeholder reserves).
 
 There is no rollup code, no L2 node, no prover, no bridge contract, no sequencer here. This is a from-scratch build. Given that, the plan below is scoped to be **buildable and demoable**, not a from-scratch zkEVM (that's a multi-year effort even for well-funded teams — Scroll/zkSync/Polygon each took 1.5-2+ years with dozens of engineers).
 

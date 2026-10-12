@@ -80,6 +80,7 @@ import { toBubbleMetadata, useTokenProfiles } from './useTokenProfiles';
 import ImportTokenModal from './ImportTokenModal';
 import FarmsPage from './FarmsPage';
 import PrimaryNav from './PrimaryNav';
+import { SectionBoundary } from './CrashScreen';
 import { resolveQuaiUsd } from './quaiUsd';
 import { useTokenPricesUsd } from './useYieldBoard';
 import QuainanceMarkets from './QuainanceMarkets';
@@ -474,12 +475,18 @@ export default function App() {
       setTopHolders(parsedHolders);
 
       // The explorer's indexed stats are optional: partial (top 25 pools) and blocked from browsers in production.
+      // Only the development proxy can read this endpoint: the explorer sends no CORS header, so in production the call would
+      // fail on every load (and fill the console), and the figures are derived from pool reserves either way.
       let indexed: QuainanceTVL | null = null;
-      try {
-        indexed = await getQuainanceTVL(1, import.meta.env.DEV ? '/api-quai-v2' : 'https://explorer.qu.ai');
-        setQuainanceTvl(indexed);
-      } catch (tvlErr) {
-        console.warn('Quainance indexed stats unavailable; values come from pool reserves:', tvlErr);
+      if (import.meta.env.DEV) {
+        try {
+          indexed = await getQuainanceTVL(1, '/api-quai-v2');
+          setQuainanceTvl(indexed);
+        } catch (tvlErr) {
+          console.warn('Quainance indexed stats unavailable; values come from pool reserves:', tvlErr);
+          setQuainanceTvl(null);
+        }
+      } else {
         setQuainanceTvl(null);
       }
       try {
@@ -1087,6 +1094,8 @@ export default function App() {
         );
       })()}
 
+      {/* Each tab fails on its own: the navigation above stays usable if one section throws. `key` resets it on every tab change. */}
+      <SectionBoundary key={activeTab} label={`The ${activeTab.toLowerCase()} section`}>
       {/* TAB 5: ALL PAIRS & LIQUIDITY */}
       {activeTab === 'PAIRS' && (
         <>
@@ -1820,6 +1829,8 @@ export default function App() {
       )}
 
       {/* Footer Info */}
+      </SectionBoundary>
+
       <footer style={{ marginTop: '3rem', paddingTop: '1.5rem', borderTop: '1px solid var(--panel-border)', display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-dim)', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           Circleswap Core: <a href={`https://quaiscan.io/token/${CONTRACTS.Q0}`} target="_blank" rel="noreferrer" className="link-hash">{CONTRACTS.Q0}</a> &bull; Dual Reward A: <a href={`https://quaiscan.io/token/${CONTRACTS.BDELTA}`} target="_blank" rel="noreferrer" className="link-hash">{CONTRACTS.BDELTA}</a>

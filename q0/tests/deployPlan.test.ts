@@ -175,10 +175,24 @@ describe('deployed.ts record', () => {
         expect(renderDeployedTs(values)).toBe(cliRenderDeployedTs(values));
     });
 
-    test('matches the checked-in deployed.ts when nothing is deployed', () => {
-        const none = { QRB: null, QRB_NFT: null, MASTERCHEF: null, AMM_FACTORY: null, AMM_ROUTER: null, ARTWORK_URI: null };
+    test('the checked-in deployed.ts is exactly what the generator writes for the values it holds', () => {
+        // Read the values out of the file itself (not from the live module, which other tests mutate), then render them
+        // again: any hand edit, a stale generator, or a malformed address makes the two differ.
         const file = fs.readFileSync(path.resolve(__dirname, '../packages/quai-service/src/registries/deployed.ts'), 'utf8').replace(/\r\n/g, '\n');
-        expect(renderDeployedTs(none)).toBe(file);
+        const field = (key: string): string | null => {
+            const m = new RegExp(`^\\s*${key}:\\s*(?:null|'([^']*)')`, 'm').exec(file);
+            expect(m).not.toBeNull();
+            return m![1] ?? null;
+        };
+        const held = {
+            QRB: field('QRB'),
+            QRB_NFT: field('QRB_NFT'),
+            MASTERCHEF: field('MASTERCHEF'),
+            AMM_FACTORY: field('AMM_FACTORY'),
+            AMM_ROUTER: field('AMM_ROUTER'),
+            ARTWORK_URI: field('ARTWORK_URI')
+        };
+        expect(renderDeployedTs(held)).toBe(file);
     });
 
     test('refuses anything that is not a plain address or Arweave URI', () => {

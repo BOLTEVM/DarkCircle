@@ -29,6 +29,12 @@ export interface FarmPool {
  */
 export const MASTERCHEF_ADDRESS: string | null = DEPLOYED.MASTERCHEF;
 
+/**
+ * The pools the deploy flow PLANS to add to a new farm (stake tokens, intended weights). It is a template, not a
+ * description of any deployed farm: the deployed farm's own pool list is the only truth, and its pool ids are the order
+ * its owner added them in. Nothing in the app may use `pid` from here to address a live farm; read the farm
+ * (quai-service/farm.ts `readFarmState`) instead.
+ */
 export const FARM_REGISTRY: FarmPool[] = [
     {
         pid: 0,
