@@ -348,6 +348,60 @@ describe('caching', () => {
     assert.equal(net.log.rpcRequests, before + 1);
   });
 
+  it('marketMaxAgeMs makes a poll fetch the explorer sooner than the market TTL, and no sooner than asked', async () => {
+    let t = 1_000_000;
+    const net = scripted({ chain: { [A]: { name: 'N', symbol: 'S' } }, explorer: { [A]: explorerBody() } });
+    const svc = createTokenMetadataService({ fetch: net.fetch, rpcUrl: RPC, explorerUrl: EXPLORER, storage: null, now: () => t });
+    await svc.load([A]);
+    const ex0 = net.log.explorer.length;
+    t += 10_000;
+    await svc.load([A], { marketMaxAgeMs: 20_000 });
+    assert.equal(net.log.explorer.length, ex0, 'a read 10 s ago is fresh enough for a 20 s limit: shared, not repeated');
+    t += 15_000;
+    await svc.load([A], { marketMaxAgeMs: 20_000 });
+    assert.equal(net.log.explorer.length, ex0 + 1, 'at 25 s it is too old for the limit, though far inside the 5 min TTL');
+    const rpc0 = net.log.rpcRequests;
+    t += 30_000;
+    await svc.load([A], { marketMaxAgeMs: 20_000 });
+    assert.equal(net.log.rpcRequests, rpc0, 'chain fields are not affected by the market limit');
+  });
+
+  it('marketMaxAgeMs can only shorten the TTL, never lengthen it', async () => {
+    let t = 1_000_000;
+    const net = scripted({ chain: { [A]: { name: 'N', symbol: 'S' } }, explorer: { [A]: explorerBody() } });
+    const svc = createTokenMetadataService({ fetch: net.fetch, rpcUrl: RPC, explorerUrl: EXPLORER, storage: null, now: () => t });
+    await svc.load([A]);
+    const ex0 = net.log.explorer.length;
+    t += MARKET_TTL_MS + 1;
+    await svc.load([A], { marketMaxAgeMs: 10 * 60_000 });
+    assert.equal(net.log.explorer.length, ex0 + 1);
+  });
+
+  it('two loads of the same token at once make one explorer request', async () => {
+    const net = scripted({ chain: { [A]: { name: 'N', symbol: 'S' } }, explorer: { [A]: explorerBody() } });
+    const svc = createTokenMetadataService({ fetch: net.fetch, rpcUrl: RPC, explorerUrl: EXPLORER, storage: null });
+    const [a, b] = await Promise.all([svc.load([A]), svc.load([A])]);
+    assert.equal(net.log.explorer.length, 1);
+    assert.equal(a.profiles[A].priceUsd, 0.05);
+    assert.equal(b.profiles[A].priceUsd, 0.05);
+  });
+
+  it('reports when each source was last read, and when it last failed', async () => {
+    let t = 1_000_000;
+    const net = scripted({ chain: { [A]: { name: 'N', symbol: 'S' } }, explorer: { [A]: explorerBody() } });
+    const svc = createTokenMetadataService({ fetch: net.fetch, rpcUrl: RPC, explorerUrl: EXPLORER, storage: null, now: () => t });
+    const first = await svc.load([A]);
+    assert.equal(first.freshness[A].explorerAt, 1_000_000);
+    assert.equal(first.freshness[A].chainAt, 1_000_000);
+    assert.equal(first.freshness[A].explorerFailedAt, undefined);
+
+    const down = scripted({ chain: { [A]: { name: 'N', symbol: 'S' } }, explorer: {}, explorerDown: true });
+    const svc2 = createTokenMetadataService({ fetch: down.fetch, rpcUrl: RPC, explorerUrl: EXPLORER, storage: null, now: () => t });
+    const r = await svc2.load([A]);
+    assert.equal(r.freshness[A].explorerAt, undefined);
+    assert.equal(r.freshness[A].explorerFailedAt, 1_000_000);
+  });
+
   it('persists to storage and a fresh service serves it with no network', async () => {
     const storage = memoryStorage();
     const net = scripted({ chain: { [A]: { name: 'N', symbol: 'S' } }, explorer: { [A]: explorerBody() } });

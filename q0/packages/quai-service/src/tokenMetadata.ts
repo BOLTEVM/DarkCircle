@@ -371,14 +371,30 @@ export interface TokenProfileLoadOptions {
   signal?: AbortSignal;
   /** Ignore TTLs and negative caching (the user pressed refresh). */
   force?: boolean;
+  /**
+   * Treat explorer figures (price, market cap, holders) older than this as stale, when that is shorter than
+   * MARKET_TTL_MS. A page that polls prices asks for "no older than 20 s": a poll that lands right after another
+   * consumer's read costs nothing, and two pages never fetch the same figure twice. Chain fields keep their own TTL.
+   */
+  marketMaxAgeMs?: number;
   /** Called each time a token's profile changes, so the UI can fill in progressively. */
   onProfile?: (profile: TokenProfile) => void;
+}
+
+/** When each source was last read for one token: what lets a caller say how old a figure is, or that it failed. */
+export interface TokenFreshness {
+  chainAt?: number;
+  explorerAt?: number;
+  chainFailedAt?: number;
+  explorerFailedAt?: number;
 }
 
 export interface TokenProfileLoadResult {
   profiles: Record<string, TokenProfile>;
   /** Addresses where neither source returned anything and nothing was cached. */
   failed: string[];
+  /** Per address: the last successful and last failed read of each source (a failed read keeps the cached figures). */
+  freshness: Record<string, TokenFreshness>;
 }
 
 export function createTokenMetadataService(options: TokenMetadataServiceOptions = {}) {
@@ -389,6 +405,8 @@ export function createTokenMetadataService(options: TokenMetadataServiceOptions 
   const concurrency = Math.max(1, options.explorerConcurrency ?? 4);
   const storage = options.storage === undefined ? safeLocalStorage() : options.storage;
   const entries = new Map<string, Entry>();
+  // One explorer read per token at a time: a second caller for the same token waits for the first instead of repeating it.
+  const explorerInflight = new Map<string, Promise<boolean>>();
 
   // hydrate
   try {
@@ -453,9 +471,10 @@ export function createTokenMetadataService(options: TokenMetadataServiceOptions 
         const e = entries.get(a);
         return stale(e?.chainAt, PROFILE_TTL_MS) && !cooling(e?.chainFailedAt);
       });
+      const marketTtl = opts.marketMaxAgeMs === undefined ? MARKET_TTL_MS : Math.min(MARKET_TTL_MS, Math.max(0, opts.marketMaxAgeMs));
       const needExplorer = unique.filter(a => {
         const e = entries.get(a);
-        return stale(e?.explorerAt, MARKET_TTL_MS) && !cooling(e?.explorerFailedAt);
+        return stale(e?.explorerAt, marketTtl) && !cooling(e?.explorerFailedAt);
       });
 
       const emit = (address: string) => {
@@ -490,34 +509,51 @@ export function createTokenMetadataService(options: TokenMetadataServiceOptions 
         persist();
       }
 
-      // 2. explorer: bounded concurrency, each request isolated
+      // 2. explorer: bounded concurrency, each request isolated, one at a time per token
       if (needExplorer.length && !opts.signal?.aborted) {
         let next = 0;
+        const readOne = async (address: string): Promise<boolean> => {
+          const entry = touch(address);
+          try {
+            const f = await readExplorerFields(address, { fetch: fetchImpl, explorerUrl });
+            entry.explorerAt = t0;
+            entry.explorerFailedAt = undefined;
+            if (!f) return false; // unknown to the explorer
+            const p = ensureProfile(entry, address);
+            // chain wins for the standard fields; the explorer only fills a gap
+            if (p.name === undefined && f.name !== undefined) p.name = f.name;
+            if (p.symbol === undefined && f.symbol !== undefined) p.symbol = f.symbol;
+            p.iconUrl = f.iconUrl ?? p.iconUrl;
+            p.website = f.website ?? p.website;
+            p.description = f.description ?? p.description;
+            p.holders = f.holders ?? p.holders;
+            p.priceUsd = f.priceUsd;          // a price that disappeared should disappear
+            p.marketCapUsd = f.marketCapUsd;
+            p.source.explorer = true;
+            p.fetchedAt = t0;
+            return true;
+          } catch {
+            entry.explorerFailedAt = t0;
+            return false;
+          }
+        };
         const worker = async () => {
           while (next < needExplorer.length && !opts.signal?.aborted) {
             const address = needExplorer[next++];
-            const entry = touch(address);
-            try {
-              const f = await readExplorerFields(address, { fetch: fetchImpl, explorerUrl });
-              entry.explorerAt = t0;
-              entry.explorerFailedAt = undefined;
-              if (!f) continue; // unknown to the explorer
-              const p = ensureProfile(entry, address);
-              // chain wins for the standard fields; the explorer only fills a gap
-              if (p.name === undefined && f.name !== undefined) p.name = f.name;
-              if (p.symbol === undefined && f.symbol !== undefined) p.symbol = f.symbol;
-              p.iconUrl = f.iconUrl ?? p.iconUrl;
-              p.website = f.website ?? p.website;
-              p.description = f.description ?? p.description;
-              p.holders = f.holders ?? p.holders;
-              p.priceUsd = f.priceUsd;          // a price that disappeared should disappear
-              p.marketCapUsd = f.marketCapUsd;
-              p.source.explorer = true;
-              p.fetchedAt = t0;
-              emit(address);
-            } catch {
-              entry.explorerFailedAt = t0;
+            let changed: boolean;
+            const running = explorerInflight.get(address);
+            if (running) {
+              changed = await running;
+            } else {
+              const job = readOne(address);
+              explorerInflight.set(address, job);
+              try {
+                changed = await job;
+              } finally {
+                explorerInflight.delete(address);
+              }
             }
+            if (changed) emit(address);
           }
         };
         await Promise.all(Array.from({ length: Math.min(concurrency, needExplorer.length) }, worker));
@@ -526,11 +562,14 @@ export function createTokenMetadataService(options: TokenMetadataServiceOptions 
 
       const profiles: Record<string, TokenProfile> = {};
       const failed: string[] = [];
+      const freshness: Record<string, TokenFreshness> = {};
       for (const a of unique) {
-        const p = entries.get(a)?.profile;
+        const e = entries.get(a);
+        const p = e?.profile;
         if (p) profiles[a] = p; else failed.push(a);
+        freshness[a] = { chainAt: e?.chainAt, explorerAt: e?.explorerAt, chainFailedAt: e?.chainFailedAt, explorerFailedAt: e?.explorerFailedAt };
       }
-      return { profiles, failed };
+      return { profiles, failed, freshness };
     }
   };
 }

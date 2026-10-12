@@ -1,0 +1,84 @@
+/* QRB price and market cap cards: a fixed-height freshness line so a refresh never moves the page. */
+
+.qrb-market-card .qrb-trait-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.qrb-market-val {
+  font-variant-numeric: tabular-nums;
+  min-height: 1.35em;
+  overflow-wrap: anywhere;
+}
+
+.qrb-market-from {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.qrb-market-age {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 1.1rem;
+  margin-top: 0.15rem;
+  font-size: 0.68rem;
+  line-height: 1.2;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.qrb-market-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  opacity: 0.6;
+}
+
+.qrb-market-age.live .qrb-market-dot {
+  background: var(--success, #22c55e);
+  opacity: 1;
+}
+
+.qrb-market-age.stale {
+  color: var(--accent-amber, #f59e0b);
+}
+
+.qrb-market-age.stale .qrb-market-dot {
+  background: var(--accent-amber, #f59e0b);
+  opacity: 1;
+}
+
+.qrb-market-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.qrb-market-refresh:hover:not(:disabled) {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.qrb-market-refresh:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qrb-market-refresh .spin {
+    animation: none;
+  }
+}
