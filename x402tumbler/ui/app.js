@@ -1,7 +1,10 @@
 // DarkCircle Console. Vanilla ES module, no dependencies. Data is rendered as text nodes only; no HTML strings are ever built.
 import { mountAgent } from "./agent.js";
 
-const token = document.querySelector('meta[name="darkcircle-session"]').content;
+const token = document.querySelector('meta[name="darkcircle-session"]')?.content ?? "";
+// The DarkCircle server swaps this placeholder for a per-run session token. A static host (GitHub Pages) cannot, which
+// means there is no ledger, no API and no wallet bridge behind this page. It says so instead of failing action by action.
+const STATIC_PREVIEW = !token || /^__[A-Z0-9_]+__$/.test(token);
 const $ = (sel, root = document) => root.querySelector(sel);
 
 function h(tag, attrs, ...kids) {
@@ -177,7 +180,10 @@ function route(moveFocus) {
   state.route = name;
   for (const v of document.querySelectorAll(".view")) v.hidden = v.dataset.view !== name;
   for (const a of document.querySelectorAll("#nav a")) {
-    if (a.dataset.route === name) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    if (a.dataset.route === name) {
+      a.setAttribute("aria-current", "page");
+      if (typeof a.scrollIntoView === "function") a.scrollIntoView({ inline: "center", block: "nearest" });
+    } else a.removeAttribute("aria-current");
   }
   document.title = `${ROUTES[name]} · DarkCircle Console`;
   // the voice agent works on the real network; everything else here is the simulation
@@ -696,14 +702,43 @@ function confirmReset() {
 document.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => openFlow(b.dataset.open)));
 $("#btn-reset").addEventListener("click", () => confirmReset());
 
-refresh().catch((e) => toast(`Could not load: ${e.message}`, "bad"));
-mountAgent({ api, h, put, toast, short, root: $("#agent-root") });
-
-// @admin:begin
-// The admin console is fetched only when the server says it is enabled; otherwise nothing is requested.
-if (document.querySelector('meta[name="darkcircle-admin"]')?.content === "1") {
-  import("/admin/admin.js")
-    .then((m) => m.mountAdmin({ api, h, put, toast, copy, copyBtn, short, plural, when, refresh, state, slot: $("#admin-slot") }))
-    .catch((e) => toast(`The admin console could not be loaded: ${e.message}`, "bad"));
+function enterStaticPreview() {
+  document.documentElement.setAttribute("data-static-preview", "1");
+  const banner = $("#sim-banner");
+  if (banner) {
+    put(banner,
+      h("strong", { text: "Static preview" }),
+      h("span", { text: "This copy is hosted without the DarkCircle server, so no ledger, pool or wallet bridge sits behind it and its actions are switched off. Run the console locally to use it." })
+    );
+  }
+  for (const control of document.querySelectorAll("[data-open], #btn-reset")) {
+    control.disabled = true;
+    control.setAttribute("aria-disabled", "true");
+    control.title = "Needs the DarkCircle server; this is the static preview";
+  }
+  put($("#main"),
+    h("section", { class: "callout info" },
+      h("h2", { text: "DarkCircle Console, static preview" }),
+      h("p", { text: "The console is a local tool: it runs a server on your machine that keeps the shielded-pool simulation, the invoices and the journal, and bridges to your own Quai wallet. This hosted page is only its interface, with nothing behind it." }),
+      h("p", { text: "To run it, start the console from the x402tumbler folder with the ui script, then open the address it prints. Nothing on this hosted page can move funds, and it never holds a key." })
+    )
+  );
+  const agent = $("#agent-root");
+  if (agent) put(agent);
 }
-// @admin:end
+
+if (STATIC_PREVIEW) {
+  enterStaticPreview();
+} else {
+  refresh().catch((e) => toast(`Could not load: ${e.message}`, "bad"));
+  mountAgent({ api, h, put, toast, short, root: $("#agent-root") });
+
+  // @admin:begin
+  // The admin console is fetched only when the server says it is enabled; otherwise nothing is requested.
+  if (document.querySelector('meta[name="darkcircle-admin"]')?.content === "1") {
+    import("/admin/admin.js")
+      .then((m) => m.mountAdmin({ api, h, put, toast, copy, copyBtn, short, plural, when, refresh, state, slot: $("#admin-slot") }))
+      .catch((e) => toast(`The admin console could not be loaded: ${e.message}`, "bad"));
+  }
+  // @admin:end
+}

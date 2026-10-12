@@ -390,7 +390,9 @@ pre.code { margin: 0; padding: 12px 14px; background: var(--bg); border: 1px sol
 
 @media (max-width: 900px) {
   .app { grid-template-columns: 1fr; }
-  .side { position: static; height: auto; flex-direction: row; align-items: center; gap: 8px; padding: 10px 14px; border-right: 0; border-bottom: 1px solid var(--line); overflow-x: auto; }
+  .side { position: static; height: auto; flex-direction: row; align-items: center; gap: 8px; padding: 10px 14px; border-right: 0; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; scroll-snap-type: x proximity; overscroll-behavior-x: contain; }
+  .side::-webkit-scrollbar { display: none; }
+  .nav a { scroll-snap-align: center; }
   .brand { padding: 4px 6px; flex: none; }
   .nav { display: flex; gap: 2px; flex: none; }
   .nav a { padding: 7px 11px; white-space: nowrap; }

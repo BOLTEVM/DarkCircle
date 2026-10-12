@@ -21,7 +21,7 @@ const store = {
 };
 
 export function mountAgent({ api, h, put, toast, short, root }) {
-  const token = document.querySelector('meta[name="darkcircle-session"]').content;
+  const token = document.querySelector('meta[name="darkcircle-session"]')?.content ?? "";
   const S = {
     loaded: false,
     info: null,

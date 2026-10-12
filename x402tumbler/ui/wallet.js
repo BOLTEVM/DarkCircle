@@ -12,17 +12,28 @@
 // No network fetch happens here (nothing needs `connect-src` beyond 'self'): chain reads go through the
 // server's QuaiRpcClient. This module is only the bridge to the wallet extension.
 
-function detectQuaiWallet() {
-  if (typeof window === "undefined") return null;
-  const w = window;
-  if (w.pelagus && w.pelagus.request) return { provider: w.pelagus, name: "Pelagus" };
-  if (w.blip && w.blip.request) return { provider: w.blip, name: "Blip" };
-  if (w.quai && w.quai.request) {
-    const name = w.quai.isPelagus ? "Pelagus" : w.quai.isBlip ? "Blip" : "Quai wallet";
-    return { provider: w.quai, name };
+// Extensions and in-app browsers inject getters, proxies and half-implemented providers. Every read goes through
+// `safe`, so the worst a misbehaving wallet can do is be reported as absent: detection never throws.
+function safe(read) {
+  try { return read(); } catch { return undefined; }
+}
+const speaks = (p) => safe(() => typeof p?.request === "function") === true;
+const flag = (p, key) => safe(() => Boolean(p?.[key])) === true;
+
+export function detectQuaiWallet(target = typeof window === "undefined" ? undefined : window) {
+  if (!target) return null;
+  const pelagus = safe(() => target.pelagus);
+  if (speaks(pelagus)) return { provider: pelagus, name: "Pelagus" };
+  const blip = safe(() => target.blip);
+  if (speaks(blip)) return { provider: blip, name: "Blip" };
+  const quai = safe(() => target.quai);
+  if (speaks(quai)) {
+    const name = flag(quai, "isPelagus") ? "Pelagus" : flag(quai, "isBlip") ? "Blip" : "Quai wallet";
+    return { provider: quai, name };
   }
-  if (w.ethereum && w.ethereum.request && (w.ethereum.isPelagus || w.ethereum.isBlip)) {
-    return { provider: w.ethereum, name: w.ethereum.isBlip ? "Blip" : "Pelagus" };
+  const eth = safe(() => target.ethereum);
+  if (speaks(eth) && (flag(eth, "isPelagus") || flag(eth, "isBlip"))) {
+    return { provider: eth, name: flag(eth, "isBlip") ? "Blip" : "Pelagus" };
   }
   return null;
 }
