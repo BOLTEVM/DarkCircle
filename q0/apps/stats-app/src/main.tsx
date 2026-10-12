@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { applyVerifiedLocalDeployments } from 'quai-service/bootstrap'
 import { AppErrorBoundary, CrashScreen } from './CrashScreen'
 import './index.css'
+import './mobile.css'
 
 const container = document.getElementById('root')!
 

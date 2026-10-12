@@ -1,0 +1,234 @@
+/* ==========================================================================
+   Phones. Loaded after index.css, so these rules win at equal specificity.
+
+   Two goals: nothing is clipped off the right edge (on a 375px phone the wallet buttons used to sit past the screen), and
+   every screen is a fraction of the height it was, by trimming padding and hiding the decorative extras (marked
+   `.hide-sm` in the markup) rather than removing anything somebody needs to act.
+   ========================================================================== */
+
+/* `.hide-sm` is for decoration and second-line detail: gone on a phone, still there on a larger screen. */
+@media (max-width: 640px) {
+  .hide-sm {
+    display: none !important;
+  }
+
+  .app-container {
+    padding: 0.75rem 0.75rem 1.25rem;
+  }
+
+  /* ---- header: brand on one line, wallet controls on the next, all inside the screen ---- */
+  header {
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-bottom: 0.9rem;
+    padding-bottom: 0.7rem;
+  }
+
+  .brand-section {
+    gap: 0.6rem;
+    min-width: 0;
+  }
+
+  .brand-logo {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .brand-title h1 {
+    font-size: 1.25rem;
+  }
+
+  .brand-title p {
+    font-size: 0.65rem;
+    letter-spacing: 0.4px;
+  }
+
+  .wallet-section {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 0.45rem;
+  }
+
+  .wallet-section > * {
+    min-width: 0;
+  }
+
+  /* the green "connected" pill keeps its dot and drops its words */
+  .network-status {
+    padding: 0.4rem 0.55rem;
+  }
+
+  .network-status .status-text {
+    display: none;
+  }
+
+  .wallet-section .btn-primary {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .wallet-connected-row {
+    flex-wrap: wrap;
+    gap: 0.4rem !important;
+    min-width: 0;
+  }
+
+  .gas-chip {
+    font-size: 0.7rem !important;
+    padding: 0.3rem 0.5rem !important;
+  }
+
+  /* ---- navigation and balances ---- */
+  .circleswap-nav {
+    top: 0.4rem;
+    margin-bottom: 0.7rem;
+  }
+
+  .portfolio-ticker {
+    padding: 0.15rem 0 0.35rem;
+    margin-bottom: 0.6rem;
+  }
+
+  /* ---- cards ---- */
+  .glass-card {
+    padding: 0.9rem;
+    border-radius: 14px;
+  }
+
+  .section-title {
+    margin-bottom: 0.7rem;
+    font-size: 1.05rem;
+  }
+
+  .stats-grid {
+    gap: 0.6rem;
+  }
+
+  .stat-card {
+    padding: 0.75rem 0.9rem;
+  }
+
+  /* ---- swap ---- */
+  .swap-page-shell {
+    margin-bottom: 1.25rem;
+  }
+
+  .uniswap-swap-card {
+    padding: 0.75rem;
+    border-radius: 18px;
+  }
+
+  .swap-card-heading {
+    padding: 0 0.25rem 0.5rem;
+  }
+
+  .swap-route-summary {
+    padding: 0.5rem 0.65rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .swap-input-group {
+    padding: 0.7rem 0.8rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .swap-field {
+    font-size: 1.3rem;
+  }
+
+  .swap-arrow-container {
+    margin: -0.55rem 0;
+  }
+
+  .swap-details {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.65rem;
+  }
+
+  .swap-detail-row {
+    padding: 0.25rem 0;
+    font-size: 0.78rem;
+  }
+
+  .btn-swap-submit {
+    padding: 0.8rem;
+    margin-top: 0.5rem;
+  }
+
+  /* ---- farms and pools ---- */
+  .farm-hero {
+    padding: 0.9rem;
+    gap: 0.6rem;
+  }
+
+  .farm-title {
+    font-size: 1.15rem;
+  }
+
+  .farm-row {
+    padding: 0.75rem 0.8rem;
+    gap: 0.6rem 0.8rem;
+  }
+
+  /* ---- Quainance markets list ---- */
+  .qn-row {
+    padding: 0.6rem 0.7rem;
+    gap: 0.5rem 0.75rem;
+  }
+
+  .qn-toolbar {
+    gap: 0.5rem;
+  }
+
+  .qn-toolbar .farm-search {
+    min-width: 0 !important;
+    width: 100%;
+  }
+
+  /* ---- QRB page ---- */
+  .qrb-hero-container {
+    gap: 1rem;
+  }
+
+  .qrb-traits-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .qrb-trait-card {
+    padding: 0.55rem 0.65rem;
+  }
+
+  /* ---- footer: the contract list folds into one line ---- */
+  .app-footer {
+    margin-top: 1.25rem !important;
+    padding-top: 0.9rem !important;
+    gap: 0.5rem !important;
+    font-size: 0.72rem !important;
+  }
+
+  .footer-addresses summary {
+    cursor: pointer;
+  }
+
+  .footer-addresses .link-hash {
+    word-break: break-all;
+  }
+}
+
+/* Very narrow screens (older and smaller phones): one column everywhere it matters. */
+@media (max-width: 380px) {
+  .app-container {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .qrb-traits-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .circleswap-nav-btn {
+    padding: 0.55rem 0.65rem;
+  }
+}

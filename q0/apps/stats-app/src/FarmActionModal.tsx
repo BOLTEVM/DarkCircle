@@ -36,7 +36,7 @@ export default function FarmActionModal({ mode, row, farm, wallet, rewards, onCl
   const position = row.position;
   const decimals = row.stakeDecimals;
   const max = stake ? position?.walletBalance ?? 0n : position?.staked ?? 0n;
-  const symbol = row.kind === 'LP' ? `${row.label} LP` : row.label;
+  const symbol = row.kind === 'LP' ? `${row.label} pool tokens` : row.label;
 
   const [text, setText] = useState('');
   const [step, setStep] = useState<Step>('IDLE');
@@ -114,7 +114,7 @@ export default function FarmActionModal({ mode, row, farm, wallet, rewards, onCl
 
   return (
     <Modal
-      title={`${stake ? 'Stake' : 'Unstake'} ${symbol}`}
+      title={`${stake ? 'Deposit' : 'Withdraw'} ${row.label}`}
       icon={stake ? <ArrowDownToLine size={18} style={{ color: 'var(--accent-neon)' }} /> : <ArrowUpFromLine size={18} style={{ color: 'var(--accent-plasma)' }} />}
       onClose={onClose}
       maxWidth={480}
@@ -123,21 +123,21 @@ export default function FarmActionModal({ mode, row, farm, wallet, rewards, onCl
       {stake && paused && (
         <Notice tone="warn">
           <AlertTriangle size={14} style={{ verticalAlign: 'middle', marginRight: '0.35rem' }} />
-          Deposits are paused by the farm owner. You can still unstake.
+          Deposits are paused. You can still withdraw.
         </Notice>
       )}
 
       <Field
-        label={stake ? 'Amount to stake' : 'Amount to unstake'}
+        label={stake ? 'Amount to deposit' : 'Amount to withdraw'}
         hint={
           <>
-            {stake ? 'In your wallet' : 'Staked'}: <strong>{formatUnits(max, decimals, 6)}</strong> {symbol}
+            {stake ? 'In your wallet' : 'Deposited'}: <strong>{formatUnits(max, decimals, 6)}</strong> {symbol}
             {stake && max === 0n && onGetLp && row.kind === 'LP' && (
               <>
                 {' '}
                 &middot;{' '}
                 <button type="button" style={{ ...smallBtn, padding: '0.1rem 0.45rem' }} onClick={onGetLp}>
-                  Get LP tokens
+                  Add to a pool first
                 </button>
               </>
             )}
@@ -160,22 +160,22 @@ export default function FarmActionModal({ mode, row, farm, wallet, rewards, onCl
         </div>
       </Field>
       {placesError && <Notice tone="danger">{placesError}</Notice>}
-      {tooMuch && <Notice tone="danger">That is more than you {stake ? 'hold' : 'have staked'}.</Notice>}
+      {tooMuch && <Notice tone="danger">That is more than you {stake ? 'hold' : 'have deposited'}.</Notice>}
 
       {stake ? (
         <Notice tone="info">
-          Staking also pays out any rewards you have already earned in this pool.
-          {row.aprMax !== undefined && <> Holding Qrb raises your rewards by up to {Number(farm.boostBps) / 100}%.</>}
+          Depositing also pays out anything you have already earned here.
+          {row.aprMax !== undefined && <> Holding QRB adds up to {Number(farm.boostBps) / 100}% to your rewards.</>}
         </Notice>
       ) : (
         <Notice tone="info">
-          Unstaking also pays your earned rewards{hasPending ? <>: {formatUnits(pendingA, rewards.a.decimals, 4)} {rewards.a.symbol} + {formatUnits(pendingB, rewards.b.decimals, 4)} {rewards.b.symbol}</> : ''}. It works even while deposits are paused.
+          Withdrawing also pays what you have earned{hasPending ? <>: {formatUnits(pendingA, rewards.a.decimals, 4)} {rewards.a.symbol} + {formatUnits(pendingB, rewards.b.decimals, 4)} {rewards.b.symbol}</> : ''}. It works even while deposits are paused.
         </Notice>
       )}
 
       {unfunded && (
         <Notice tone="warn">
-          The farm's reward inventory is {farm.inventoryA.available === 0n && farm.inventoryB.available === 0n ? 'empty' : 'empty for one reward token'}. Rewards keep accruing and stay owed to you, but can only be paid once the owner funds the farm. Your staked tokens are never used to pay rewards.
+          The farm has {farm.inventoryA.available === 0n && farm.inventoryB.available === 0n ? 'no rewards to give out' : 'run out of one reward'} yet. What you earn is recorded and paid once it is topped up. Your deposit is never used to pay rewards.
         </Notice>
       )}
 
@@ -184,7 +184,7 @@ export default function FarmActionModal({ mode, row, farm, wallet, rewards, onCl
       {step === 'DONE' && txHash && (
         <Notice tone="ok">
           <CheckCircle2 size={14} style={{ verticalAlign: 'middle', marginRight: '0.35rem' }} />
-          Confirmed on Cyprus-1: <AddrLink address={txHash} tx />
+          Done: <AddrLink address={txHash} tx />
         </Notice>
       )}
 
@@ -199,28 +199,28 @@ export default function FarmActionModal({ mode, row, farm, wallet, rewards, onCl
             </>
           ) : step === 'SENDING' ? (
             <>
-              <Spinner /> {stake ? 'Staking…' : 'Unstaking…'}
+              <Spinner /> {stake ? 'Depositing…' : 'Withdrawing…'}
             </>
           ) : stake ? (
-            'Stake'
+            'Deposit'
           ) : (
-            'Unstake'
+            'Withdraw'
           )}
         </button>
       </div>
 
       {!stake && (position?.staked ?? 0n) > 0n && (
         <details style={{ marginTop: '1rem' }} open={emergency} onToggle={e => setEmergency((e.target as HTMLDetailsElement).open)}>
-          <summary style={{ cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Emergency exit</summary>
+          <summary style={{ cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Emergency exit (skip rewards)</summary>
           <div style={{ marginTop: '0.6rem' }}>
             <Notice tone="danger">
-              Withdraws your <strong>whole</strong> stake immediately and gives up <strong>all</strong> rewards in this pool, including
-              {hasPending ? <> the {formatUnits(pendingA, rewards.a.decimals, 4)} {rewards.a.symbol} and {formatUnits(pendingB, rewards.b.decimals, 4)} {rewards.b.symbol} you have earned and</> : ''} anything owed from an earlier shortfall.
-              Use it only if a normal unstake fails.
+              Takes out your <strong>whole</strong> deposit right away and gives up <strong>all</strong> rewards in this pool
+              {hasPending ? <>, including the {formatUnits(pendingA, rewards.a.decimals, 4)} {rewards.a.symbol} and {formatUnits(pendingB, rewards.b.decimals, 4)} {rewards.b.symbol} you have earned</> : ''}.
+              Use it only if a normal withdrawal fails.
             </Notice>
             <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.8rem', marginBottom: '0.6rem' }}>
               <input type="checkbox" checked={emergencyAck} onChange={e => setEmergencyAck(e.target.checked)} disabled={busy} />
-              I understand I forfeit my rewards.
+              I understand I give up my rewards.
             </label>
             <button type="button" className="btn-primary" style={{ background: 'var(--error)' }} disabled={!emergencyAck || busy} onClick={() => void runEmergency()}>
               Emergency withdraw

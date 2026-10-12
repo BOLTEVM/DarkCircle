@@ -54,39 +54,37 @@ export default function YieldBoard({ board, farm, iconFor, isOwner, onAddLiquidi
 
   return (
     <section className="glass-card yield-board" aria-label="Yield by pool">
-      <h2 className="farm-title"><Percent size={20} /> Yield by pool</h2>
-      <p style={{ ...muted, fontSize: '0.85rem', margin: '0 0 0.75rem' }}>
-        Every pool with liquidity, QRB, BDELTA, Q0, BOSS and the rest, with what it earns{' '}
-        <strong style={{ color: '#fff' }}>today</strong>: trading fees measured from real swaps, plus farm rewards.
+      <h2 className="farm-title"><Percent size={20} /> What pools earn</h2>
+      <p className="yield-intro" style={{ ...muted, fontSize: '0.85rem', margin: '0 0 0.75rem' }}>
+        What you would earn each year by adding to a pool: trading fees from real swaps, plus farm rewards.
         {board.emissionUsdPerDay !== null && farm && (
-          <> The farm emits about <strong style={{ color: '#fff' }}>{usd(board.emissionUsdPerDay)}</strong> of rewards a day, shared by pool weight and boosted for Qrb holders.</>
+          <> The farm gives out about <strong style={{ color: '#fff' }}>{usd(board.emissionUsdPerDay)}</strong> a day, split between pools.</>
         )}
       </p>
 
       {unfunded && (
         <Notice tone="warn">
           <AlertTriangle size={14} style={{ verticalAlign: 'middle', marginRight: '0.35rem' }} />
-          <strong>The farm holds no rewards yet.</strong> The reward figures below are what these pools would earn once the owner adds them and funds the farm; until then,
-          providing liquidity earns trading fees and farm rewards are not paid.
+          <strong>The farm has no rewards to give out yet.</strong> The farm figures below are estimates for once it is topped up; until then, adding to a pool earns
+          trading fees only.
         </Notice>
       )}
 
-      {board.status === 'loading' && <div style={{ ...muted, fontSize: '0.85rem', padding: '0.5rem 0' }}><Spinner /> Reading the pools…</div>}
+      {board.status === 'loading' && <div style={{ ...muted, fontSize: '0.85rem', padding: '0.5rem 0' }}><Spinner /> Loading pools…</div>}
       {board.status === 'error' && (
-        <Notice tone="danger">Pool yield could not be read: {board.error} Nothing is shown rather than numbers that might be wrong.</Notice>
+        <Notice tone="danger">Could not load pool yields ({board.error}). We show nothing rather than numbers that might be wrong.</Notice>
       )}
       {board.status === 'ready' && board.scanning && (
         <div style={{ ...muted, fontSize: '0.8rem', padding: '0.25rem 0 0.6rem' }}>
-          <Spinner /> Reading swap history, newest first
-          {board.scanProgress ? ` (${board.scanProgress.done} of ${board.scanProgress.total} block ranges)` : ''}: fee APR fills in as it arrives
-          {windowDays !== null && <> and covers the last {windowPhrase} so far</>}.
+          <Spinner /> Working out trading fees{board.scanProgress ? ` (${board.scanProgress.done} of ${board.scanProgress.total})` : ''}
+          {windowDays !== null && <>, covering the last {windowPhrase} so far</>}…
         </div>
       )}
       {board.status === 'ready' && board.partialHistory && (
-        <Notice tone="info">Older swap history could not be read right now, so fee APR covers the last {windowPhrase} rather than a full week.</Notice>
+        <Notice tone="info">Older swaps could not be loaded, so trading fees cover the last {windowPhrase} rather than a full week.</Notice>
       )}
       {board.status === 'ready' && !board.scanning && board.error && board.windowDays === null && (
-        <Notice tone="warn">Swap history could not be read ({board.error}). Fee APR is unknown, not zero; liquidity and farm rewards below are unaffected.</Notice>
+        <Notice tone="warn">Trading fees could not be loaded ({board.error}). They are unknown, not zero; the rest below is unaffected.</Notice>
       )}
 
       {board.status === 'ready' && (
@@ -103,16 +101,16 @@ export default function YieldBoard({ board, farm, iconFor, isOwner, onAddLiquidi
           </div>
 
           {rows.length === 0 ? (
-            <div className="qn-empty">No pool with liquidity carries that token yet.</div>
+            <div className="qn-empty">No pool has that token yet.</div>
           ) : (
             <div className="farm-table" role="table" aria-label="Pool yield">
               <div className="farm-head" role="row">
                 <span>Pool</span>
-                <span>Liquidity</span>
-                <span>{windowText} volume</span>
-                <span>Fee APR</span>
-                <span>Farm reward APR</span>
-                <span>Total APR</span>
+                <span>Pool size</span>
+                <span>Traded ({windowText})</span>
+                <span>Trading fees</span>
+                <span>Farm rewards</span>
+                <span>Total per year</span>
                 <span />
               </div>
               {rows.map(r => (
@@ -121,16 +119,19 @@ export default function YieldBoard({ board, farm, iconFor, isOwner, onAddLiquidi
             </div>
           )}
 
-          <ul className="farm-safety" style={{ marginTop: '0.75rem' }}>
-            <li>
-              <strong>Fee APR</strong> is the liquidity provider&apos;s share of the swap fee on the last {windowPhrase} of real volume, annualised. No swaps in the window shows as 0%.
-            </li>
-            <li>
-              <strong>Farm reward APR</strong> is actual for a pool in the farm{projectedAny ? ' and a projection (marked) for one the farm has not added: it assumes the pool joins at the farm’s average weight' : ''}, measured on
-              what is staked, or on the pool&apos;s whole liquidity while nobody has staked. It moves with every stake and every price.
-            </li>
-            <li>Rates are not promises: thin pools swing hard on one trade, and prices come from pool reserves, which a single swap can move.</li>
-          </ul>
+          <details className="farm-details" style={{ marginTop: '0.75rem' }}>
+            <summary>How these numbers work</summary>
+            <ul className="farm-safety" style={{ marginTop: '0.5rem' }}>
+              <li>
+                <strong>Trading fees</strong> are your share of the fee on swaps over the last {windowPhrase}, scaled to a year. No swaps means 0%.
+              </li>
+              <li>
+                <strong>Farm rewards</strong> are real for pools already in the farm{projectedAny ? ', and an estimate for the others (marked), assuming they join with an average share' : ''}.
+                They change with every deposit and every price.
+              </li>
+              <li>These are not promises. Small pools swing a lot on a single trade, and prices come from the pools themselves.</li>
+            </ul>
+          </details>
         </>
       )}
     </section>
@@ -158,8 +159,8 @@ function YieldRowView({
   const rewardTitle =
     r.apr === null
       ? 'Needs a price for the pool and for both reward tokens.'
-      : `${r.sharePct?.toFixed(1)}% of the farm's rewards${farming ? '' : ' (assumed: the pool joins at the farm’s average weight)'}, about ${usd(r.dailyUsd)} a day, ${
-          r.basis === 'staked' ? 'measured on what is staked' : "measured on the pool's whole liquidity (nobody has staked yet)"
+      : `${r.sharePct?.toFixed(1)}% of the farm's rewards${farming ? '' : ' (assumed: the pool joins with an average share)'}, about ${usd(r.dailyUsd)} a day, ${
+          r.basis === 'staked' ? 'measured on what is deposited' : "measured on the whole pool (nobody has deposited yet)"
         }.`;
 
   return (
@@ -173,46 +174,46 @@ function YieldRowView({
           <strong>{row.name}</strong>
           <small className="farm-sub">
             <Badge severity={row.dex === 'CIRCLESWAP' ? 'info' : 'neutral'}>{DEX_LABEL[row.dex]}</Badge>{' '}
-            {farming ? <Badge severity="ok">Farming #{r.pid}</Badge> : r.status === 'NOT_FARMING' ? <Badge severity="warn" title="Has liquidity; the farm owner has not added it yet">Not farming yet</Badge> : null}
-            {row.thin && <> <Badge severity="warn" title="Under $1,000 of liquidity: one trade moves this APR a lot">Thin</Badge></>}
+            {farming ? <Badge severity="ok">Farming #{r.pid}</Badge> : r.status === 'NOT_FARMING' ? <Badge severity="warn" title="Has liquidity; the farm owner has not added it yet">Not in farm yet</Badge> : null}
+            {row.thin && <> <Badge severity="warn" title="Under $1,000 in the pool: one trade moves these numbers a lot">Small pool</Badge></>}
           </small>
         </span>
       </div>
 
-      <div className="farm-cell" data-label="Liquidity">
+      <div className="farm-cell" data-label="Pool size">
         <strong>{usd(row.liquidityUsd)}</strong>
         <small className="farm-sub">{row.liquidityUsd === null ? 'no price' : 'in the pool'}</small>
       </div>
 
-      <div className="farm-cell" data-label="Volume">
+      <div className="farm-cell" data-label="Traded">
         <strong>{row.volumeUsd === null && measuring ? '…' : usd(row.volumeUsd)}</strong>
         <small className="farm-sub">{row.volumeUsd === null ? (measuring ? 'reading swaps' : 'unavailable') : `${row.swaps.toLocaleString('en-US')} swap${row.swaps === 1 ? '' : 's'}`}</small>
       </div>
 
-      <div className="farm-cell" data-label="Fee APR" title={`${(row.lpFeeBps / 100).toFixed(2)}% of each swap goes to liquidity providers`}>
+      <div className="farm-cell" data-label="Trading fees" title={`${(row.lpFeeBps / 100).toFixed(2)}% of each swap goes to liquidity providers`}>
         <strong style={{ color: row.feeApr ? 'var(--success)' : undefined }}>{row.feeApr === null && measuring ? '…' : pctText(row.feeApr)}</strong>
-        <small className="farm-sub">{(row.lpFeeBps / 100).toFixed(2)}% fee</small>
+        <small className="farm-sub">{(row.lpFeeBps / 100).toFixed(2)}% per swap</small>
       </div>
 
-      <div className="farm-cell" data-label="Farm reward APR" title={rewardTitle}>
+      <div className="farm-cell" data-label="Farm rewards" title={rewardTitle}>
         <strong style={{ color: r.apr ? 'var(--success)' : undefined }}>{pctText(r.apr)}</strong>
         <small className="farm-sub">
-          {r.apr === null ? 'unknown' : r.projected ? 'projected' : 'actual'}
-          {r.aprBoosted !== null && ` · up to ${pctText(r.aprBoosted)} with Qrb`}
+          {r.apr === null ? 'unknown' : r.projected ? 'estimate' : 'current'}
+          {r.aprBoosted !== null && ` · up to ${pctText(r.aprBoosted)} with QRB`}
         </small>
       </div>
 
-      <div className="farm-cell" data-label="Total APR">
+      <div className="farm-cell" data-label="Total per year">
         <strong style={{ color: row.totalApr ? 'var(--success)' : undefined }}>{pctText(row.totalApr)}</strong>
-        <small className="farm-sub">{row.totalAprBoosted !== null && `up to ${pctText(row.totalAprBoosted)}`}</small>
+        <small className="farm-sub">{row.totalAprBoosted !== null && `up to ${pctText(row.totalAprBoosted)} with QRB`}</small>
       </div>
 
       <div className="farm-cell farm-actions-cell">
         <button type="button" className="btn-primary" style={{ padding: '0.4rem 0.9rem', fontSize: '0.78rem' }} onClick={onAddLiquidity}>
-          <Droplets size={13} /> Add liquidity
+          <Droplets size={13} /> Add to pool
         </button>
         {r.status === 'NOT_FARMING' && isOwner && (
-          <button type="button" style={smallBtn} onClick={onOpenAdmin} title="Open the admin tab to add this pool to the farm">
+          <button type="button" style={smallBtn} onClick={onOpenAdmin} title="Open the Admin tab to add this pool to the farm">
             <Sprout size={12} /> Add to farm
           </button>
         )}

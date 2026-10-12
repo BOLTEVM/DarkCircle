@@ -44,7 +44,7 @@ export default function QuainanceMarkets({ agg, stale, loading, catalog, quaiUsd
 
   const chips = useMemo(() => {
     if (!agg) return [] as { id: string; label: string; count: number }[];
-    const list = [{ id: 'ALL', label: 'All', count: agg.pools.length + agg.markets.length }, { id: 'PAIRS', label: 'AMM pairs', count: agg.pools.length }];
+    const list = [{ id: 'ALL', label: 'All', count: agg.pools.length + agg.markets.length }, { id: 'PAIRS', label: 'Pools', count: agg.pools.length }];
     // Hartii first: it is the launchpad with QAXE, HRT and ART
     const sources = Object.entries(agg.totals.marketsBySource).sort(([a], [b]) => (a === 'HARTII' ? -1 : b === 'HARTII' ? 1 : a.localeCompare(b)));
     for (const [source, count] of sources) list.push({ id: `SRC:${source}`, label: sourceLabel(source), count });
@@ -76,40 +76,40 @@ export default function QuainanceMarkets({ agg, stale, loading, catalog, quaiUsd
     <div className="glass-card">
       <h2 className="section-title">
         <TrendingUp size={20} style={{ color: 'var(--accent-gold)' }} />
-        Quainance DEX &mdash; all pairs &amp; markets
+        Quainance &mdash; every pool and new token
         {stale && (
           <span className="lp-badge" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)', border: '1px solid rgba(245, 158, 11, 0.2)', fontSize: '0.6rem', marginLeft: '0.5rem' }}>STALE</span>
         )}
       </h2>
 
       {loading && !agg && (
-        <div style={{ ...muted, fontSize: '0.85rem' }}><Spinner /> Reading every Quainance pair from its factory…</div>
+        <div style={{ ...muted, fontSize: '0.85rem' }}><Spinner /> Reading every Quainance pool…</div>
       )}
 
       {agg && totals && (
         <>
           <div className="lp-price-metric" style={{ marginBottom: '0.75rem' }}>
-            <span className="lp-price-label">Quainance TVL{totals.tvlComplete ? '' : ' (priced pairs only)'}</span>
+            <span className="lp-price-label">Quainance TVL{totals.tvlComplete ? '' : ' (priced pools only)'}</span>
             <span className="lp-price-value">{usd(totals.tvlUsd)}</span>
           </div>
           <p style={{ ...muted, fontSize: '0.8rem', margin: '0 0 0.75rem' }}>
-            {totals.pairs} AMM pair{totals.pairs === 1 ? '' : 's'} ({totals.listed} tradable here) &middot; {totals.markets} launchpad market{totals.markets === 1 ? '' : 's'}
+            {totals.pairs} pool{totals.pairs === 1 ? '' : 's'} ({totals.listed} you can swap here) &middot; {totals.markets} new-token launch{totals.markets === 1 ? '' : 'es'}
             {totals.volume24hUsd !== null && <> &middot; 24h volume {usd(totals.volume24hUsd)}</>}
-            {totals.loaded < totals.pairs && <> &middot; {totals.pairs - totals.loaded} pair(s) could not be read</>}
+            {totals.loaded < totals.pairs && <> &middot; {totals.pairs - totals.loaded} pool(s) could not be read</>}
           </p>
           {!agg.source.explorer && (
             <p style={{ ...muted, fontSize: '0.75rem', margin: '0 0 0.75rem' }}>
-              Quainance&apos;s indexed stats are not readable from this page, so USD values are estimated from each pair&apos;s reserves and volumes are not shown.
+              Quainance&apos;s own stats cannot be read from this page, so dollar values are estimates from what each pool holds, and trading volume is not shown.
             </p>
           )}
           {catalog === null ? (
             <p style={{ ...muted, fontSize: '0.75rem', margin: '0 0 0.75rem' }}>
-              The launchpad catalog (Hartii, QAXE, POOP, curves) could not be read, so only AMM pairs are listed.
+              The list of new-token launches (Hartii, QAXE, POOP) could not be read, so only pools are shown.
             </p>
           ) : (
             catalog.source === 'snapshot' && (
               <p style={{ ...muted, fontSize: '0.75rem', margin: '0 0 0.75rem' }}>
-                Launchpad markets are a snapshot from {when(catalog.asOf)}: Quainance&apos;s live feed cannot be read from this site. Prices and trade counts may be out of date.
+                Launches are from a saved copy dated {when(catalog.asOf)}, because Quainance&apos;s live feed cannot be read from this site. Prices and trade counts may be out of date.
               </p>
             )
           )}
@@ -136,7 +136,7 @@ export default function QuainanceMarkets({ agg, stale, loading, catalog, quaiUsd
               <Search size={14} />
               <input
                 style={{ ...input, paddingLeft: '1.9rem' }}
-                placeholder="Search token, pair or address"
+                placeholder="Search a token, pool or address"
                 value={query}
                 onChange={e => {
                   setQuery(e.target.value);
@@ -180,19 +180,19 @@ function PairRow({ pool, routeId, onTrade }: { pool: QuainanceAggregatePool; rou
       <div className="qn-main">
         <strong>{pool.name}</strong>
         <span className="qn-badges">
-          <Badge severity="info">AMM pair</Badge>
-          {pool.listed ? <Badge severity="ok">Tradable here</Badge> : <Badge severity="neutral" title="One or both tokens are not in this app's token list. Import them to trade here.">Unlisted token</Badge>}
+          <Badge severity="info">Pool</Badge>
+          {pool.listed ? <Badge severity="ok">Swap here</Badge> : <Badge severity="neutral" title="One or both tokens are not in your token list yet. Import them to swap here.">Not in your list</Badge>}
         </span>
       </div>
       <div className="qn-cell" data-label="TVL">
         <strong>{usd(pool.tvlUsd)}</strong>
-        <small>{pool.source.tvl === 'reserves' ? 'estimated from reserves' : pool.source.tvl === 'explorer' ? 'indexed' : 'no price'}</small>
+        <small>{pool.source.tvl === 'reserves' ? 'estimate' : pool.source.tvl === 'explorer' ? 'from Quainance' : 'no price'}</small>
       </div>
       <div className="qn-cell" data-label="24h volume">
         <strong>{usd(pool.volume24hUsd)}</strong>
         <small>{pool.txCount !== null ? `${pool.txCount.toLocaleString('en-US')} txs` : ''}</small>
       </div>
-      <div className="qn-cell" data-label="Reserves">
+      <div className="qn-cell" data-label="Pool holds">
         <strong>
           {compactNumber(r0, 2)} {pool.token0.symbol}
         </strong>
@@ -224,9 +224,9 @@ function MarketRow({ market, quaiUsd }: { market: QuainanceMarket; quaiUsd: numb
       <div className="qn-main">
         <strong>{market.token.symbol}</strong> <small style={muted}>{market.token.name}</small>
         <span className="qn-badges">
-          <Badge severity="warn" title="A bonding-curve launch, not an AMM pair">{sourceLabel(market.source)}</Badge>
-          <Badge severity={phaseSeverity}>{market.phase === 'GRADUATED' ? 'Graduated' : market.phase === 'BONDING' ? 'Bonding' : market.phase === 'POOLED' ? 'Pooled' : 'Unknown'}</Badge>
-          {market.listed && <Badge severity="ok">Listed</Badge>}
+          <Badge severity="warn" title="A new token that trades on its launch curve rather than in a pool">{sourceLabel(market.source)}</Badge>
+          <Badge severity={phaseSeverity}>{market.phase === 'GRADUATED' ? 'Moved to a pool' : market.phase === 'BONDING' ? 'Launching' : market.phase === 'POOLED' ? 'In a pool' : 'Unknown'}</Badge>
+          {market.listed && <Badge severity="ok">In your list</Badge>}
         </span>
       </div>
       <div className="qn-cell" data-label="Price">
@@ -237,12 +237,12 @@ function MarketRow({ market, quaiUsd }: { market: QuainanceMarket; quaiUsd: numb
         <strong>{market.marketCapQuai === null ? '—' : `${compactNumber(market.marketCapQuai, 2)} QUAI`}</strong>
         <small>{capUsd !== null ? usd(capUsd) : ''}</small>
       </div>
-      <div className="qn-cell" data-label="Traded">
+      <div className="qn-cell" data-label="Traded so far">
         <strong>{compactNumber(market.volumeQuai, 2)} QUAI</strong>
-        <small>{market.trades.toLocaleString('en-US')} trades &middot; since {when(market.createdAt)}</small>
+        <small>{market.trades.toLocaleString('en-US')} trades since {when(market.createdAt)}</small>
       </div>
       <div className="qn-actions">
-        <a href={explorer(market.curve ?? market.token.address)} target="_blank" rel="noreferrer" style={{ ...smallBtn, textDecoration: 'none' }} title={market.curve ? 'The bonding-curve contract' : 'The token'}>
+        <a href={explorer(market.curve ?? market.token.address)} target="_blank" rel="noreferrer" style={{ ...smallBtn, textDecoration: 'none' }} title={market.curve ? 'The launch contract' : 'The token'}>
           <ExternalLink size={12} /> View
         </a>
       </div>

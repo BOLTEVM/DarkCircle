@@ -221,15 +221,15 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
         <div>
           <h2 className="farm-title"><Sprout size={22} /> Farms &amp; Pools</h2>
           <p style={{ ...muted, fontSize: '0.85rem', margin: 0 }}>
-            Stake LP tokens to earn <strong style={{ color: 'var(--accent-plasma)' }}>{rewards.a.symbol}</strong> and{' '}
-            <strong style={{ color: 'var(--accent-neon)' }}>{rewards.b.symbol}</strong> every second. Staked tokens are never used to pay rewards and can be withdrawn at any time.
+            Put your pool tokens to work and earn <strong style={{ color: 'var(--accent-plasma)' }}>{rewards.a.symbol}</strong> and{' '}
+            <strong style={{ color: 'var(--accent-neon)' }}>{rewards.b.symbol}</strong>. You can take your tokens back at any time.
           </p>
         </div>
         <div className="farm-hero-actions">
           <button type="button" className="btn-primary" onClick={onOpenLiquidity} style={{ fontSize: '0.8rem', padding: '0.5rem 1rem' }}>
-            <Droplets size={14} /> Get LP tokens
+            <Droplets size={14} /> Add to a pool
           </button>
-          <span className="farm-boost" title="Holding Qrb raises the rewards you earn.">
+          <span className="farm-boost" title="Holding QRB raises the farm rewards you earn.">
             <Zap size={14} /> {boostLabel}
           </span>
         </div>
@@ -251,54 +251,54 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
       {status === 'error' && !farm && (
         <Notice tone="danger">
           <AlertTriangle size={14} style={{ verticalAlign: 'middle', marginRight: '0.35rem' }} />
-          The farm could not be read: {error} Nothing is shown rather than numbers that might be wrong.{' '}
+          Could not read the farm ({error}). We show nothing rather than numbers that might be wrong.{' '}
           <button type="button" style={smallBtn} onClick={() => void refresh()}>Try again</button>
         </Notice>
       )}
       {error && farm && (
         <Notice tone="warn">
-          The latest refresh failed ({error}). Showing the farm as of {updatedAt ? new Date(updatedAt).toLocaleTimeString() : 'the last successful read'}.
+          Couldn&apos;t refresh ({error}). Showing the last update from {updatedAt ? new Date(updatedAt).toLocaleTimeString() : 'earlier'}.
         </Notice>
       )}
       {farm?.paused && (
         <Notice tone="warn">
-          <strong>Deposits and harvests are paused</strong> by the farm owner. You can still unstake, and unstaking pays your earned rewards.
+          <strong>Deposits and claims are paused.</strong> You can still withdraw, and withdrawing pays what you&apos;ve earned.
         </Notice>
       )}
       {unfunded && (
         <Notice tone="warn">
-          <strong>The farm's reward balance is {farm!.inventoryA.available === 0n && farm!.inventoryB.available === 0n ? 'empty' : 'empty for one of the two rewards'}.</strong> Rewards still accrue and stay owed to you, but they can only be paid once the owner funds the farm. Your stake is not affected.
+          <strong>The farm has {farm!.inventoryA.available === 0n && farm!.inventoryB.available === 0n ? 'no rewards to give out' : 'run out of one of its two rewards'} yet.</strong> What you earn is recorded and paid once it is topped up. Your deposit is safe.
         </Notice>
       )}
       {lowRunway && (
         <Notice tone="info">
-          The reward balance covers about {days(runA)} of {rewards.a.symbol} and {days(runB)} of {rewards.b.symbol} at the current rate.
+          The farm has about {days(runA)} of {rewards.a.symbol} and {days(runB)} of {rewards.b.symbol} left at today&apos;s pace.
         </Notice>
       )}
       {farm && farm.pools.length === 0 && status === 'ready' && (
         <Notice tone="info">
           <Layers size={14} style={{ verticalAlign: 'middle', marginRight: '0.35rem' }} />
-          There are no farming pools yet. {isOwner ? 'Open the Admin tab to add the first one.' : 'The owner adds pools as pairs launch; check back soon.'}
+          No pool is earning farm rewards yet. {isOwner ? 'Add the first one in the Admin tab.' : 'Check back soon.'}
         </Notice>
       )}
       {toast && <Notice tone={toast.tone}>{toast.body}</Notice>}
 
       {/* summary */}
       <div className="farm-stats">
-        <Stat label="Total staked" value={status === 'ready' ? usd(summary?.tvlUsd) : '…'} hint={summary?.tvlUsd === undefined && status === 'ready' && rows.some(r => r.totalStaked > 0n) ? 'A token price is missing' : undefined} />
+        <Stat label="Deposited" value={status === 'ready' ? usd(summary?.tvlUsd) : '…'} hint={summary?.tvlUsd === undefined && status === 'ready' && rows.some(r => r.totalStaked > 0n) ? 'A price is missing' : undefined} />
         <Stat
-          label="Emission / day"
+          label="Rewards per day"
           value={farm ? (summary?.emissionUsdPerDay !== undefined ? usd(summary.emissionUsdPerDay) : `${compactNumber(Number(farm.rewardAPerSecond) / 10 ** rewards.a.decimals * SECONDS_PER_DAY, 2)} ${rewards.a.symbol}`) : '…'}
           hint={farm ? `${compactNumber(Number(farm.rewardAPerSecond) / 10 ** rewards.a.decimals * SECONDS_PER_DAY, 2)} ${rewards.a.symbol} + ${compactNumber(Number(farm.rewardBPerSecond) / 10 ** rewards.b.decimals * SECONDS_PER_DAY, 2)} ${rewards.b.symbol}` : undefined}
         />
         <Stat label="Pools" value={farm ? String(farm.pools.length) : '…'} />
         <Stat
-          label="Your stake"
+          label="Your deposit"
           value={!walletAddress ? 'Connect' : summary ? usd(summary.yourStakedUsd) : '…'}
           hint={walletAddress && summary ? `${summary.poolsWithStake} pool${summary.poolsWithStake === 1 ? '' : 's'}` : undefined}
         />
         <Stat
-          label="Your rewards"
+          label="You&apos;ve earned"
           value={!walletAddress ? 'Connect' : summary ? (summary.pendingA === 0 && summary.pendingB === 0 ? '0' : usd(summary.yourPendingUsd)) : '…'}
           hint={walletAddress && summary && (summary.pendingA > 0 || summary.pendingB > 0) ? `${compactNumber(summary.pendingA, 4)} ${rewards.a.symbol} + ${compactNumber(summary.pendingB, 4)} ${rewards.b.symbol}` : undefined}
         />
@@ -320,23 +320,23 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
           <div className="farm-filters">
             <label className="farm-search">
               <Search size={14} />
-              <input style={{ ...input, paddingLeft: '1.9rem' }} placeholder="Search pool or address" value={query} onChange={e => setQuery(e.target.value)} aria-label="Search pools" />
+              <input style={{ ...input, paddingLeft: '1.9rem' }} placeholder="Search pools" value={query} onChange={e => setQuery(e.target.value)} aria-label="Search pools" />
             </label>
             <select style={select} value={sort} onChange={e => setSort(e.target.value as SortKey)} aria-label="Sort pools">
-              <option value="tvl">Sort: Total staked</option>
-              <option value="apr">Sort: APR</option>
-              <option value="share">Sort: Reward share</option>
-              <option value="yours">Sort: Your stake</option>
+              <option value="tvl">Most deposited</option>
+              <option value="apr">Highest yield</option>
+              <option value="share">Biggest rewards share</option>
+              <option value="yours">Your deposits</option>
             </select>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem' }}>
               <input type="checkbox" checked={mineOnly} onChange={e => setMineOnly(e.target.checked)} /> Mine
             </label>
-            <button type="button" style={smallBtn} onClick={() => void refresh()} disabled={refreshing} title="Re-read the farm from the chain">
+            <button type="button" style={smallBtn} onClick={() => void refresh()} disabled={refreshing} title="Reload the latest numbers">
               <RefreshCw size={12} className={refreshing ? 'spin' : ''} /> Refresh
             </button>
             {anyPending && !farm?.paused && (
               <button type="button" className="btn-primary" style={{ fontSize: '0.75rem', padding: '0.35rem 0.8rem' }} disabled={busy !== null} onClick={() => void harvestAll()}>
-                {busy === 'harvest:all' ? <><Spinner /> Harvesting…</> : <><Gift size={13} /> Harvest all</>}
+                {busy === 'harvest:all' ? <><Spinner /> Claiming…</> : <><Gift size={13} /> Claim all</>}
               </button>
             )}
           </div>
@@ -369,10 +369,10 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
             <div className="farm-table" role="table" aria-label="Farming pools">
               <div className="farm-head" role="row">
                 <span>Pool</span>
-                <span>Reward share</span>
-                <span>Total staked</span>
-                <span>APR</span>
-                <span>Your stake</span>
+                <span>Share of rewards</span>
+                <span>Deposited</span>
+                <span>Yearly yield</span>
+                <span>Your deposit</span>
                 <span>Earned</span>
                 <span />
               </div>
@@ -471,9 +471,9 @@ function PoolRow({
   const aprTitle =
     apr === undefined
       ? row.totalStaked === 0n
-        ? 'Nobody has staked here yet, so there is no rate to quote. The first stakers share this pool’s whole reward.'
-        : 'APR needs a price for the staked token and both rewards; one is missing.'
-      : `${rewards.a.symbol} ${pct(row.aprA)} + ${rewards.b.symbol} ${pct(row.aprB)}, from the current emission and total staked. It changes as people stake and unstake.`;
+        ? 'Nobody has deposited here yet, so there is no rate to quote. The first depositors share this pool’s whole reward.'
+        : 'A price is missing, so the yearly yield cannot be worked out.'
+      : `${rewards.a.symbol} ${pct(row.aprA)} + ${rewards.b.symbol} ${pct(row.aprB)}, at today's rewards and deposits. It changes as people deposit and withdraw.`;
 
   return (
     <div className="farm-row" role="row">
@@ -491,7 +491,7 @@ function PoolRow({
         <span style={{ minWidth: 0 }}>
           <strong>{row.label}</strong>
           <small className="farm-sub">
-            <Badge severity={row.kind === 'LP' ? 'info' : 'neutral'}>{row.kind === 'LP' ? 'LP' : 'Single asset'}</Badge>{' '}
+            <Badge severity={row.kind === 'LP' ? 'info' : 'neutral'}>{row.kind === 'LP' ? 'Pool' : 'Single token'}</Badge>{' '}
             <a className="link-hash" href={`https://quaiscan.io/address/${row.lpToken}`} target="_blank" rel="noreferrer" title={row.lpToken}>
               #{row.pid} <ExternalLink size={9} style={{ verticalAlign: 'baseline' }} />
             </a>
@@ -499,25 +499,25 @@ function PoolRow({
         </span>
       </div>
 
-      <div className="farm-cell" data-label="Reward share" title={`${row.allocPoint.toString()} allocation points`}>
+      <div className="farm-cell" data-label="Share of rewards" title={`${row.allocPoint.toString()} weight points`}>
         <strong>{row.sharePct.toFixed(row.sharePct % 1 === 0 ? 0 : 1)}%</strong>
         <small className="farm-sub">{compactNumber(row.dailyA, 2)} {rewards.a.symbol}/day</small>
       </div>
 
-      <div className="farm-cell" data-label="Total staked">
+      <div className="farm-cell" data-label="Deposited">
         <strong>{row.totalStaked === 0n ? '—' : usd(row.tvlUsd)}</strong>
-        <small className="farm-sub">{row.totalStaked === 0n ? 'Be the first' : `${compactNumber(Number(formatUnits(row.totalStaked, row.stakeDecimals, 4)), 2)} staked`}</small>
+        <small className="farm-sub">{row.totalStaked === 0n ? 'Be the first' : `${compactNumber(Number(formatUnits(row.totalStaked, row.stakeDecimals, 4)), 2)} in the pool`}</small>
       </div>
 
-      <div className="farm-cell" data-label="APR" title={aprTitle}>
+      <div className="farm-cell" data-label="Yearly yield" title={aprTitle}>
         <strong style={{ color: apr !== undefined ? 'var(--success)' : undefined }}>{pct(apr)}</strong>
-        {row.aprMax !== undefined && maxBoostPct > 0 && <small className="farm-sub">up to {pct(row.aprMax)} with Qrb</small>}
+        {row.aprMax !== undefined && maxBoostPct > 0 && <small className="farm-sub">up to {pct(row.aprMax)} with QRB</small>}
       </div>
 
-      <div className="farm-cell" data-label="Your stake">
+      <div className="farm-cell" data-label="Your deposit">
         <strong>{!wallet ? '—' : staked === 0n ? '0' : usd(row.stakedUsd) === '—' ? formatUnits(staked, row.stakeDecimals, 4) : usd(row.stakedUsd)}</strong>
         <small className="farm-sub">
-          {!wallet ? 'Connect wallet' : `${formatUnits(pos?.walletBalance ?? 0n, row.stakeDecimals, 4)} in wallet`}
+          {!wallet ? 'Connect wallet' : `${formatUnits(pos?.walletBalance ?? 0n, row.stakeDecimals, 4)} to deposit`}
         </small>
       </div>
 
@@ -534,14 +534,14 @@ function PoolRow({
 
       <div className="farm-cell farm-actions-cell">
         <button type="button" className="btn-primary" style={{ padding: '0.4rem 0.9rem', fontSize: '0.78rem' }} onClick={onStake} disabled={paused && !!wallet} title={paused ? 'Deposits are paused' : undefined}>
-          {wallet ? 'Stake' : 'Connect'}
+          {wallet ? 'Deposit' : 'Connect'}
         </button>
         {wallet && staked > 0n && (
-          <button type="button" style={smallBtn} onClick={onUnstake}>Unstake</button>
+          <button type="button" style={smallBtn} onClick={onUnstake}>Withdraw</button>
         )}
         {wallet && hasPending && (
-          <button type="button" style={smallBtn} onClick={onHarvest} disabled={paused || busy !== null} title={paused ? 'Harvest is paused; unstaking pays your rewards' : 'Claim the rewards you have earned'}>
-            {busy === `harvest:${row.pid}` ? <Spinner /> : <Coins size={12} />} Harvest
+          <button type="button" style={smallBtn} onClick={onHarvest} disabled={paused || busy !== null} title={paused ? 'Claims are paused; withdrawing pays your rewards' : 'Claim the rewards you have earned'}>
+            {busy === `harvest:${row.pid}` ? <Spinner /> : <Coins size={12} />} Claim
           </button>
         )}
       </div>
@@ -553,23 +553,23 @@ function PoolRow({
 function FarmDetails({ farm, rewards, runA, runB, updatedAt }: { farm: NonNullable<ReturnType<typeof useFarm>['farm']>; rewards: { a: { symbol: string; decimals: number }; b: { symbol: string; decimals: number } }; runA: number | null; runB: number | null; updatedAt: number | null }) {
   return (
     <details className="farm-details">
-      <summary>Farm details &amp; safety</summary>
+      <summary>Details and safety</summary>
       <div className="farm-details-grid">
-        <div><span className="farm-stat-label">Farm contract</span><AddrLink address={farm.address} /></div>
+        <div><span className="farm-stat-label">Farm address</span><AddrLink address={farm.address} /></div>
         <div><span className="farm-stat-label">Owner</span><AddrLink address={farm.owner} /></div>
         <div><span className="farm-stat-label">Reward {rewards.a.symbol}</span><AddrLink address={farm.rewardTokenA} /></div>
         <div><span className="farm-stat-label">Reward {rewards.b.symbol}</span><AddrLink address={farm.rewardTokenB} /></div>
-        {farm.qrb && <div><span className="farm-stat-label">Boost source (Qrb)</span><AddrLink address={farm.qrb} /></div>}
-        <div><span className="farm-stat-label">Reward balance</span>
+        {farm.qrb && <div><span className="farm-stat-label">QRB bonus token</span><AddrLink address={farm.qrb} /></div>}
+        <div><span className="farm-stat-label">Rewards left</span>
           {compactNumber(Number(formatUnits(farm.inventoryA.available, rewards.a.decimals, 4)), 2)} {rewards.a.symbol} (~{days(runA)}) &middot; {compactNumber(Number(formatUnits(farm.inventoryB.available, rewards.b.decimals, 4)), 2)} {rewards.b.symbol} (~{days(runB)})
         </div>
-        <div><span className="farm-stat-label">Max boost</span>{farm.boostBps > 0n ? `+${Number(farm.boostBps) / 100}%` : 'none'}</div>
+        <div><span className="farm-stat-label">Biggest bonus</span>{farm.boostBps > 0n ? `+${Number(farm.boostBps) / 100}%` : 'none'}</div>
         <div><span className="farm-stat-label">Last read</span>{updatedAt ? new Date(updatedAt).toLocaleTimeString() : '—'}</div>
       </div>
       <ul className="farm-safety">
-        <li>The farm contract cannot be upgraded: its code and reward tokens are fixed.</li>
-        <li>The owner can add pools, change reward shares and emission (up to a hard cap in the contract) and pause deposits. The owner cannot take staked tokens.</li>
-        <li>Withdrawing is never paused. Rewards are paid only from the farm's reward balance, never from staked tokens.</li>
+        <li>The farm&apos;s code can never be changed.</li>
+        <li>The owner can add pools, change how rewards are split and pause deposits. The owner cannot take your tokens.</li>
+        <li>Withdrawing is never paused, and rewards come only from the farm&apos;s own reward balance, never from your deposit.</li>
       </ul>
     </details>
   );

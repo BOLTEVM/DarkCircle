@@ -569,14 +569,14 @@ export default function App() {
   // One line for the Farms page: the same states the QRB tab shows, so the two never disagree.
   const farmBoostLabel =
     DEPLOYED.QRB === null
-      ? 'Qrb not deployed'
+      ? 'QRB bonus not available yet'
       : !walletAddress
-        ? `Qrb boost +${formatBoostPct()} for ${boostThresholdText} QRB held ${boostDurationText}`
+        ? `Hold ${boostThresholdText} QRB for ${boostDurationText}: +${formatBoostPct()} rewards`
         : qrbBoostState === 'ACTIVE'
-          ? `Qrb boost ACTIVE (+${formatBoostPct()})`
+          ? `QRB bonus on: +${formatBoostPct()} rewards`
           : qrbBoostState === 'MATURING'
-            ? `Qrb boost MATURING (active in ${boostEligibleInText})`
-            : `Qrb boost INACTIVE (hold ${boostThresholdText} QRB for ${boostDurationText})`;
+            ? `QRB bonus starts in ${boostEligibleInText}`
+            : `Hold ${boostThresholdText} QRB for ${boostDurationText} for +${formatBoostPct()} rewards`;
   const artworkHref = DEPLOYED.ARTWORK_URI ? DEPLOYED.ARTWORK_URI.replace(/^ar:\/\//, 'https://arweave.net/') : null;
 
 
@@ -1011,19 +1011,19 @@ export default function App() {
             <h1 style={{ background: 'linear-gradient(90deg, #ffffff 0%, var(--accent-plasma) 50%, var(--accent-violet) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               CIRCLESWAP
             </h1>
-            <p style={{ color: 'var(--accent-plasma)' }}>Quai DeFi Protocol & AMM DEX &bull; Dual-Reward Farms</p>
+            <p style={{ color: 'var(--accent-plasma)' }}>Swap, earn and stake on Quai</p>
           </div>
         </div>
 
         <div className="wallet-section">
           <div className="network-status">
             <div className="status-dot"></div>
-            Cyprus-1 Shard
+            <span className="status-text">Quai network</span>
           </div>
 
           {walletAddress ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.05)', padding: '0.4rem 0.75rem', borderRadius: '8px', border: '1px solid var(--panel-border)', color: 'var(--accent-gold)', fontWeight: 600 }}>
+            <div className="wallet-connected-row" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="gas-chip" style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.05)', padding: '0.4rem 0.75rem', borderRadius: '8px', border: '1px solid var(--panel-border)', color: 'var(--accent-gold)', fontWeight: 600 }}>
                 Gas: {quaiBalance} QUAI
               </span>
               <button className="btn-primary btn-wallet-connected">
@@ -1142,24 +1142,24 @@ export default function App() {
           <div className="glass-card swap-card uniswap-swap-card" style={{ borderColor: 'rgba(255, 51, 68, 0.25)' }}>
             <div className="swap-card-heading">
               <div>
-                <div className="swap-eyebrow">Cyprus-1 · Swap</div>
-                <div className="swap-title"><ArrowUpDown size={20} style={{ color: 'var(--accent-plasma)' }} /> Trade tokens</div>
+                <div className="swap-eyebrow hide-sm">Quai network</div>
+                <div className="swap-title"><ArrowUpDown size={20} style={{ color: 'var(--accent-plasma)' }} /> Swap</div>
               </div>
               <button type="button" className="swap-settings-button" title="Swap settings" onClick={() => document.getElementById('swap-settings')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>•••</button>
             </div>
 
             <div className="swap-route-summary">
               <div>
-                <span className="swap-summary-label">Best available route</span>
+                <span className="swap-summary-label">Best price via</span>
                 <strong>{tokenLabel(fromSymbol)} <span>→</span> {tokenLabel(toSymbol)}</strong>
               </div>
               <button type="button" className="swap-route-button" onClick={() => document.getElementById('route-options')?.toggleAttribute('open')}>
-                <span>{routeIsCrossDex ? 'Multi-DEX' : dex.label}</span><span>⌄</span>
+                <span>{routeIsCrossDex ? 'Several exchanges' : dex.label}</span><span>⌄</span>
               </button>
             </div>
 
             <details id="route-options" className="swap-route-options">
-              <summary>Choose a route manually</summary>
+              <summary>Choose another way to swap</summary>
               <div className="pool-selector-tabs swap-route-grid">
                 {availableRoutes.map(r => (
                   <button
@@ -1255,21 +1255,21 @@ export default function App() {
             {/* Detail Sheet */}
             <div id="swap-settings" className="swap-details">
               <div className="swap-detail-row">
-                <span className="swap-detail-label">Execution Price</span>
+                <span className="swap-detail-label">Price</span>
                 <span className="swap-detail-value">{execPrice} {tokenLabel(toSymbol)} per {tokenLabel(fromSymbol)}</span>
               </div>
               <div className="swap-detail-row">
-                <span className="swap-detail-label">Price Impact</span>
+                <span className="swap-detail-label">Effect on price</span>
                 <span className={`swap-detail-value ${
                   parseFloat(priceImpact) < 1 ? 'impact-green' : (parseFloat(priceImpact) < 5 ? 'impact-orange' : 'impact-red')
                 }`}>{priceImpact}</span>
               </div>
               <div className="swap-detail-row">
-                <span className="swap-detail-label">Minimum Received</span>
+                <span className="swap-detail-label">You get at least</span>
                 <span className="swap-detail-value">{minReceived} {tokenLabel(toSymbol)}</span>
               </div>
               <div className="swap-detail-row" style={{ alignItems: 'center' }}>
-                <span className="swap-detail-label">Slippage Tolerance</span>
+                <span className="swap-detail-label" title="How far the price may move against you before the swap is cancelled">Allowed price change</span>
                 <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
                   {[0.1, 0.5, 1.0, 2.0].map((preset) => (
                     <button
@@ -1420,20 +1420,19 @@ export default function App() {
             {/* Spec Sheet & Metadata */}
             <div className="qrb-spec-sheet">
               <div className="qrb-supply-badge">
-                <Sparkles size={14} /> EDITION: 1 OF 1 GENESIS SOVEREIGN
+                <Sparkles size={14} /> One of one &middot; Genesis
               </div>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.85rem', fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>
                 Circleswap Qrb Genesis
               </h2>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.5 }}>
-                The sovereign singular artifact of Circleswap on Quai Network (Cyprus-1 shard).
-                The <strong>QRB</strong> ERC-20 has a fixed supply of <strong>1.0</strong>. Holding at least <strong>{boostThresholdText} QRB</strong> for <strong>{boostDurationText}</strong> earns <strong>+{formatBoostPct()}</strong> farm rewards; the boost is read from the token itself, and the holding time stops a balance being borrowed for a moment to claim it. A companion 1-of-1 NFT (with EIP-2981 royalties) is a collectible and grants no boost. Artwork lives on Arweave.
+                Circleswap&apos;s one-of-one token. There will only ever be <strong>1.0 QRB</strong>. Hold at least <strong>{boostThresholdText} QRB</strong> for <strong>{boostDurationText}</strong> and you earn <strong>+{formatBoostPct()}</strong> on farm rewards. A matching 1-of-1 NFT is a collectible and does not change your rewards. The artwork is stored permanently on Arweave.
               </p>
 
               <div className="qrb-traits-grid">
                 <div className="qrb-trait-card">
                   <div className="qrb-trait-name">Max Supply</div>
-                  <div className="qrb-trait-val" style={{ color: 'var(--accent-plasma)' }}>1.0 QRB (Strict)</div>
+                  <div className="qrb-trait-val" style={{ color: 'var(--accent-plasma)' }}>1.0 QRB, ever</div>
                 </div>
                 {(() => {
                   const addr = DEPLOYED.QRB?.toLowerCase();
@@ -1469,29 +1468,29 @@ export default function App() {
                     </>
                   );
                 })()}
-                <div className="qrb-trait-card">
+                <div className="qrb-trait-card hide-sm">
                   <div className="qrb-trait-name">Core Catalyst</div>
                   <div className="qrb-trait-val">Radiant Dark Plasma</div>
                 </div>
                 <div className="qrb-trait-card">
-                  <div className="qrb-trait-name">Token Standards</div>
-                  <div className="qrb-trait-val">QRB (ERC-20) + 1-of-1 NFT</div>
+                  <div className="qrb-trait-name">Comes as</div>
+                  <div className="qrb-trait-val">Token + 1-of-1 NFT</div>
                 </div>
-                <div className="qrb-trait-card">
+                <div className="qrb-trait-card hide-sm">
                   <div className="qrb-trait-name">Stasis Pod</div>
                   <div className="qrb-trait-val">Class-IV Cryo Pod</div>
                 </div>
                 <div className="qrb-trait-card">
-                  <div className="qrb-trait-name">Farm Boost</div>
+                  <div className="qrb-trait-name">Farm bonus</div>
                   <div className="qrb-trait-val" style={{ color: 'var(--accent-gold)' }}>+{formatBoostPct()} rewards</div>
                 </div>
                 <div className="qrb-trait-card">
-                  <div className="qrb-trait-name">Boost Threshold</div>
-                  <div className="qrb-trait-val">{boostThresholdText} QRB held {boostDurationText}</div>
+                  <div className="qrb-trait-name">To earn the bonus</div>
+                  <div className="qrb-trait-val">Hold {boostThresholdText} QRB for {boostDurationText}</div>
                 </div>
-                <div className="qrb-trait-card">
-                  <div className="qrb-trait-name">Shard Origin</div>
-                  <div className="qrb-trait-val">Cyprus-1 (0x00)</div>
+                <div className="qrb-trait-card hide-sm">
+                  <div className="qrb-trait-name">Network</div>
+                  <div className="qrb-trait-val">Quai (Cyprus-1)</div>
                 </div>
               </div>
 
@@ -1504,7 +1503,7 @@ export default function App() {
                     className="btn-primary"
                     style={{ textDecoration: 'none', fontSize: '0.85rem', padding: '0.6rem 1.25rem', background: 'linear-gradient(135deg, var(--accent-plasma) 0%, #8a2be2 100%)', color: '#fff' }}
                   >
-                    <ExternalLink size={15} /> View Artwork on Arweave
+                    <ExternalLink size={15} /> View the artwork
                   </a>
                 ) : (
                   <span className="btn-primary" style={{ fontSize: '0.85rem', opacity: 0.6, cursor: 'default', background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)', boxShadow: 'none' }}>
@@ -1515,7 +1514,7 @@ export default function App() {
 
               {/* On-chain provenance: real addresses once deployed, an honest "not deployed" before */}
               <div style={{ marginTop: '1rem', display: 'grid', gap: '0.4rem', fontSize: '0.8rem' }}>
-                {([['QRB token (ERC-20)', DEPLOYED.QRB], ['Artifact NFT (ERC-721)', DEPLOYED.QRB_NFT]] as const).map(([label, addr]) => (
+                {([['QRB token', DEPLOYED.QRB], ['Artifact NFT', DEPLOYED.QRB_NFT]] as const).map(([label, addr]) => (
                   <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.3rem' }}>
                     <span style={{ color: 'var(--text-muted)' }}><Shield size={12} /> {label}</span>
                     {addr ? (
@@ -1831,12 +1830,18 @@ export default function App() {
       {/* Footer Info */}
       </SectionBoundary>
 
-      <footer style={{ marginTop: '3rem', paddingTop: '1.5rem', borderTop: '1px solid var(--panel-border)', display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-dim)', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          Circleswap Core: <a href={`https://quaiscan.io/token/${CONTRACTS.Q0}`} target="_blank" rel="noreferrer" className="link-hash">{CONTRACTS.Q0}</a> &bull; Dual Reward A: <a href={`https://quaiscan.io/token/${CONTRACTS.BDELTA}`} target="_blank" rel="noreferrer" className="link-hash">{CONTRACTS.BDELTA}</a>
-        </div>
-        <div>
-          Circleswap DeFi Protocol &bull; Atomic Router Swaps &bull; Cyprus-1 Shard
+      <footer className="app-footer" style={{ marginTop: '3rem', paddingTop: '1.5rem', borderTop: '1px solid var(--panel-border)', display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-dim)', flexWrap: 'wrap', gap: '1rem' }}>
+        <details className="footer-addresses">
+          <summary>Token contracts</summary>
+          <div>
+            Q0: <a href={`https://quaiscan.io/token/${CONTRACTS.Q0}`} target="_blank" rel="noreferrer" className="link-hash">{CONTRACTS.Q0}</a>
+          </div>
+          <div>
+            BDELTA: <a href={`https://quaiscan.io/token/${CONTRACTS.BDELTA}`} target="_blank" rel="noreferrer" className="link-hash">{CONTRACTS.BDELTA}</a>
+          </div>
+        </details>
+        <div className="hide-sm">
+          Circleswap on the Quai network
         </div>
         <a
           href="https://boltevm.com"
