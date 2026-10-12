@@ -13,6 +13,7 @@ export * from './eip1967';
 export * from './tokenMetadata';
 export * from './farm';
 export * from './quainance';
+export * from './yield';
 
 import { findPool, tokenAddress, orientedPath, type SwapRoute, type CrossDexRoute, type PoolInfo, POOL_REGISTRY, orientedSegments } from './registries/pools';
 import { clampSlippagePct } from './units';

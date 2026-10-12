@@ -64,6 +64,9 @@ jobs:
       - name: Test the Quainance pair and launchpad aggregate
         run: node --test q0/packages/quai-service/test/quainance.test.ts
 
+      - name: Test LP yield maths (fees and farm rewards)
+        run: node --test q0/packages/quai-service/test/yield.test.ts
+
       - name: Build Q0 / Circleswap
         run: |
           cd q0

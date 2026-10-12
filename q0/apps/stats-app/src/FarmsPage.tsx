@@ -18,6 +18,8 @@ import { Badge, Notice, Spinner, box, input, muted, select, smallBtn, AddrLink }
 import { TokenAvatar } from './TokenBubble';
 import { useTokenProfiles } from './useTokenProfiles';
 import { useFarm } from './useFarm';
+import { useYieldBoard } from './useYieldBoard';
+import YieldBoard from './YieldBoard';
 import { formatUsd } from './TokenPicker';
 import FarmActionModal from './FarmActionModal';
 import { describeTxError, sendContractCall } from './farmSend';
@@ -50,6 +52,7 @@ const days = (s: number | null): string =>
 export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, boostLabel }: Props) {
   const farmAddress = DEPLOYED.MASTERCHEF;
   const { farm, pairs, positions, status, error, updatedAt, refreshing, refresh } = useFarm(farmAddress, walletAddress);
+  const board = useYieldBoard(farm);
   const [quaiUsd, setQuaiUsd] = useState<number | null>(null);
   const [tab, setTab] = useState<'POOLS' | 'ADMIN'>('POOLS');
   const [query, setQuery] = useState('');
@@ -74,19 +77,27 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
     return map;
   }, []);
   const tokenList = useMemo<TokenInfo[]>(() => {
-    if (!farm) return [];
-    const wanted = new Set<string>([farm.rewardTokenA.toLowerCase(), farm.rewardTokenB.toLowerCase()]);
-    for (const pool of farm.pools) {
-      const pair = pairs[pool.lpToken.toLowerCase()];
-      if (pair?.token0 && pair?.token1) {
-        wanted.add(pair.token0);
-        wanted.add(pair.token1);
-      } else wanted.add(pool.lpToken.toLowerCase());
+    const wanted = new Set<string>();
+    if (farm) {
+      wanted.add(farm.rewardTokenA.toLowerCase());
+      wanted.add(farm.rewardTokenB.toLowerCase());
+      for (const pool of farm.pools) {
+        const pair = pairs[pool.lpToken.toLowerCase()];
+        if (pair?.token0 && pair?.token1) {
+          wanted.add(pair.token0);
+          wanted.add(pair.token1);
+        } else wanted.add(pool.lpToken.toLowerCase());
+      }
+    }
+    // every token in the yield board, so each pool shows its logos
+    for (const r of board.rows) {
+      wanted.add(r.token0.address.toLowerCase());
+      wanted.add(r.token1.address.toLowerCase());
     }
     return [...wanted].map(
       address => registryByAddress.get(address) ?? { symbol: `${address.slice(0, 6)}…${address.slice(-4)}`, name: 'Token', decimals: 18, address, deployed: true }
     );
-  }, [farm, pairs, registryByAddress]);
+  }, [farm, pairs, registryByAddress, board.rows]);
   const { profiles } = useTokenProfiles(tokenList);
 
   const tokens = useMemo(() => {
@@ -223,6 +234,18 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
           </span>
         </div>
       </div>
+
+      {/* yield by pool: always first, for every pool with liquidity, whether or not the farm has added it */}
+      {tab === 'POOLS' && (
+        <YieldBoard
+          board={board}
+          farm={farm}
+          iconFor={address => tokens[address]?.iconUrl}
+          isOwner={isOwner}
+          onAddLiquidity={onOpenLiquidity}
+          onOpenAdmin={() => setTab('ADMIN')}
+        />
+      )}
 
       {/* status banners: each says what is wrong and what it means for the person staking */}
       {status === 'error' && !farm && (

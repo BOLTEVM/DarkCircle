@@ -30,6 +30,7 @@ import {
   formatUnits
 } from 'quai-service';
 import { sendWalletTransaction, getQuaiProvider } from './providerUtils';
+import PoolYieldLine from './PoolYieldLine';
 
 // Circleswap first: it is our own AMM, so these are the pools we can create and own the whole path of.
 const PRESETS: { label: string; dex: DexId; a: string; b: string }[] = [
@@ -566,6 +567,8 @@ export default function PoolModal({ walletAddress, rawBalances, pools, lpBalance
             ))}
           </select>
         </div>
+
+        {mode === 'ADD' && dexLive && <PoolYieldLine dex={dex} symA={pairSymA} symB={pairSymB} />}
 
         {dex === 'CIRCLESWAP' && dexLive && (
           <div style={{ ...box, fontSize: '0.72rem', ...muted, marginBottom: '0.75rem', lineHeight: 1.45 }}>
