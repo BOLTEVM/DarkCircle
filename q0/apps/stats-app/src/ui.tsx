@@ -1,5 +1,6 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import { X, Copy, Check, ExternalLink } from 'lucide-react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
+import { Copy, Check, ExternalLink } from 'lucide-react';
+import { ModalBody, ModalFooter, ModalHeader, ModalShell } from './ModalShell';
 
 // Small shared pieces for the pair explorer and the deploy modals, in the same visual language as PoolModal.
 
@@ -22,6 +23,8 @@ export const input: CSSProperties = {
   fontFamily: 'inherit'
 };
 export const select: CSSProperties = {
+  maxWidth: '100%',
+  minWidth: 0,
   background: 'rgba(255,255,255,0.06)',
   border: '1px solid var(--panel-border)',
   borderRadius: '8px',
@@ -50,13 +53,19 @@ export const EXPLORER_TX = 'https://explorer.qu.ai/tx/';
 
 export const shortAddr = (a: string | null | undefined) => (a ? `${a.slice(0, 8)}…${a.slice(-6)}` : '—');
 
+/**
+ * A dialog. Drawn by ModalShell (portalled into <body>, sized without viewport units, page scroll locked, header fixed and
+ * the body scrolling inside it); see ModalShell.tsx for why. footer is an optional strip that stays visible under the
+ * scrolling body, for a primary action that must always be reachable.
+ */
 export function Modal({
   title,
   icon,
   onClose,
   children,
   maxWidth = 560,
-  locked = false
+  locked = false,
+  footer
 }: {
   title: string;
   icon?: ReactNode;
@@ -65,40 +74,14 @@ export function Modal({
   maxWidth?: number;
   /** While true (a transaction is in flight) the modal cannot be dismissed by accident. */
   locked?: boolean;
+  footer?: ReactNode;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !locked) onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, locked]);
-
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '1rem', overflowY: 'auto' }}
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-    >
-      <div className="glass-card" style={{ width: '100%', maxWidth, border: '1px solid rgba(255, 51, 68, 0.4)', maxHeight: '95vh', overflowY: 'auto' }}>
-        <div style={{ ...row, alignItems: 'center', marginBottom: '0.75rem' }}>
-          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 800, color: '#fff', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            {icon} {title}
-          </h3>
-          <button
-            onClick={onClose}
-            disabled={locked}
-            aria-label="Close"
-            title={locked ? 'A transaction is in progress' : 'Close'}
-            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.4 : 1 }}
-          >
-            <X size={20} />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
+    <ModalShell label={title} onClose={onClose} locked={locked} maxWidth={maxWidth}>
+      <ModalHeader title={title} icon={icon} onClose={onClose} locked={locked} />
+      <ModalBody>{children}</ModalBody>
+      {footer && <ModalFooter>{footer}</ModalFooter>}
+    </ModalShell>
   );
 }
 

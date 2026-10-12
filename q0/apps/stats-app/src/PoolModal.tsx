@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { X, Droplets, AlertTriangle, ExternalLink } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Droplets, AlertTriangle, ExternalLink } from 'lucide-react';
 import {
   DEXES,
   TOKEN_REGISTRY,
@@ -31,6 +31,7 @@ import {
 } from 'quai-service';
 import { sendWalletTransaction, getQuaiProvider } from './providerUtils';
 import PoolYieldLine from './PoolYieldLine';
+import { ModalBody, ModalFooter, ModalHeader, ModalShell } from './ModalShell';
 
 // Circleswap first: it is our own AMM, so these are the pools we can create and own the whole path of.
 const PRESETS: { label: string; dex: DexId; a: string; b: string }[] = [
@@ -43,6 +44,10 @@ const PRESETS: { label: string; dex: DexId; a: string; b: string }[] = [
   { label: 'BDELTA / WQUAI · Quaiswap', dex: 'QUAISWAP', a: 'BDELTA', b: 'WQUAI' },
   { label: 'BDELTA / WQUAI · Quainance', dex: 'QUAINANCE', a: 'BDELTA', b: 'WQUAI' }
 ];
+
+// The DEX picker offers exactly these. DEXES also holds the Quainance launchpad curves, which are routed through but
+// cannot take a liquidity deposit, so iterating DEXES here would offer a create-pool option that cannot work.
+const POOL_DEXES: DexId[] = ['CIRCLESWAP', 'QUAISWAP', 'QUAINANCE'];
 
 type Mode = 'ADD' | 'REMOVE';
 type Step = 'IDLE' | 'PREPARING' | 'APPROVE_A' | 'APPROVE_B' | 'ADD' | 'APPROVE_LP' | 'REMOVE';
@@ -61,6 +66,7 @@ interface Props {
 }
 
 const box: React.CSSProperties = {
+  minWidth: 0,
   background: 'rgba(0,0,0,0.35)',
   border: '1px solid var(--panel-border)',
   borderRadius: '12px',
@@ -76,6 +82,8 @@ const field: React.CSSProperties = {
   fontSize: '1.1rem'
 };
 const select: React.CSSProperties = {
+  maxWidth: '100%',
+  minWidth: 0,
   background: 'rgba(255,255,255,0.06)',
   border: '1px solid var(--panel-border)',
   borderRadius: '8px',
@@ -84,6 +92,8 @@ const select: React.CSSProperties = {
   fontWeight: 700
 };
 const row: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: '0.5rem' };
+// the right-hand value of a row: wraps (and aligns right) instead of widening the dialog
+const valueCell: React.CSSProperties = { minWidth: 0, textAlign: 'right' };
 const muted: React.CSSProperties = { color: 'var(--text-muted)' };
 const chip: React.CSSProperties = {
   background: 'transparent',
@@ -277,6 +287,13 @@ export default function PoolModal({ walletAddress, rawBalances, pools, lpBalance
   };
 
   const busy = step !== 'IDLE';
+
+  // The form scrolls inside the dialog while its action button stays put, so a status line that appears below the fold
+  // (waiting for the wallet, an error, the confirmed transaction) is brought into view instead of going unseen.
+  const statusRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (busy || error || doneTx) statusRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [busy, step, error, doneTx]);
   const ready =
     !!walletAddress && !sameToken && dexLive && !pairLoading && a !== null && a > 0n && b !== null && b > 0n && !insufficient && !tooSmall;
   const removeReady = !!walletAddress && !sameToken && dexLive && !pairLoading && exists && hasPosition && removeLiq > 0n;
@@ -476,26 +493,14 @@ export default function PoolModal({ walletAddress, rawBalances, pools, lpBalance
   const liveDex = dexLive ? requireDex(dex) : null;
 
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '1rem', overflowY: 'auto' }}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Create pool / add or remove liquidity"
-    >
-      <div className="glass-card" style={{ width: '100%', maxWidth: '480px', border: '1px solid rgba(255, 51, 68, 0.4)', maxHeight: '95vh', overflowY: 'auto' }}>
-        <div style={{ ...row, alignItems: 'center', marginBottom: '0.75rem' }}>
-          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 800, color: '#fff', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <Droplets size={20} style={{ color: 'var(--accent-plasma)' }} /> Liquidity
-          </h3>
-          <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-            <X size={20} />
-          </button>
-        </div>
-
+    <ModalShell label="Create pool / add or remove liquidity" onClose={onClose} maxWidth={480}>
+      <ModalHeader title="Liquidity" icon={<Droplets size={20} style={{ color: 'var(--accent-plasma)' }} />} onClose={onClose} />
+      <ModalBody>
         <div role="tablist" style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem' }}>
           {(['ADD', 'REMOVE'] as const).map(m => (
             <button
               key={m}
+              className="cs-touch"
               role="tab"
               aria-selected={mode === m}
               type="button"
@@ -517,6 +522,7 @@ export default function PoolModal({ walletAddress, rawBalances, pools, lpBalance
               return (
                 <button
                   key={p.label}
+                  className="cs-touch"
                   type="button"
                   onClick={() => applyPreset(p)}
                   disabled={busy || !enabled}
@@ -542,13 +548,14 @@ export default function PoolModal({ walletAddress, rawBalances, pools, lpBalance
                   return (
                     <button
                       key={p.pair}
+                      className="cs-touch"
                       type="button"
                       disabled={busy}
                       onClick={() => applyPosition(p)}
                       style={{ ...select, ...row, fontSize: '0.78rem', cursor: 'pointer', borderColor: selected ? 'var(--accent-plasma)' : 'var(--panel-border)' }}
                     >
-                      <span>{p.tokens[0]} / {p.tokens[1]} · {DEXES[p.dex].label}</span>
-                      <span style={{ fontWeight: 400 }}>{formatUnits(BigInt(lpBalances[p.pair.toLowerCase()]), 18, 6)} {lpName(p.dex)}</span>
+                      <span style={{ minWidth: 0, textAlign: 'left' }}>{p.tokens[0]} / {p.tokens[1]} · {DEXES[p.dex].label}</span>
+                      <span style={{ ...valueCell, fontWeight: 400 }}>{formatUnits(BigInt(lpBalances[p.pair.toLowerCase()]), 18, 6)} {lpName(p.dex)}</span>
                     </button>
                   );
                 })}
@@ -559,8 +566,8 @@ export default function PoolModal({ walletAddress, rawBalances, pools, lpBalance
 
         <div style={{ ...box, marginBottom: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
           <span style={{ fontSize: '0.8rem', ...muted }}>DEX</span>
-          <select value={dex} onChange={e => changeDex(e.target.value as DexId)} disabled={busy} style={select}>
-            {Object.values(DEXES).map(d => (
+          <select value={dex} onChange={e => changeDex(e.target.value as DexId)} disabled={busy} style={{ ...select, flex: '0 1 auto' }}>
+            {POOL_DEXES.map(id => DEXES[id]).map(d => (
               <option key={d.id} value={d.id} disabled={!isDexLive(d.id)}>
                 {d.label}{isDexLive(d.id) ? '' : ' (not deployed yet)'}
               </option>
@@ -597,7 +604,7 @@ export default function PoolModal({ walletAddress, rawBalances, pools, lpBalance
                   <span>
                     Balance: {walletAddress ? short(bal) : '—'}
                     {walletAddress && bal !== undefined && bal > 0n && (
-                      <button type="button" disabled={busy} onClick={() => onAmt(formatUnits(bal, 18, 18))} style={{ ...chip, marginLeft: '0.5rem' }}>
+                      <button type="button" className="cs-chip" disabled={busy} onClick={() => onAmt(formatUnits(bal, 18, 18))} style={{ ...chip, marginLeft: '0.5rem' }}>
                         MAX
                       </button>
                     )}
@@ -660,7 +667,7 @@ export default function PoolModal({ walletAddress, rawBalances, pools, lpBalance
               {poolHasLiquidity && resAB ? (
                 <div style={row}>
                   <span style={muted}>Reserves</span>
-                  <span>{formatUnits(resAB.a, 18, 2)} {symA} / {formatUnits(resAB.b, 18, 2)} {symB}</span>
+                  <span style={valueCell}>{formatUnits(resAB.a, 18, 2)} {symA} / {formatUnits(resAB.b, 18, 2)} {symB}</span>
                 </div>
               ) : (
                 <span style={{ color: 'var(--accent-amber, #f59e0b)' }}>
@@ -676,7 +683,7 @@ export default function PoolModal({ walletAddress, rawBalances, pools, lpBalance
               {walletAddress && position && (
                 <div style={row}>
                   <span style={muted}>Your position</span>
-                  <span>
+                  <span style={valueCell}>
                     {formatUnits(position.balance, 18, 6)} {lp}
                     {position.balance > 0n && ` (${position.sharePct < 0.01 ? '<0.01' : position.sharePct.toFixed(2)}%)`}
                   </span>
@@ -694,13 +701,13 @@ export default function PoolModal({ walletAddress, rawBalances, pools, lpBalance
           {mode === 'ADD' && price !== null && !sameToken && (!exists || !poolHasLiquidity) && (
             <div style={row}>
               <span style={muted}>Initial price</span>
-              <span>1 {symA} = {price.toPrecision(6)} {symB}</span>
+              <span style={valueCell}>1 {symA} = {price.toPrecision(6)} {symB}</span>
             </div>
           )}
           {mode === 'ADD' && lpEstimate !== null && lpEstimate > 0n && (
             <div style={row}>
               <span style={muted}>You receive</span>
-              <span>≈ {formatUnits(lpEstimate, 18, 6)} {lp}</span>
+              <span style={valueCell}>≈ {formatUnits(lpEstimate, 18, 6)} {lp}</span>
             </div>
           )}
           {mode === 'ADD' && poolHasLiquidity && (
@@ -729,14 +736,14 @@ export default function PoolModal({ walletAddress, rawBalances, pools, lpBalance
               />
               <div style={{ display: 'flex', gap: '0.4rem' }}>
                 {[25, 50, 75, 100].map(v => (
-                  <button key={v} type="button" disabled={busy} onClick={() => setPct(v)} style={{ ...chip, flex: 1, padding: '0.2rem 0', borderColor: pct === v ? 'var(--accent-plasma)' : 'var(--panel-border)' }}>
+                  <button key={v} type="button" className="cs-touch" disabled={busy} onClick={() => setPct(v)} style={{ ...chip, flex: 1, padding: '0.2rem 0', borderColor: pct === v ? 'var(--accent-plasma)' : 'var(--panel-border)' }}>
                     {v === 100 ? 'MAX' : `${v}%`}
                   </button>
                 ))}
               </div>
               <div style={row}>
                 <span style={muted}>{lp} to burn</span>
-                <span>{formatUnits(removeLiq, 18, 6)}</span>
+                <span style={valueCell}>{formatUnits(removeLiq, 18, 6)}</span>
               </div>
               <div style={{ ...row, alignItems: 'center' }}>
                 <span style={muted}>Slippage tolerance</span>
@@ -767,6 +774,7 @@ export default function PoolModal({ walletAddress, rawBalances, pools, lpBalance
         {mode === 'ADD' && insufficient && (
           <div style={{ fontSize: '0.8rem', color: 'var(--error)', marginBottom: '0.75rem' }}>Insufficient {insufficient} balance.</div>
         )}
+        <div ref={statusRef}>
         {busy && (
           <div style={{ fontSize: '0.8rem', color: 'var(--accent-neon)', marginBottom: '0.75rem' }}>{stepText[step]}</div>
         )}
@@ -785,7 +793,14 @@ export default function PoolModal({ walletAddress, rawBalances, pools, lpBalance
             </a>
           </div>
         )}
+        </div>
 
+        <div className="dimmed-text" style={{ marginTop: '0.25rem' }}>
+          Nothing is sent until you approve each step in your wallet.
+          {liveDex && <> Router: {liveDex.label} {liveDex.router.slice(0, 8)}…{liveDex.router.slice(-4)}</>}
+        </div>
+      </ModalBody>
+      <ModalFooter>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           {mode === 'ADD' ? (
             <button
@@ -814,12 +829,8 @@ export default function PoolModal({ walletAddress, rawBalances, pools, lpBalance
             {doneTx ? 'Done' : 'Cancel'}
           </button>
         </div>
-        <div className="dimmed-text" style={{ marginTop: '0.75rem' }}>
-          Nothing is sent until you approve each step in your wallet.
-          {liveDex && <> Router: {liveDex.label} {liveDex.router.slice(0, 8)}…{liveDex.router.slice(-4)}</>}
-        </div>
-      </div>
-    </div>
+      </ModalFooter>
+    </ModalShell>
   );
 }
 

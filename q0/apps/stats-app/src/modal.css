@@ -1,0 +1,226 @@
+/* ==========================================================================
+   Dialogs and sheets (ModalShell.tsx).
+
+   RULE: nothing in this file is sized in vh, dvh, svh or lvh. In the wallet in-app browser on a Galaxy S10e those units
+   resolve to ~0 while the fixed overlay is the real full screen, so `max-height: 95vh` clamped the liquidity form to its
+   own padding (a 30px strip) and `height: 88dvh` made the token sheet a 1px line above the wallet's tab bar. Sizes come
+   from the overlay's box instead: percentages of a `position: fixed` element that has all four offsets.
+   test/modalLayout.test.ts fails the build if a viewport unit comes back.
+   ========================================================================== */
+
+/* While a dialog is open the page behind it does not scroll. */
+html.cs-modal-open,
+html.cs-modal-open body {
+  overflow: hidden;
+}
+
+html.cs-modal-open body {
+  padding-right: var(--cs-sbw, 0px);
+}
+
+.cs-backdrop {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  /* --cs-kb is the part of the screen the soft keyboard covers (set from the visual viewport); the dialog stays above it. */
+  padding: 1rem 1rem calc(1rem + var(--cs-kb, 0px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: manipulation;
+  background: rgba(3, 5, 16, 0.86);
+}
+
+/* Blur is a luxury of a pointer-and-keyboard screen. On a phone WebView a full-screen backdrop-filter is where the
+   compositing bugs live (the page blurred, the dialog not drawn), and a solid scrim reads just as well. */
+@media (hover: hover) and (pointer: fine) {
+  .cs-backdrop {
+    background: rgba(3, 5, 16, 0.72);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+}
+
+.cs-modal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--cs-max, 480px);
+  min-width: 0;
+  /* Centred when it fits; `auto` margins collapse to 0 when it does not, so it is never pushed off the top. */
+  margin: auto;
+  /* Bounded by the overlay (a percentage of a fixed box), so the body scrolls inside it. The rem floor is the safety
+     net: if a percentage ever resolves to nothing, the overlay scrolls instead and this is still a readable dialog. */
+  max-height: 100%;
+  min-height: 14rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 51, 68, 0.4);
+  border-radius: 16px;
+  color: var(--text-main);
+  background: #0f1324;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  outline: none;
+  touch-action: manipulation;
+}
+
+.cs-modal-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.5rem 0.5rem 1rem;
+  border-bottom: 1px solid var(--panel-border);
+  background: #0f1324;
+}
+
+.cs-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.cs-modal-title > svg {
+  flex: 0 0 auto;
+}
+
+.cs-modal-header-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.cs-modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.cs-modal-close:hover:not(:disabled) {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.cs-modal-close:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.cs-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 1rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  /* a long address or amount wraps instead of pushing the dialog wider than the screen */
+  overflow-wrap: anywhere;
+}
+
+.cs-modal-footer {
+  flex: 0 0 auto;
+  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--panel-border);
+  background: #0c1020;
+  overflow-wrap: anywhere;
+}
+
+/* ---- touch screens ---- */
+@media (pointer: coarse) {
+  /* A field under 16px makes some mobile browsers zoom the page when it is focused. */
+  .cs-modal input,
+  .cs-modal select,
+  .cs-modal textarea {
+    font-size: max(16px, 1rem) !important;
+  }
+
+  .cs-modal .cs-touch,
+  .cs-modal select {
+    min-height: 44px;
+  }
+
+  .cs-modal .cs-chip {
+    min-width: 44px;
+    min-height: 32px;
+  }
+}
+
+/* ---- short screens ----
+   A phone on its side, or with the keyboard up: give the dialog all the room it can have. Written before the phone rules
+   so the sheet (flush with the screen edges) still wins when a narrow screen is also short. */
+@media (max-height: 520px) {
+  .cs-backdrop {
+    padding: 0.5rem 0.5rem calc(0.5rem + var(--cs-kb, 0px));
+  }
+
+  .cs-modal-header {
+    padding-top: 0.15rem;
+    padding-bottom: 0.15rem;
+  }
+}
+
+/* ---- phones ---- */
+@media (max-width: 560px) {
+  .cs-backdrop {
+    padding: 0.5rem 0.5rem calc(0.5rem + var(--cs-kb, 0px));
+  }
+
+  .cs-modal {
+    border-radius: 14px;
+  }
+
+  .cs-modal-body {
+    padding: 0.85rem;
+  }
+
+  .cs-modal-footer {
+    padding-right: 0.85rem;
+    padding-left: 0.85rem;
+  }
+
+  /* The sheet: flush with the bottom and the sides, 88% of the overlay tall (the rest is the tap-to-close strip). */
+  .cs-backdrop--sheet {
+    padding: 0 0 var(--cs-kb, 0px);
+  }
+
+  .cs-modal--sheet {
+    max-width: none;
+    margin: auto 0 0;
+    height: 88%;
+    max-height: 88%;
+    min-height: 20rem;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 20px 20px 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}

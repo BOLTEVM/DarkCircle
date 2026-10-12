@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useMemo, useState } from 'react';
 import { Check, ChevronDown, Plus, RefreshCw, Search } from 'lucide-react';
 import { formatUnits, shortAddress, splitDisplayName, type TokenInfo } from 'quai-service';
 import TokenBubble, { TokenAvatar, type TokenBubbleMetadata } from './TokenBubble';
 import { isCyprus1ContractAddress } from './customTokens';
+import { ModalShell } from './ModalShell';
 
 interface Props {
   value: string;
@@ -23,6 +23,13 @@ interface Props {
 }
 
 const QUICK_PICKS = ['QUAI', 'WQUAI', 'Q0', 'BDELTA'];
+
+// Rows drawn at once. Search narrows the list, so a cap keeps a long registry cheap to scroll without hiding anything.
+const MAX_ROWS = 400;
+
+// `discovered` is set on tokens found in a live pool rather than curated; their symbol and name are whatever the
+// contract says, so the row says so too. Read defensively: the field is added by the registry, not by this file.
+const isUnverified = (token: TokenInfo) => Boolean((token as TokenInfo & { discovered?: boolean }).discovered);
 
 export function formatUsd(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return '';
@@ -57,8 +64,6 @@ export default function TokenPicker({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const searchRef = useRef<HTMLInputElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
   const selected = tokens.find(token => token.symbol === value);
 
   const rows = useMemo<Row[]>(() => {
@@ -74,20 +79,19 @@ export default function TokenPicker({
     });
   }, [tokens, metadata, balanceOf, decimalsOf, importedAddresses]);
 
-  const filtered = useMemo(() => {
+  const matches = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const matches = rows.filter(row => {
+    return rows.filter(row => {
       if (!needle) return true;
       const name = row.live?.name ?? row.token.name;
       return (row.live?.symbol ?? row.token.symbol).toLowerCase().includes(needle)
         || name.toLowerCase().includes(needle)
         || row.token.address.toLowerCase().includes(needle);
     });
-    return matches.slice(0, 120);
   }, [rows, query]);
 
   const held = useMemo(
-    () => filtered
+    () => matches
       .filter(row => (row.balance ?? 0n) > 0n)
       .sort((a, b) => {
         const au = a.usd ?? -1;
@@ -97,11 +101,15 @@ export default function TokenPicker({
         const bb = b.balance ?? 0n;
         return ab === bb ? 0 : bb > ab ? 1 : -1;
       }),
-    [filtered]
+    [matches]
   );
   const heldSymbols = new Set(held.map(row => row.token.symbol));
-  const others = filtered.filter(row => !heldSymbols.has(row.token.symbol));
+  const others = matches.filter(row => !heldSymbols.has(row.token.symbol));
   const showSections = !query.trim() && held.length > 0;
+  // Only the part below the held tokens is capped, so what you hold is never the thing that gets cut.
+  const listed = showSections ? others : matches;
+  const shown = listed.slice(0, MAX_ROWS);
+  const hiddenRows = listed.length - shown.length;
 
   const typedAddress = query.trim();
   const canImportTyped = isCyprus1ContractAddress(typedAddress)
@@ -110,21 +118,10 @@ export default function TokenPicker({
   const readable = tokens.filter(token => token.deployed !== false && !token.isNative).length;
   const liveCount = tokens.filter(token => !token.isNative && metadata?.[token.address.toLowerCase()]).length;
 
+  // A fresh search every time the list opens. (Focus is the shell's job: the search box on a mouse-and-keyboard screen,
+  // the dialog itself on a phone, where focusing a field would raise the keyboard over the list before it was seen.)
   useEffect(() => {
-    if (!open) {
-      setQuery('');
-      return;
-    }
-    // Only a mouse-and-keyboard device gets the search box focused for it. Focusing a field on a phone raises the soft
-    // keyboard at once, which covers the lower half of the sheet (the token list) before anyone has seen it; there the
-    // dialog itself takes focus, which raises nothing, and a tap on the search box brings the keyboard up on demand.
-    const typesAtOnce = typeof window.matchMedia === 'function'
-      && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-    const timer = setTimeout(() => {
-      if (typesAtOnce) searchRef.current?.focus();
-      else panelRef.current?.focus({ preventScroll: true });
-    }, 0);
-    return () => clearTimeout(timer);
+    if (!open) setQuery('');
   }, [open]);
 
   const choose = (symbol: string) => {
@@ -155,6 +152,7 @@ export default function TokenPicker({
         <span className="token-picker-option-copy">
           <span className="token-picker-option-line">
             <strong>{symbol}</strong>
+            {isUnverified(token) && <em className="token-chip token-chip-warn" title="Found in a pool, not on the curated list. Check the contract address.">Unverified</em>}
             {row.imported && <em className="token-chip token-chip-warn">Imported</em>}
             {tag && <em className="token-chip">{tag}</em>}
           </span>
@@ -189,93 +187,85 @@ export default function TokenPicker({
         <ChevronDown size={17} />
       </button>
 
-      {/* Rendered into <body>, not in place. The swap card is a `backdrop-filter` + `overflow: hidden` box, and that makes it
-          the containing block for `position: fixed` children: in place, this "full-screen" overlay was only as large as the
-          card, centred in the card (not the screen), clipped by it, and painted under the sticky nav. */}
-      {open && createPortal(
-        <div className="token-picker-backdrop" onMouseDown={() => setOpen(false)}>
-          <div
-            ref={panelRef}
-            tabIndex={-1}
-            className="token-picker-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Select a token"
-            onMouseDown={event => event.stopPropagation()}
-            onKeyDown={event => { if (event.key === 'Escape') setOpen(false); }}
-          >
-            <div className="token-picker-modal-header">
-              <strong>Select a token</strong>
-              <span className="token-picker-header-actions">
-                {onRefresh && (
-                  <button type="button" className="token-picker-icon-btn" onClick={onRefresh} disabled={refreshing} aria-label="Refresh token data" title="Refresh token data">
-                    <RefreshCw size={14} className={refreshing ? 'spin' : ''} />
-                  </button>
-                )}
-                <button type="button" className="token-picker-close" onClick={() => setOpen(false)} aria-label="Close token selector">×</button>
-              </span>
-            </div>
-            <div className="token-picker-search">
-              <Search size={16} />
-              <input
-                ref={searchRef}
-                value={query}
-                onChange={event => setQuery(event.target.value)}
-                onKeyDown={event => { if (event.key === 'Enter' && filtered[0]) choose(filtered[0].token.symbol); }}
-                placeholder="Search name or paste address"
-                spellCheck={false}
-                autoComplete="off"
-              />
-            </div>
-
-            {!query.trim() && quick.length > 0 && (
-              <div className="token-picker-quick" role="group" aria-label="Common tokens">
-                {quick.map(token => (
-                  <button
-                    key={token.symbol}
-                    type="button"
-                    className={`token-quick ${token.symbol === value ? 'selected' : ''}`}
-                    onClick={() => choose(token.symbol)}
-                  >
-                    <TokenAvatar symbol={metadata?.[token.address.toLowerCase()]?.symbol ?? token.symbol} iconUrl={metadata?.[token.address.toLowerCase()]?.iconUrl || token.iconUrl} size="sm" />
-                    {token.symbol}
-                  </button>
-                ))}
-              </div>
+      {/* A bottom sheet on a phone, a centred dialog elsewhere. ModalShell portals it into <body> (the swap card is a
+          backdrop-filter box, which would otherwise be the containing block of a fixed overlay), sizes it without viewport
+          units (they resolve to ~0 in some wallet browsers), locks the page behind it and handles Escape and focus. */}
+      {open && (
+        <ModalShell label="Select a token" variant="sheet" maxWidth={440} className="token-picker-modal" onClose={() => setOpen(false)}>
+        <div className="token-picker-modal-header">
+          <strong>Select a token</strong>
+          <span className="token-picker-header-actions">
+            {onRefresh && (
+              <button type="button" className="token-picker-icon-btn" onClick={onRefresh} disabled={refreshing} aria-label="Refresh token data" title="Refresh token data">
+                <RefreshCw size={14} className={refreshing ? 'spin' : ''} />
+              </button>
             )}
+            <button type="button" className="token-picker-close" onClick={() => setOpen(false)} aria-label="Close token selector">×</button>
+          </span>
+        </div>
+        <div className="token-picker-search">
+          <Search size={16} />
+          <input
+            data-autofocus
+            value={query}
+            onChange={event => setQuery(event.target.value)}
+            onKeyDown={event => { if (event.key === 'Enter' && matches[0]) choose(matches[0].token.symbol); }}
+            placeholder="Search name or paste address"
+            spellCheck={false}
+            autoComplete="off"
+            autoCapitalize="off"
+            autoCorrect="off"
+            enterKeyHint="search"
+          />
+        </div>
 
-            {metadataStatus === 'loading' && <div className="token-picker-metadata-status">Reading token metadata…</div>}
-            {metadataStatus === 'partial' && (
-              <div className="token-picker-metadata-status warn">
-                Live data for {liveCount} of {readable} tokens; the rest show registry values.
-              </div>
-            )}
-            {metadataStatus === 'failed' && <div className="token-picker-metadata-status warn">Live token data is unavailable; registry values are shown.</div>}
-
-            <div className="token-picker-list">
-              {showSections && <div className="token-picker-section">Your tokens</div>}
-              {(showSections ? held : []).map(renderRow)}
-              {showSections && others.length > 0 && <div className="token-picker-section">All tokens</div>}
-              {(showSections ? others : filtered).map(renderRow)}
-              {filtered.length === 0 && !canImportTyped && <div className="token-picker-empty">No token matches this search.</div>}
-              {canImportTyped && (
-                <button type="button" className="token-picker-option token-picker-import-address" onClick={() => { setOpen(false); onImport(typedAddress); }}>
-                  <span className="token-avatar token-avatar-lg token-avatar-unknown">?</span>
-                  <span className="token-picker-option-copy">
-                    <span className="token-picker-option-line"><strong>Import this token</strong></span>
-                    <small>{shortAddress(typedAddress.toLowerCase(), 8, 6)} · not in the list</small>
-                  </span>
-                  <Plus size={15} />
-                </button>
-              )}
-            </div>
-            <button type="button" className="token-picker-import" onClick={() => { setOpen(false); onImport(); }}>
-              <Plus size={16} /> Import a token
-            </button>
-            <p className="token-picker-warning">Anyone can create a token. Verify the contract address before trading.</p>
+        {!query.trim() && quick.length > 0 && (
+          <div className="token-picker-quick" role="group" aria-label="Common tokens">
+            {quick.map(token => (
+              <button
+                key={token.symbol}
+                type="button"
+                className={`token-quick ${token.symbol === value ? 'selected' : ''}`}
+                onClick={() => choose(token.symbol)}
+              >
+                <TokenAvatar symbol={metadata?.[token.address.toLowerCase()]?.symbol ?? token.symbol} iconUrl={metadata?.[token.address.toLowerCase()]?.iconUrl || token.iconUrl} size="sm" />
+                {token.symbol}
+              </button>
+            ))}
           </div>
-        </div>,
-        document.body
+        )}
+
+        {metadataStatus === 'loading' && <div className="token-picker-metadata-status">Reading token metadata…</div>}
+        {metadataStatus === 'partial' && (
+          <div className="token-picker-metadata-status warn">
+            Live data for {liveCount} of {readable} tokens; the rest show registry values.
+          </div>
+        )}
+        {metadataStatus === 'failed' && <div className="token-picker-metadata-status warn">Live token data is unavailable; registry values are shown.</div>}
+
+        <div className="token-picker-list">
+          {showSections && <div className="token-picker-section">Your tokens</div>}
+          {(showSections ? held : []).map(renderRow)}
+          {showSections && shown.length > 0 && <div className="token-picker-section">All tokens</div>}
+          {shown.map(renderRow)}
+          {hiddenRows > 0 && <div className="token-picker-empty">Showing the first {MAX_ROWS} tokens. Search to find another.</div>}
+          {matches.length === 0 && !canImportTyped && <div className="token-picker-empty">No token matches this search.</div>}
+          {canImportTyped && (
+            <button type="button" className="token-picker-option token-picker-import-address" onClick={() => { setOpen(false); onImport(typedAddress); }}>
+              <span className="token-avatar token-avatar-lg token-avatar-unknown">?</span>
+              <span className="token-picker-option-copy">
+                <span className="token-picker-option-line"><strong>Import this token</strong></span>
+                <small>{shortAddress(typedAddress.toLowerCase(), 8, 6)} · not in the list</small>
+              </span>
+              <Plus size={15} />
+            </button>
+          )}
+        </div>
+        <button type="button" className="token-picker-import" onClick={() => { setOpen(false); onImport(); }}>
+          <Plus size={16} /> Import a token
+        </button>
+        <p className="token-picker-warning">Anyone can create a token. Verify the contract address before trading.</p>
+        </ModalShell>
       )}
     </>
   );
