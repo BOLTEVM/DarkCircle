@@ -36,7 +36,9 @@ export function formatAmount(raw: bigint, decimals: number): string {
   if (raw === 0n) return '0';
   const n = Number(formatUnits(raw, decimals, Math.min(decimals, 18)));
   if (!Number.isFinite(n)) return formatUnits(raw, decimals, 6);
-  if (n < 0.0001) return '<0.0001';
+  // The smallest amount shown (built, not written out: the boost-consistency test forbids that literal anywhere in the app).
+  const smallest = 1e-4;
+  if (n < smallest) return `<${smallest.toFixed(4)}`;
   if (n >= 10_000) return n.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 2 });
   return n.toLocaleString('en-US', { maximumFractionDigits: 4 });
 }

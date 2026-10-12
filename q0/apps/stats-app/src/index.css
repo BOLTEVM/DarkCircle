@@ -1399,12 +1399,65 @@ tr:hover td {
 
 /* Portfolio Asset Bar */
 .portfolio-ticker {
+  overflow: hidden;
+  padding: 0.75rem 0 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.portfolio-track {
+  display: flex;
+  width: max-content;
+}
+
+.portfolio-group {
   display: flex;
   gap: 0.75rem;
-  overflow-x: auto;
-  padding: 0.75rem 0.5rem 1.25rem 0.5rem;
-  margin-bottom: 1.5rem;
-  scrollbar-width: thin;
+  padding-right: 0.75rem; /* the gap after the last chip, so the two copies line up exactly at -50% */
+}
+
+/* A long list scrolls by itself, with soft edges, and holds still under the pointer or keyboard focus so a balance can be read. */
+.portfolio-ticker.is-looping {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 3%, #000 97%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 3%, #000 97%, transparent 100%);
+}
+
+.portfolio-ticker.is-looping .portfolio-track {
+  animation: portfolio-scroll var(--portfolio-duration, 60s) linear infinite;
+  will-change: transform;
+}
+
+.portfolio-ticker.is-looping:hover .portfolio-track,
+.portfolio-ticker.is-looping:focus-within .portfolio-track,
+.portfolio-ticker.is-looping:focus .portfolio-track {
+  animation-play-state: paused;
+}
+
+@keyframes portfolio-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* Reduced motion: no animation. The strip becomes a plain swipeable row with no visible scrollbar. */
+@media (prefers-reduced-motion: reduce) {
+  .portfolio-ticker.is-looping {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .portfolio-ticker.is-looping::-webkit-scrollbar {
+    display: none;
+  }
+
+  .portfolio-ticker.is-looping .portfolio-track {
+    animation: none;
+  }
+
+  .portfolio-ticker.is-looping .portfolio-group[aria-hidden="true"] {
+    display: none;
+  }
 }
 
 .portfolio-chip {
@@ -1568,6 +1621,381 @@ tr:hover td {
 .farm-actions {
   display: flex;
   gap: 0.5rem;
+}
+
+/* ==========================================================================
+   Farms & Pools page (FarmsPage / FarmActionModal / FarmAdminPanel)
+   ========================================================================== */
+
+.farms-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.farms-page .spin {
+  animation: spin 1s linear infinite;
+}
+
+.farm-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  background: linear-gradient(135deg, rgba(255, 51, 68, 0.1) 0%, rgba(18, 22, 41, 0.8) 100%);
+  border-color: rgba(255, 51, 68, 0.2);
+}
+
+.farm-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 0.3rem;
+}
+
+.farm-title svg {
+  color: var(--accent-plasma);
+}
+
+.farm-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.farm-boost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(255, 215, 0, 0.1);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  color: var(--accent-gold);
+  padding: 0.45rem 0.9rem;
+  border-radius: 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.farm-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+}
+
+.farm-stat {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
+  min-width: 0;
+}
+
+.farm-stat-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  display: block;
+}
+
+.farm-stat-value {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #fff;
+  margin-top: 0.15rem;
+  overflow-wrap: anywhere;
+}
+
+.farm-stat-hint {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-top: 0.1rem;
+}
+
+.farm-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.farm-tabs {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.farm-tabs .pool-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: auto;
+}
+
+.farm-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.farm-search {
+  position: relative;
+  display: block;
+  min-width: 220px;
+}
+
+.farm-search > svg {
+  position: absolute;
+  left: 0.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* ---- pool list ----------------------------------------------------------------------------------------------- */
+
+.farm-table {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.farm-head,
+.farm-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.7fr) minmax(90px, 0.8fr) minmax(100px, 1fr) minmax(100px, 1fr) minmax(110px, 1fr) minmax(120px, 1.1fr) minmax(170px, auto);
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.85rem 1.1rem;
+}
+
+.farm-head {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--panel-border);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.farm-row + .farm-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.farm-row:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.farm-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  font-size: 0.9rem;
+}
+
+.farm-cell strong {
+  color: #fff;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.farm-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.farm-pool {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.farm-pool > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.farm-avatars {
+  display: inline-flex;
+  flex: none;
+}
+
+.farm-avatars .token-avatar + .token-avatar {
+  margin-left: -0.5rem;
+  box-shadow: -2px 0 0 var(--bg-color);
+}
+
+.farm-actions-cell {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+@media (max-width: 960px) {
+  .farm-head {
+    display: none;
+  }
+
+  .farm-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.9rem 1rem;
+    padding: 1rem;
+  }
+
+  .farm-pool,
+  .farm-actions-cell {
+    grid-column: 1 / -1;
+  }
+
+  .farm-actions-cell {
+    justify-content: flex-start;
+  }
+
+  .farm-cell[data-label]:not(.farm-pool)::before {
+    content: attr(data-label);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+}
+
+/* ---- details ------------------------------------------------------------------------------------------------- */
+
+.farm-details {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  padding: 0.8rem 1rem;
+  font-size: 0.85rem;
+}
+
+.farm-details > summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.farm-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.75rem 1.25rem;
+  margin: 0.8rem 0;
+}
+
+.farm-details-grid .farm-stat-label {
+  margin-bottom: 0.1rem;
+}
+
+.farm-safety {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+/* ---- admin --------------------------------------------------------------------------------------------------- */
+
+.farm-admin {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.farm-admin-section {
+  padding: 1.1rem 1.25rem;
+}
+
+.farm-admin-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 0.5rem;
+}
+
+.farm-admin-title svg {
+  color: var(--accent-neon);
+}
+
+.farm-admin-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.85rem;
+}
+
+.farm-admin-table .farm-admin-row {
+  grid-template-columns: 2.5rem 1fr auto;
+}
+
+.farm-admin-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+@media (max-width: 560px) {
+  .farm-admin-two {
+    grid-template-columns: 1fr;
+  }
+}
+
+.farm-candidate {
+  border: 1px solid var(--panel-border);
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 12px;
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+.farm-candidate-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+.farm-candidate-body {
+  margin-top: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.farm-fund {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.7rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 /* ==========================================================================

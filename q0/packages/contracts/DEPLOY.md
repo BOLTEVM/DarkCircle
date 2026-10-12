@@ -87,6 +87,52 @@ removes the progress file. Rebuild `quai-service` and the app to pick the addres
   rates (capped) and pause deposits and harvests; it can never touch depositors' stake, and withdrawals and
   `emergencyWithdraw` work while paused. Consider a multisig as the farm owner.
 
+### Verifying what is on chain (read-only, no key)
+
+```bash
+pnpm --filter contracts inspect:farm                    # farm, Qrb and the NFT: code hash vs the compile, wiring, owner, pools, emission, reward balance and runway
+pnpm --filter contracts governance -- status            # the AMM: owner, timelock delay, implementations, pool beacon, every pool
+pnpm --filter contracts verify:bundle -- --from-chain   # source-verification bundle for all ten contracts (deployments/verification/cyprus1/)
+```
+
+`inspect:farm` exits 2 when a code or wiring check fails (do not point users at that farm). `verify:bundle --from-chain` is
+for a deployment that has no `deployments/<network>.amm.json` (this one was deployed from the browser): every address is read
+from the chain (EIP-1967 slots, the factory's owner and beacon), the creation transaction of each contract comes from the
+explorer and is confirmed on the node (its receipt must name the same contract), and the constructor arguments are cut out of
+that transaction's input. It prints PASS or FAIL per contract and writes the standard-JSON input, `manifest.json` and a README
+to upload to the explorer yourself. Two things that make a naive verification fail on Quai are in that README: the last 4 bytes
+of a creation transaction's input are the address-grinding salt, not a constructor argument, and `quai_getCode` /
+`quai_getStorageAt` accept only a checksummed address.
+
+The farm contract is **not upgradeable** (a plain constructor contract: no proxy, the reward tokens and the boost source are
+immutable) but it is **expandable**: the owner can add pools, change reward weights, change emission and pause. There is no
+function to remove a pool or to take reward tokens back out, so fund it with what you intend farmers to earn.
+
+### Farms & Pools page and the admin dashboard
+
+The page reads the farm from the chain on every load (pools, shares, emission, reward balance, your stake): it does not use
+`FARM_REGISTRY` to pick pool ids, because that list is a snapshot and the farm's own pool list is the only truth. The **Admin**
+tab is visible to everyone and read-only unless the connected wallet is the farm owner; the contract, not the page, decides who
+may change the farm. It shows a live integrity check (code hash against the compile, in the browser), then:
+
+- **Add pools**: every pair the Circleswap factory lists that is not farming yet, with liquidity and the same risk flags as the
+  Pairs page. Tick the ones to add, set a reward weight, sign once per pool. Duplicates are refused (the contract would accept
+  them), allocations and pool count are checked against the contract's limits, and each add re-reads the farm first.
+- **Reward weights**, **Emission** (tokens per day, with a runway check that counts the boost), **Fund rewards**, **Pause**, and
+  a two-step **Transfer ownership**. Every action also shows its raw transaction, for a multisig or the timelock to submit.
+
+**The Deploy tab is for the administrator only.** It does not appear for the public in any build, production or development:
+it is offered when the connected wallet is the farm's on-chain owner (read from the contract, so it follows an ownership
+transfer) or is listed in `VITE_ADMIN_ADDRESSES` (comma-separated Cyprus-1 addresses, fixed at build time; use it for a
+multisig signer or a second operator). Direct links to `#deploy` fall back to Swap for everyone else. The one exception is a
+development build on your own machine against a network where nothing is deployed yet, because no owner exists to check at that
+point. This controls what the page shows; it is not access control. The tools hold only public bytecode and every action needs
+the connected wallet's signature, which the contracts themselves check.
+
+Nothing signs in the page: each action is a normal wallet confirmation, and a call that fails in simulation is never sent (on
+Quai a revert burns the whole gas limit). There is deliberately no unattended "auto-add" bot: adding a pool decides where
+rewards flow, which is a decision for the owner, and a key held by a script would be a single point of failure.
+
 ## Circleswap AMM (timelock + factory + router)
 
 Circleswap has its own automated market maker, so pools no longer have to live on Quaiswap or Quainance. It is a
@@ -300,13 +346,16 @@ for `elliptic`, `secp256k1`, `ws`): **0 critical**, 13 high. What is left:
 ## Tests
 
 ```bash
-pnpm --filter contracts test        # 501: Qrb/NFT/farm, audit regressions, boost consistency, the AMM (pools, router, factory,
+pnpm --filter contracts test        # 527: Qrb/NFT/farm, the farm client against the real farm, from-chain verification, audit regressions, boost consistency, the AMM (pools, router, factory,
                                     #      properties, LP-in-farm, client parity), governance and upgrades, the real browser
                                     #      deployment flow and the integrity inspector on a real EVM, the CLI deployment
 pnpm --filter contracts test:forge  # 43: Foundry fuzz and invariant suites (HARDENING.md)
 pnpm --filter contracts slither     # 0 results
 pnpm --filter contracts check:layout
-bun test tests/                     # from q0/ (122 in 5 files): routing, Circleswap discovery and maths, pairs, the browser deploy
-                                    #      runner on a simulated chain, swap. One known failure predates this work:
-                                    #      swapModule "Executes Quaiswap LP swap via provider" (a mock wallet that does not answer quai_sendTransaction)
+bun test tests/                     # from q0/ (130 in 5 files): routing, Circleswap discovery and maths, pairs, the browser deploy
+                                    #      runner on a simulated chain, swap. Five failures predate this work and are stale, not bugs:
+                                    #      four assert the "before deployment" state (deployed.ts all null, Circleswap not live) and
+                                    #      deployed.ts now holds the real addresses; one is swapModule "Executes Quaiswap LP swap via
+                                    #      provider" (a mock wallet that does not answer quai_sendTransaction)
+node --test q0/packages/quai-service/test/*.test.ts q0/apps/stats-app/test/*.test.ts   # token metadata (32), farm view model (13), admin access (10)
 ```

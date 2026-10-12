@@ -1,0 +1,233 @@
+import { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2 } from 'lucide-react';
+import {
+  erc20Tx,
+  farmTx,
+  formatUnits,
+  getAllowance,
+  tryParseUnits,
+  type FarmRow,
+  type FarmState
+} from 'quai-service';
+import { AddrLink, Field, Modal, Notice, Spinner, input, muted, smallBtn } from './ui';
+import { describeTxError, sendContractCall } from './farmSend';
+
+export interface RewardLabels {
+  a: { symbol: string; decimals: number };
+  b: { symbol: string; decimals: number };
+}
+
+interface Props {
+  mode: 'stake' | 'unstake';
+  row: FarmRow;
+  farm: FarmState;
+  wallet: string;
+  rewards: RewardLabels;
+  onClose: () => void;
+  /** Called after a transaction confirmed, so the page re-reads the farm. */
+  onDone: () => void;
+  onGetLp?: () => void;
+}
+
+type Step = 'IDLE' | 'APPROVING' | 'SENDING' | 'DONE';
+
+export default function FarmActionModal({ mode, row, farm, wallet, rewards, onClose, onDone, onGetLp }: Props) {
+  const stake = mode === 'stake';
+  const position = row.position;
+  const decimals = row.stakeDecimals;
+  const max = stake ? position?.walletBalance ?? 0n : position?.staked ?? 0n;
+  const symbol = row.kind === 'LP' ? `${row.label} LP` : row.label;
+
+  const [text, setText] = useState('');
+  const [step, setStep] = useState<Step>('IDLE');
+  const [error, setError] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [feeNote, setFeeNote] = useState<string | null>(null);
+  const [emergency, setEmergency] = useState(false);
+  const [emergencyAck, setEmergencyAck] = useState(false);
+
+  const amount = useMemo(() => tryParseUnits(text, decimals), [text, decimals]);
+  const busy = step === 'APPROVING' || step === 'SENDING';
+  const tooMuch = amount !== null && amount > max;
+  const valid = amount !== null && amount > 0n && !tooMuch;
+  const paused = farm.paused;
+
+  // Dust: an input with more places than the token has is refused rather than silently rounded.
+  const placesError = text.trim() !== '' && amount === null ? `Enter a number with at most ${decimals} decimal places.` : null;
+
+  useEffect(() => {
+    setError(null);
+  }, [text, emergency]);
+
+  const unfunded = farm.inventoryA.available === 0n || farm.inventoryB.available === 0n;
+
+  const run = async () => {
+    if (!valid || amount === null) return;
+    setError(null);
+    setTxHash(null);
+    try {
+      if (stake) {
+        // Read the allowance at signing time, not from the page's last refresh: it may have changed.
+        const allowance = await getAllowance(row.lpToken, wallet, farm.address);
+        if (allowance < amount) {
+          setStep('APPROVING');
+          await sendContractCall(wallet, row.lpToken, erc20Tx.approve(farm.address, amount), { gasMultiplier: 1.5 });
+        }
+      }
+      setStep('SENDING');
+      const data = stake ? farmTx.deposit(row.pid, amount) : farmTx.withdraw(row.pid, amount);
+      const res = await sendContractCall(wallet, farm.address, data, {
+        gasMultiplier: 1.5,
+        onPrepared: p => setFeeNote(`Network fee up to ${formatUnits(p.maxFee, 18, 4)} QUAI (unused gas is refunded).`),
+        onSubmitted: setTxHash
+      });
+      setTxHash(res.txHash);
+      setStep('DONE');
+      setText('');
+      onDone();
+    } catch (e: any) {
+      setError(describeTxError(e));
+      setStep('IDLE');
+    }
+  };
+
+  const runEmergency = async () => {
+    setError(null);
+    try {
+      setStep('SENDING');
+      const res = await sendContractCall(wallet, farm.address, farmTx.emergencyWithdraw(row.pid), {
+        gasMultiplier: 1.5,
+        onSubmitted: setTxHash
+      });
+      setTxHash(res.txHash);
+      setStep('DONE');
+      onDone();
+    } catch (e: any) {
+      setError(describeTxError(e));
+      setStep('IDLE');
+    }
+  };
+
+  const pendingA = position?.pendingA ?? 0n;
+  const pendingB = position?.pendingB ?? 0n;
+  const hasPending = pendingA > 0n || pendingB > 0n;
+
+  return (
+    <Modal
+      title={`${stake ? 'Stake' : 'Unstake'} ${symbol}`}
+      icon={stake ? <ArrowDownToLine size={18} style={{ color: 'var(--accent-neon)' }} /> : <ArrowUpFromLine size={18} style={{ color: 'var(--accent-plasma)' }} />}
+      onClose={onClose}
+      maxWidth={480}
+      locked={busy}
+    >
+      {stake && paused && (
+        <Notice tone="warn">
+          <AlertTriangle size={14} style={{ verticalAlign: 'middle', marginRight: '0.35rem' }} />
+          Deposits are paused by the farm owner. You can still unstake.
+        </Notice>
+      )}
+
+      <Field
+        label={stake ? 'Amount to stake' : 'Amount to unstake'}
+        hint={
+          <>
+            {stake ? 'In your wallet' : 'Staked'}: <strong>{formatUnits(max, decimals, 6)}</strong> {symbol}
+            {stake && max === 0n && onGetLp && row.kind === 'LP' && (
+              <>
+                {' '}
+                &middot;{' '}
+                <button type="button" style={{ ...smallBtn, padding: '0.1rem 0.45rem' }} onClick={onGetLp}>
+                  Get LP tokens
+                </button>
+              </>
+            )}
+          </>
+        }
+      >
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <input
+            style={{ ...input, flex: 1, fontFamily: 'monospace' }}
+            inputMode="decimal"
+            placeholder="0.0"
+            value={text}
+            disabled={busy}
+            onChange={e => setText(e.target.value)}
+            aria-label="Amount"
+          />
+          <button type="button" style={smallBtn} disabled={busy || max === 0n} onClick={() => setText(formatUnits(max, decimals, decimals))}>
+            MAX
+          </button>
+        </div>
+      </Field>
+      {placesError && <Notice tone="danger">{placesError}</Notice>}
+      {tooMuch && <Notice tone="danger">That is more than you {stake ? 'hold' : 'have staked'}.</Notice>}
+
+      {stake ? (
+        <Notice tone="info">
+          Staking also pays out any rewards you have already earned in this pool.
+          {row.aprMax !== undefined && <> Holding Qrb raises your rewards by up to {Number(farm.boostBps) / 100}%.</>}
+        </Notice>
+      ) : (
+        <Notice tone="info">
+          Unstaking also pays your earned rewards{hasPending ? <>: {formatUnits(pendingA, rewards.a.decimals, 4)} {rewards.a.symbol} + {formatUnits(pendingB, rewards.b.decimals, 4)} {rewards.b.symbol}</> : ''}. It works even while deposits are paused.
+        </Notice>
+      )}
+
+      {unfunded && (
+        <Notice tone="warn">
+          The farm's reward inventory is {farm.inventoryA.available === 0n && farm.inventoryB.available === 0n ? 'empty' : 'empty for one reward token'}. Rewards keep accruing and stay owed to you, but can only be paid once the owner funds the farm. Your staked tokens are never used to pay rewards.
+        </Notice>
+      )}
+
+      {error && <Notice tone="danger"><AlertTriangle size={14} style={{ verticalAlign: 'middle', marginRight: '0.35rem' }} />{error}</Notice>}
+      {feeNote && step === 'SENDING' && <p style={{ ...muted, fontSize: '0.75rem', marginBottom: '0.6rem' }}>{feeNote}</p>}
+      {step === 'DONE' && txHash && (
+        <Notice tone="ok">
+          <CheckCircle2 size={14} style={{ verticalAlign: 'middle', marginRight: '0.35rem' }} />
+          Confirmed on Cyprus-1: <AddrLink address={txHash} tx />
+        </Notice>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+        <button type="button" style={smallBtn} onClick={onClose} disabled={busy}>
+          {step === 'DONE' ? 'Close' : 'Cancel'}
+        </button>
+        <button type="button" className="btn-primary" disabled={!valid || busy || (stake && paused)} onClick={() => void run()}>
+          {step === 'APPROVING' ? (
+            <>
+              <Spinner /> Approve in wallet…
+            </>
+          ) : step === 'SENDING' ? (
+            <>
+              <Spinner /> {stake ? 'Staking…' : 'Unstaking…'}
+            </>
+          ) : stake ? (
+            'Stake'
+          ) : (
+            'Unstake'
+          )}
+        </button>
+      </div>
+
+      {!stake && (position?.staked ?? 0n) > 0n && (
+        <details style={{ marginTop: '1rem' }} open={emergency} onToggle={e => setEmergency((e.target as HTMLDetailsElement).open)}>
+          <summary style={{ cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Emergency exit</summary>
+          <div style={{ marginTop: '0.6rem' }}>
+            <Notice tone="danger">
+              Withdraws your <strong>whole</strong> stake immediately and gives up <strong>all</strong> rewards in this pool, including
+              {hasPending ? <> the {formatUnits(pendingA, rewards.a.decimals, 4)} {rewards.a.symbol} and {formatUnits(pendingB, rewards.b.decimals, 4)} {rewards.b.symbol} you have earned and</> : ''} anything owed from an earlier shortfall.
+              Use it only if a normal unstake fails.
+            </Notice>
+            <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.8rem', marginBottom: '0.6rem' }}>
+              <input type="checkbox" checked={emergencyAck} onChange={e => setEmergencyAck(e.target.checked)} disabled={busy} />
+              I understand I forfeit my rewards.
+            </label>
+            <button type="button" className="btn-primary" style={{ background: 'var(--error)' }} disabled={!emergencyAck || busy} onClick={() => void runEmergency()}>
+              Emergency withdraw
+            </button>
+          </div>
+        </details>
+      )}
+    </Modal>
+  );
+}

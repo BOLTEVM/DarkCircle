@@ -12,9 +12,6 @@ import {
   Award,
   Sparkles,
   Shield,
-  Zap,
-  Gift,
-  Droplets,
   Layers,
   Rocket
 } from 'lucide-react';
@@ -23,8 +20,6 @@ import {
   DEXES,
   REGISTERED_TOKENS,
   TOKEN_REGISTRY,
-  FARM_REGISTRY,
-  MASTERCHEF_ADDRESS,
   DEPLOYED,
   QRB_BOOST_THRESHOLD_WEI,
   formatBoostPct,
@@ -77,6 +72,9 @@ import TokenBubble, { type TokenBubbleMetadata } from './TokenBubble';
 import { formatUsd } from './TokenPicker';
 import { toBubbleMetadata, useTokenProfiles } from './useTokenProfiles';
 import ImportTokenModal from './ImportTokenModal';
+import FarmsPage from './FarmsPage';
+import { useAdministrator } from './useAdministrator';
+import { deployTabVisible } from './adminAccess';
 import TokenAnalyticsPage from './TokenAnalyticsPage';
 import { readImportedTokens, writeImportedTokens } from './customTokens';
 
@@ -99,9 +97,18 @@ const isLocalhost = typeof window !== 'undefined' && (
   import.meta.env.DEV
 );
 
-const getTabFromHash = (): 'SWAP' | 'FARMS' | 'QRB' | 'ANALYTICS' | 'PAIRS' | 'DEPLOY' => {
+// The Deploy tab is for the administrator only (see adminAccess.ts). It is never part of a production visitor's page; the
+// one exception is a development build on this machine against a network with nothing deployed, where there is no owner yet.
+const DEPLOY_BOOTSTRAP_OPEN = deployTabVisible({
+  isAdmin: false,
+  production: Boolean(import.meta.env.PROD),
+  onThisMachine: isLocalhost,
+  anythingDeployed: DEPLOYED.MASTERCHEF !== null || DEPLOYED.AMM_FACTORY !== null
+});
+
+const getTabFromHash = (deployAllowed: boolean = false): 'SWAP' | 'FARMS' | 'QRB' | 'ANALYTICS' | 'PAIRS' | 'DEPLOY' => {
   const hash = typeof window !== 'undefined' ? window.location.hash.toLowerCase() : '';
-  if (hash === '#deploy') return isLocalhost ? 'DEPLOY' : 'SWAP';
+  if (hash === '#deploy') return deployAllowed ? 'DEPLOY' : 'SWAP';
   if (hash === '#farms') return 'FARMS';
   if (hash === '#qrb') return 'QRB';
   if (hash === '#analytics') return 'ANALYTICS';
@@ -112,15 +119,32 @@ const getTabFromHash = (): 'SWAP' | 'FARMS' | 'QRB' | 'ANALYTICS' | 'PAIRS' | 'D
 
 export default function App() {
   // Navigation State
-  const [activeTab, setActiveTab] = useState<'SWAP' | 'FARMS' | 'QRB' | 'ANALYTICS' | 'PAIRS' | 'DEPLOY'>(getTabFromHash);
+  const [activeTab, setActiveTab] = useState<'SWAP' | 'FARMS' | 'QRB' | 'ANALYTICS' | 'PAIRS' | 'DEPLOY'>(() => getTabFromHash(DEPLOY_BOOTSTRAP_OPEN));
+  // Wallet first: the administrator check below needs it. (Declared here so the hash handler can read the result.)
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const { isAdmin } = useAdministrator(walletAddress);
+  const deployVisible = isAdmin || DEPLOY_BOOTSTRAP_OPEN;
+  const deployVisibleRef = useRef(deployVisible);
+  deployVisibleRef.current = deployVisible;
 
   useEffect(() => {
     const onHashChange = () => {
-      setActiveTab(getTabFromHash());
+      setActiveTab(getTabFromHash(deployVisibleRef.current));
     };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
+
+  // Land on #deploy once the administrator is recognised, and never stay on it (or keep it in the address bar) after that
+  // stops being true: a different wallet, a disconnect, an ownership transfer.
+  useEffect(() => {
+    if (deployVisible) {
+      if (window.location.hash.toLowerCase() === '#deploy') setActiveTab('DEPLOY');
+    } else if (activeTab === 'DEPLOY') {
+      setActiveTab('SWAP');
+      if (window.location.hash.toLowerCase() === '#deploy') window.history.replaceState(null, '', '#swap');
+    }
+  }, [deployVisible, activeTab]);
 
   const navigateToTab = (tab: 'SWAP' | 'FARMS' | 'QRB' | 'ANALYTICS' | 'PAIRS' | 'DEPLOY') => {
     setActiveTab(tab);
@@ -130,7 +154,6 @@ export default function App() {
   };
 
   // Wallet States
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
   // Raw base-unit balances (decimal strings); formatted on render so no precision is lost.
   const [rawBalances, setRawBalances] = useState<Record<string, string>>({});
   // LP token balances held by the wallet, keyed by lower-cased pair address.
@@ -237,10 +260,6 @@ export default function App() {
 
   // Atomic router swap progress state ('IDLE' | 'APPROVING' | 'SWAPPING')
   const [pendingSwapStep, setPendingSwapStep] = useState<'IDLE' | 'APPROVING' | 'SWAPPING'>('IDLE');
-
-  // Farms are read-only until CircleswapMasterChef is deployed (MASTERCHEF_ADDRESS is null):
-  // there is no on-chain stake or reward to read, so none is shown and no stake/harvest tx is offered.
-  const farmsLive = MASTERCHEF_ADDRESS !== null;
 
   // Top Holders
   const [topHolders, setTopHolders] = useState<{address: string, balance: string, pct: string}[]>([]);
@@ -477,6 +496,17 @@ export default function App() {
   const boostEligibleInText = qrbStatus && qrbStatus.eligibleAt > nowSeconds
     ? (() => { const h = Math.ceil((qrbStatus.eligibleAt - nowSeconds) / 3600); return h >= 48 ? Math.ceil(h / 24) + ' days' : h + ' h'; })()
     : '';
+  // One line for the Farms page: the same states the QRB tab shows, so the two never disagree.
+  const farmBoostLabel =
+    DEPLOYED.QRB === null
+      ? 'Qrb not deployed'
+      : !walletAddress
+        ? `Qrb boost +${formatBoostPct()} for ${boostThresholdText} QRB held ${boostDurationText}`
+        : qrbBoostState === 'ACTIVE'
+          ? `Qrb boost ACTIVE (+${formatBoostPct()})`
+          : qrbBoostState === 'MATURING'
+            ? `Qrb boost MATURING (active in ${boostEligibleInText})`
+            : `Qrb boost INACTIVE (hold ${boostThresholdText} QRB for ${boostDurationText})`;
   const artworkHref = DEPLOYED.ARTWORK_URI ? DEPLOYED.ARTWORK_URI.replace(/^ar:\/\//, 'https://arweave.net/') : null;
 
 
@@ -985,7 +1015,7 @@ export default function App() {
         >
           <Layers size={16} /> Pairs & Liquidity
         </button>
-        {isLocalhost && (
+        {deployVisible && (
           <button 
             className={`circleswap-nav-btn ${activeTab === 'DEPLOY' ? 'active' : ''}`} 
             onClick={() => navigateToTab('DEPLOY')}
@@ -995,32 +1025,42 @@ export default function App() {
         )}
       </nav>
 
-      {/* Multi-Token Portfolio Ticker */}
-      {walletAddress && (
-        <div className="portfolio-ticker">
-           {tokenCatalog.filter(t => t.deployed !== false).map(t => {
-            const bal = getBalanceForToken(t.symbol);
-             const liveMetadata = contractMetadata[t.address.toLowerCase()];
-            return (
-              <div
-                className="portfolio-chip"
-                key={t.symbol}
-                  title={`${liveMetadata?.name ?? t.name} · ${t.isNative ? 'Native Cyprus-1 asset' : t.address} · ${liveMetadata?.decimals ?? t.decimals} decimals`}
-              >
-                <TokenBubble token={t} metadata={liveMetadata} size="xs" />
-                <span className="portfolio-chip-symbol">{liveMetadata?.symbol ?? t.symbol}</span>
-                <span className="portfolio-chip-balance">{bal}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {/* Multi-Token Portfolio Ticker: scrolls by itself (no scrollbar); pauses while hovered or focused */}
+      {walletAddress && (() => {
+        const owned = tokenCatalog.filter(t => t.deployed !== false);
+        const chips = owned.map(t => {
+          const bal = getBalanceForToken(t.symbol);
+          const liveMetadata = contractMetadata[t.address.toLowerCase()];
+          return (
+            <div
+              className="portfolio-chip"
+              key={t.symbol}
+              title={`${liveMetadata?.name ?? t.name} · ${t.isNative ? 'Native Cyprus-1 asset' : t.address} · ${liveMetadata?.decimals ?? t.decimals} decimals`}
+            >
+              <TokenBubble token={t} metadata={liveMetadata} size="xs" />
+              <span className="portfolio-chip-symbol">{liveMetadata?.symbol ?? t.symbol}</span>
+              <span className="portfolio-chip-balance">{bal}</span>
+            </div>
+          );
+        });
+        // A short list fits on screen and stays still; a long one loops seamlessly (the second copy is hidden from
+        // assistive tech so every balance is read once).
+        const loops = chips.length >= 6;
+        return (
+          <div className={`portfolio-ticker${loops ? ' is-looping' : ''}`} role="group" aria-label="Wallet balances" tabIndex={loops ? 0 : undefined}>
+            <div className="portfolio-track" style={loops ? ({ '--portfolio-duration': `${Math.max(30, chips.length * 4)}s` } as React.CSSProperties) : undefined}>
+              <div className="portfolio-group">{chips}</div>
+              {loops && <div className="portfolio-group" aria-hidden="true">{chips}</div>}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* TAB 5: ALL PAIRS & LIQUIDITY */}
       {activeTab === 'PAIRS' && <PairsPage onOpenLiquidity={() => setPoolModalOpen(true)} />}
 
-      {/* TAB 6: DEPLOYMENT (lazy: carries the contracts' bytecode, localhost only) */}
-      {isLocalhost && activeTab === 'DEPLOY' && (
+      {/* TAB 6: DEPLOYMENT (lazy: carries the contracts' bytecode; administrator only) */}
+      {deployVisible && activeTab === 'DEPLOY' && (
         <Suspense fallback={<div style={{ padding: '2rem', textAlign: 'center' }}>Loading deployment tools…</div>}>
           <DeployPage
             walletAddress={walletAddress}
@@ -1290,122 +1330,12 @@ export default function App() {
 
       {/* TAB 2: FARMS & LIQUIDITY MINING */}
       {activeTab === 'FARMS' && (
-        <div>
-          {/* Dual Reward Protocol Banner */}
-          <div className="glass-card" style={{ marginBottom: '2rem', background: 'linear-gradient(135deg, rgba(255, 51, 68, 0.1) 0%, rgba(18, 22, 41, 0.8) 100%)', borderColor: 'rgba(255, 51, 68, 0.2)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-              <div>
-                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                  <TrendingUp size={22} style={{ color: 'var(--accent-plasma)' }} />
-                  Circleswap Dual-Incentive Farms
-                </h2>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                  Stake LP tokens or single assets to earn dual rewards in <strong style={{ color: 'var(--accent-plasma)' }}>BoltDelta (BDELTA)</strong> and <strong style={{ color: 'var(--accent-neon)' }}>Q0 Tokens</strong>.
-                </p>
-              </div>
-              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <button className="btn-primary" onClick={() => setPoolModalOpen(true)} style={{ fontSize: '0.8rem', padding: '0.5rem 1rem' }}>
-                  <Droplets size={14} /> Create Pool / Add Liquidity
-                </button>
-                <div style={{ background: 'rgba(255, 215, 0, 0.1)', border: '1px solid rgba(255, 215, 0, 0.3)', padding: '0.5rem 1rem', borderRadius: '12px', fontSize: '0.8rem', color: 'var(--accent-gold)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <Zap size={14} /> Qrb Booster: {DEPLOYED.QRB === null ? 'Qrb not deployed' : !walletAddress ? `+${formatBoostPct()} for ${boostThresholdText} QRB held ${boostDurationText}` : qrbBoostState === 'ACTIVE' ? `ACTIVE (+${formatBoostPct()})` : qrbBoostState === 'MATURING' ? `MATURING (active in ${boostEligibleInText})` : `INACTIVE (hold at least ${boostThresholdText} QRB for ${boostDurationText})`}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {!farmsLive && (
-            <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.35)', padding: '0.75rem 1.25rem', borderRadius: '12px', color: 'var(--accent-amber, #f59e0b)', fontSize: '0.85rem', marginBottom: '1.5rem', fontWeight: 600 }}>
-              CircleswapMasterChef is not deployed yet, so staking and harvesting are disabled. Balances below are your real wallet
-              LP-token balances; nothing is staked and no rewards are accruing. APR is not shown until emissions are set on-chain.
-            </div>
-          )}
-
-          {/* Farms Grid */}
-          <div className="farms-grid">
-            {FARM_REGISTRY.map((pool) => {
-              const lpAddr = pool.stakeToken.address.toLowerCase();
-              const held = pool.stakeToken.isLP ? lpBalances[lpAddr] : rawBalances[pool.stakeToken.symbol];
-              const heldText = !walletAddress ? 'Connect wallet' : held === undefined ? '—' : formatBaseUnits(BigInt(held), 18, 6);
-              const reserves = poolReserves[lpAddr];
-              const wquaiAddr = CONTRACTS.WQUAI.toLowerCase();
-              const wquaiSide = reserves
-                ? (reserves.token0.toLowerCase() === wquaiAddr ? reserves.reserve0 : reserves.token1.toLowerCase() === wquaiAddr ? reserves.reserve1 : null)
-                : null;
-
-              return (
-                <div className="farm-card" key={pool.pid}>
-                  <div>
-                    <div className="farm-top">
-                      <div className="farm-title-group">
-                        <h3>{pool.name}</h3>
-                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
-                          <span className="farm-dual-badge">
-                            <Gift size={11} /> {pool.rewardTokens.tokenB ? 'Dual Rewards: BDELTA + Q0' : `Earns ${pool.rewardTokens.tokenA.symbol}`}
-                          </span>
-                          <span className="farm-multiplier-badge">{pool.allocPoint} alloc</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="farm-metrics-row">
-                      <div>
-                        <div className="farm-metric-label">APR</div>
-                        <div className="farm-metric-val">{farmsLive ? '—' : 'Not live'}</div>
-                      </div>
-                      <div>
-                        <div className="farm-metric-label">Pool Liquidity</div>
-                        <div className="farm-metric-val">
-                          {wquaiSide ? `${formatUnits(wquaiSide)} WQUAI per side` : pool.stakeToken.isLP ? '—' : 'n/a'}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="farm-rewards-panel">
-                      <div className="farm-rewards-row">
-                        <span className="reward-token-label">
-                          <Coins size={14} style={{ color: 'var(--accent-plasma)' }} /> Pending {pool.rewardTokens.tokenA.symbol}
-                        </span>
-                        <span className="reward-token-val">—</span>
-                      </div>
-                      {pool.rewardTokens.tokenB && (
-                        <div className="farm-rewards-row">
-                          <span className="reward-token-label">
-                            <Coins size={14} style={{ color: 'var(--accent-neon)' }} /> Pending {pool.rewardTokens.tokenB.symbol}
-                          </span>
-                          <span className="reward-token-val">—</span>
-                        </div>
-                      )}
-                      <div className="farm-rewards-row" style={{ marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                        <span className="reward-token-label" style={{ fontSize: '0.75rem' }}>
-                          <Shield size={12} /> In wallet
-                        </span>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#fff' }}>
-                          {heldText} {pool.stakeToken.symbol}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="farm-actions">
-                    <button className="btn-primary" disabled={!farmsLive} title="Available once CircleswapMasterChef is deployed"
-                      style={{ flex: 1, padding: '0.5rem', fontSize: '0.8rem', minHeight: '40px', justifyContent: 'center' }}>
-                      Stake
-                    </button>
-                    <button className="btn-primary" disabled={!farmsLive} title="Available once CircleswapMasterChef is deployed"
-                      style={{ flex: 1, padding: '0.5rem', fontSize: '0.8rem', minHeight: '40px', justifyContent: 'center', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid var(--panel-border)', boxShadow: 'none' }}>
-                      Unstake
-                    </button>
-                    <button className="btn-primary" disabled={!farmsLive} title="Available once CircleswapMasterChef is deployed"
-                      style={{ flex: 1, padding: '0.5rem', fontSize: '0.8rem', minHeight: '40px', justifyContent: 'center', background: 'linear-gradient(135deg, var(--accent-plasma) 0%, var(--accent-gold) 100%)', color: '#000' }}>
-                      Harvest
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <FarmsPage
+          walletAddress={walletAddress}
+          onConnect={connectWallet}
+          onOpenLiquidity={() => setPoolModalOpen(true)}
+          boostLabel={farmBoostLabel}
+        />
       )}
 
       {/* TAB 3: QRB 1-OF-1 GENESIS SOVEREIGN ARTIFACT */}

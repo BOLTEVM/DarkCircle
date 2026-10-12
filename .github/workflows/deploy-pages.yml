@@ -55,6 +55,12 @@ jobs:
       - name: Test Circleswap token metadata service
         run: node --test q0/packages/quai-service/test/tokenMetadata.test.ts
 
+      - name: Test Circleswap farm view model
+        run: node --test q0/packages/quai-service/test/farmView.test.ts
+
+      - name: Test who may see the Circleswap Deploy tab
+        run: node --test q0/apps/stats-app/test/adminAccess.test.ts
+
       - name: Build Q0 / Circleswap
         run: |
           cd q0

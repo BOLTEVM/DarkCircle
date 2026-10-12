@@ -62,7 +62,7 @@
 | | App | Route | What it is | Where it stands |
 |---|---|---|---|---|
 | 🛡️ | **DarkCircle**<br/>`x402tumbler/` | `/x402tumbler/` | x402 payment privacy on Quai: WQUAI and WQI shielded pools, PPOI compliance, ephemeral payees, a voice agent | Runs against an **in-memory simulation**. Nothing is deployed on Quai and no funds move. Circuit and pool contract are reference implementations, unaudited. The voice agent page is the one real-chain feature, and your wallet signs every step |
-| ⚡ | **Circleswap**<br/>`q0/` | `/q0/` | Quai DeFi dashboard: Q0 / WQUAI / BOSS pool analytics, swap math, LP and farm views | Reads live Cyprus-1 data. Transactions are signed by your own wallet extension. `SECURITY_AUDIT.md` is an internal, AI-assisted review and **not** an external audit |
+| ⚡ | **Circleswap**<br/>`q0/` | `/q0/` | Quai DeFi dashboard: pool analytics, swap math, LP, and a chain-driven Farms & Pools page with an owner admin dashboard for adding pairs | Reads live Cyprus-1 data. Transactions are signed by your own wallet extension. `SECURITY_AUDIT.md` is an internal, AI-assisted review and **not** an external audit |
 | 🔐 | **DarkSafe**<br/>`multisigows/` | `/multisigows/` | DarkSafe multi-sig vaults: on-chain proposals, native timelock, quorum checks, no `DELEGATECALL` | Extension-only signing, no bundled signer. The vault contract has not had an independent security audit |
 
 Each app has its own README with the details: [`x402tumbler/`](x402tumbler/README.md), [`q0/`](q0/README.md), [`multisigows/`](multisigows/README.md).
