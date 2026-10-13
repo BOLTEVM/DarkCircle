@@ -3,6 +3,7 @@ import { ethers } from "hardhat";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import { E18 } from "./helpers";
 import { planAirdrop, buildDistribution, auditDistribution, type StakePosition } from "../../quai-service/src/airdrop";
+import { airdropTx, AIRDROP_SELECTORS } from "../../quai-service/src/airdropTx";
 
 // The claim contract and the TypeScript that builds its tree are two implementations of one rule. These tests hold the
 // contract to the file the app publishes: every entry of a real distribution must claim, and nothing else may.
@@ -202,6 +203,30 @@ describe("CircleswapAirdrop", function () {
     it("refuses the zero address", async () => {
       const { airdrop, q0 } = await loadFixture(fixture);
       await expect(airdrop.sweep(await q0.getAddress(), ethers.ZeroAddress)).to.be.revertedWithCustomError(airdrop, "ZeroAddress");
+    });
+  });
+
+  describe("the calldata the app sends", () => {
+    it("is exactly what the contract's own ABI encodes, for every call the dashboard and the claim page make", async () => {
+      const { airdrop, dist, q0 } = await loadFixture(fixture);
+      const e = dist.entries[5];
+      const deadline = 1_900_000_000;
+      expect(airdropTx.setMerkleRoot(dist.merkleRoot, BigInt(dist.totalA), BigInt(dist.totalB), deadline)).to.equal(
+        airdrop.interface.encodeFunctionData("setMerkleRoot", [dist.merkleRoot, dist.totalA, dist.totalB, deadline])
+      );
+      expect(airdropTx.claim(e.index, e.account, BigInt(e.amountA), BigInt(e.amountB), e.proof)).to.equal(
+        airdrop.interface.encodeFunctionData("claim", [e.index, e.account, e.amountA, e.amountB, e.proof])
+      );
+      expect(airdropTx.claim(0, e.account, 1n, 0n, [])).to.equal(airdrop.interface.encodeFunctionData("claim", [0, e.account, 1n, 0n, []]));
+      expect(airdropTx.sweep(await q0.getAddress(), e.account)).to.equal(airdrop.interface.encodeFunctionData("sweep", [await q0.getAddress(), e.account]));
+      expect(airdropTx.isClaimedCall(77)).to.equal(airdrop.interface.encodeFunctionData("isClaimed", [77]));
+    });
+
+    it("uses the selectors the contract has, for every read", async () => {
+      const { airdrop } = await loadFixture(fixture);
+      for (const [name, sel] of Object.entries(AIRDROP_SELECTORS)) {
+        expect(airdrop.interface.getFunction(name)!.selector, name).to.equal(sel);
+      }
     });
   });
 

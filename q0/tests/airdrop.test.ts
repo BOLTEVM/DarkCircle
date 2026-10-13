@@ -22,6 +22,8 @@ import {
     type LpTransfer
 } from '../packages/quai-service/src/airdropSnapshot';
 import type { BatchCall, BatchFn } from '../packages/quai-service/src/pairs';
+import { AIRDROP_SELECTORS, readAirdropState } from '../packages/quai-service/src/airdropTx';
+import { QUAINANCE_GAUGE_V2, readQuainanceBdeltaStake } from '../packages/quai-service/src/quainanceStake';
 
 const E18 = 10n ** 18n;
 const acct = (n: number) => '0x00' + n.toString(16).padStart(38, '0');
@@ -291,5 +293,84 @@ describe('snapshot arithmetic', () => {
         const r = await scanTransfers(batch, PAIR, 100_000, { perCall: 2, maxWindows: 4 });
         expect(r.complete).toBe(false);
         expect(r.windows).toBe(4);
+    });
+});
+
+describe('reading the contract and the stake', () => {
+    const W = (n: bigint) => '0x' + n.toString(16).padStart(64, '0');
+    const A = (a: string) => '0x' + '0'.repeat(24) + a.slice(2).toLowerCase();
+    const CONTRACT = acct(300);
+    const QA = acct(301);
+    const QB = acct(302);
+
+    test('the contract state is read field by field and the balances come from the two tokens', async () => {
+        const answers = new Map<string, string>([
+            [AIRDROP_SELECTORS.owner, A(acct(1))],
+            [AIRDROP_SELECTORS.pendingOwner, A('0x' + '0'.repeat(40))],
+            [AIRDROP_SELECTORS.tokenA, A(QA)],
+            [AIRDROP_SELECTORS.tokenB, A(QB)],
+            [AIRDROP_SELECTORS.merkleRoot, '0x' + 'ab'.repeat(32)],
+            [AIRDROP_SELECTORS.totalA, W(5n)],
+            [AIRDROP_SELECTORS.totalB, W(7n)],
+            [AIRDROP_SELECTORS.claimDeadline, W(1_900_000_000n)],
+            [AIRDROP_SELECTORS.claimedA, W(1n)],
+            [AIRDROP_SELECTORS.claimedB, W(2n)]
+        ]);
+        const batch: BatchFn = async calls =>
+            calls.map(c => {
+                const p = c.params[0] as { to: string; data: string };
+                if (p.data.startsWith('0x70a08231')) return { ok: true as const, value: W(p.to === QA ? 4n : 6n) };
+                const v = answers.get(p.data);
+                return v ? { ok: true as const, value: v } : { ok: false as const, error: 'unknown' };
+            });
+        const s = await readAirdropState(batch, CONTRACT);
+        expect(s).toMatchObject({ tokenA: QA, tokenB: QB, rootSet: true, totalA: 5n, totalB: 7n, claimDeadline: 1_900_000_000, claimedA: 1n, claimedB: 2n, balanceA: 4n, balanceB: 6n, pendingOwner: null });
+    });
+
+    test('a contract that does not answer is named, not guessed at', async () => {
+        const batch: BatchFn = async calls => calls.map(() => ({ ok: false as const, error: 'execution reverted' }));
+        await expect(readAirdropState(batch, CONTRACT)).rejects.toThrow(/owner\(\)/);
+    });
+
+    test('the BDELTA a wallet has on Quainance is its liquidity in the wallet plus what is staked in the gauge', async () => {
+        const bdelta = '0x002d4A4fBAC3DF3342eD17FDBa5139818a43B508';
+        const wallet = acct(77);
+        const reserves = (r0: bigint, r1: bigint) => '0x' + r0.toString(16).padStart(64, '0') + r1.toString(16).padStart(64, '0') + '0'.repeat(64);
+        const mk = (bdeltaIsToken0: boolean): BatchFn => async calls =>
+            calls.map(c => {
+                const p = c.params[0] as { to: string; data: string };
+                if (p.data === '0x0dfe1681') return { ok: true as const, value: bdeltaIsToken0 ? A(bdelta) : A(acct(9)) };
+                if (p.data === '0x0902f1ac') return { ok: true as const, value: bdeltaIsToken0 ? reserves(40_000n * E18, 120_000n * E18) : reserves(120_000n * E18, 40_000n * E18) };
+                if (p.data === '0x18160ddd') return { ok: true as const, value: W(100n * E18) };
+                if (p.data.startsWith('0x70a08231')) return { ok: true as const, value: W(1n * E18) }; // 1 of 100 LP in the wallet
+                if (p.to === QUAINANCE_GAUGE_V2 && p.data.length === 10 + 64) return { ok: true as const, value: W(5n) + W(1n).slice(2) }; // pid 5, exists
+                if (p.to === QUAINANCE_GAUGE_V2) return { ok: true as const, value: W(2n * E18) }; // 2 LP staked
+                return { ok: false as const, error: 'unexpected ' + p.data };
+            });
+        for (const side of [true, false]) {
+            const s = await readQuainanceBdeltaStake(mk(side), wallet);
+            expect(s.lpHeld).toBe(1n * E18);
+            expect(s.lpStaked).toBe(2n * E18);
+            // 3 of 100 LP of a pool holding 40,000 BDELTA: 1,200 BDELTA
+            expect(s.bdelta).toBe(1200n * E18);
+            expect(s.meetsThreshold).toBe(true);
+        }
+    });
+
+    test('below 1,000 BDELTA does not meet the threshold, and an unreadable chain throws instead of reporting none', async () => {
+        const small: BatchFn = async calls =>
+            calls.map(c => {
+                const p = c.params[0] as { to: string; data: string };
+                if (p.data === '0x0dfe1681') return { ok: true as const, value: A('0x002d4A4fBAC3DF3342eD17FDBa5139818a43B508') };
+                if (p.data === '0x0902f1ac') return { ok: true as const, value: '0x' + (40_000n * E18).toString(16).padStart(64, '0') + (1n).toString(16).padStart(64, '0') + '0'.repeat(64) };
+                if (p.data === '0x18160ddd') return { ok: true as const, value: W(100n * E18) };
+                if (p.data.startsWith('0x70a08231')) return { ok: true as const, value: W(E18 / 10n) };
+                return { ok: true as const, value: W(0n) + W(0n).slice(2) };
+            });
+        const s = await readQuainanceBdeltaStake(small, acct(78));
+        expect(s.bdelta).toBe(40n * E18);
+        expect(s.meetsThreshold).toBe(false);
+        const down: BatchFn = async calls => calls.map(() => ({ ok: false as const, error: 'down' }));
+        await expect(readQuainanceBdeltaStake(down, acct(78))).rejects.toThrow();
     });
 });

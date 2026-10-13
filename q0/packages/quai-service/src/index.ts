@@ -17,6 +17,8 @@ export * from './curves';
 export * from './venues';
 export * from './airdrop';
 export * from './airdropSnapshot';
+export * from './airdropTx';
+export * from './quainanceStake';
 export * from './eip1967';
 export * from './tokenMetadata';
 export * from './farm';
