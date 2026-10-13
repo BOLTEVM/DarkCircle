@@ -71,6 +71,13 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
   const board = useYieldBoard(farm);
   const [quaiUsd, setQuaiUsd] = useState<number | null>(null);
   const [tab, setTab] = useState<'POOLS' | 'ADMIN'>('POOLS');
+  // The pool the person asked to add (its LP or token address): the admin tab opens with it ticked and in view.
+  const [focusPool, setFocusPool] = useState<string | null>(null);
+  const openAdmin = useCallback((pool?: string) => {
+    setFocusPool(pool ? pool.toLowerCase() : null);
+    setTab('ADMIN');
+  }, []);
+  const clearFocus = useCallback(() => setFocusPool(null), []);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('tvl');
   const [mineOnly, setMineOnly] = useState(false);
@@ -293,7 +300,7 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
           iconFor={address => tokens[address]?.iconUrl}
           isOwner={isOwner}
           onAddLiquidity={onOpenLiquidity}
-          onOpenAdmin={() => setTab('ADMIN')}
+          onOpenAdmin={openAdmin}
         />
       )}
 
@@ -406,6 +413,8 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
             isPendingOwner={isPendingOwner}
             quaiUsd={quaiUsd}
             onChanged={refresh}
+            focusPool={focusPool}
+            onFocusShown={clearFocus}
           />
         </Suspense>
       )}
@@ -460,7 +469,7 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
                       isOwner={isOwner}
                       loading={board.status === 'loading'}
                       onConnect={() => void onConnect()}
-                      onOpenAdmin={() => setTab('ADMIN')}
+                      onOpenAdmin={() => openAdmin(p.token)}
                     />
                   ))}
                 </>

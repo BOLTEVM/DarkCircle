@@ -24,7 +24,8 @@ interface Props {
   iconFor: (address: string) => string | undefined;
   isOwner: boolean;
   onAddLiquidity: () => void;
-  onOpenAdmin: () => void;
+  /** Opens the admin tab; `pair` is the pool to have ticked and in view. */
+  onOpenAdmin: (pair?: string) => void;
 }
 
 /**
@@ -152,7 +153,7 @@ function YieldRowView({
   /** Swap history is still arriving: an empty fee figure means "not yet", not "none". */
   measuring: boolean;
   onAddLiquidity: () => void;
-  onOpenAdmin: () => void;
+  onOpenAdmin: (pair?: string) => void;
 }) {
   const r = row.reward;
   const farming = r.status === 'FARMING';
@@ -213,7 +214,7 @@ function YieldRowView({
           <Droplets size={13} /> Add to pool
         </button>
         {r.status === 'NOT_FARMING' && isOwner && (
-          <button type="button" style={smallBtn} onClick={onOpenAdmin} title="Open the Admin tab to add this pool to the farm">
+          <button type="button" style={smallBtn} onClick={() => onOpenAdmin(row.pair)} title="Open the Admin tab with this pool ticked, ready to add to the farm">
             <Sprout size={12} /> Add to farm
           </button>
         )}

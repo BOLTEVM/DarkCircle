@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AlertTriangle, CheckCircle2, Coins, KeyRound, PauseCircle, PlayCircle, RefreshCw, ShieldCheck, Sprout, Wrench } from 'lucide-react';
 import {
+  AMM_DEX_IDS,
+  DEXES,
   SINGLE_STAKE_POOLS,
   TOKEN_SELECTORS,
   analyzePairs,
@@ -49,6 +51,9 @@ interface Props {
   quaiUsd: number | null;
   /** Re-read the farm after a transaction. */
   onChanged: () => Promise<void>;
+  /** A pool (its LP or token address, lower case) to have ticked and scrolled into view: the Add to farm button on a row. */
+  focusPool?: string | null;
+  onFocusShown?: () => void;
 }
 
 const batch: FarmBatch = calls => batchQuaiCall(calls);
@@ -92,7 +97,7 @@ function Section({ icon, title, children, hint }: { icon: ReactNode; title: stri
   );
 }
 
-export default function FarmAdminPanel({ farm, rows, tokens, rewards, wallet, isOwner, isPendingOwner, quaiUsd, onChanged }: Props) {
+export default function FarmAdminPanel({ farm, rows, tokens, rewards, wallet, isOwner, isPendingOwner, quaiUsd, onChanged, focusPool, onFocusShown }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<{ tone: 'ok' | 'danger' | 'warn' | 'info'; body: ReactNode } | null>(null);
 
@@ -190,9 +195,12 @@ export default function FarmAdminPanel({ farm, rows, tokens, rewards, wallet, is
   const discover = useCallback(async () => {
     setDiscovery(d => ({ ...d, state: 'loading' }));
     try {
-      const [res, usd] = await Promise.all([loadPairSnapshots(['CIRCLESWAP']), quaiUsd ? Promise.resolve(quaiUsd) : fetchQuaiUsd()]);
+      // Every DEX the app can route through: a pool on Quaiswap or Quainance can be farmed too (the contract takes any LP
+      // token), and its Add to farm button on the Pools tab must lead to something to tick.
+      const [res, usd] = await Promise.all([loadPairSnapshots(AMM_DEX_IDS, { maxPerDex: 1000 }), quaiUsd ? Promise.resolve(quaiUsd) : fetchQuaiUsd()]);
       const analysed = analyzePairs(res.pairs, { quaiUsd: usd });
-      setDiscovery({ state: 'ready', pairs: analysed, total: res.totals.CIRCLESWAP ?? analysed.length, error: res.errors.length ? res.errors.join('; ') : undefined });
+      const total = Object.values(res.totals).reduce((s, n) => s + (n ?? 0), 0);
+      setDiscovery({ state: 'ready', pairs: analysed, total: total || analysed.length, error: res.errors.length ? res.errors.join('; ') : undefined });
     } catch (e: any) {
       setDiscovery({ state: 'error', pairs: [], total: 0, error: e?.message || 'Could not list the AMM’s pairs.' });
     }
@@ -227,7 +235,7 @@ export default function FarmAdminPanel({ farm, rows, tokens, rewards, wallet, is
   const candidateChecks = (p: PairAnalysis): Check[] => {
     const a = allocOf(p.pair);
     if (a === null) return [{ level: 'error', code: 'ALLOC_NOT_A_NUMBER', message: 'Allocation must be a whole number.' }];
-    return checkAddPool({ lpToken: p.pair, allocPoint: a, farm, isContract: true, pair: pairInfoOf(p), isFactoryPool: true });
+    return checkAddPool({ lpToken: p.pair, allocPoint: a, farm, isContract: true, pair: pairInfoOf(p), isFactoryPool: p.dex === 'CIRCLESWAP' });
   };
 
   // Single-token pools in the plan (stake Q0 or BDELTA itself) that the deployed farm does not have yet. The plan's
@@ -267,12 +275,25 @@ export default function FarmAdminPanel({ farm, rows, tokens, rewards, wallet, is
     return checkAddPool({ lpToken: c.stakeToken, allocPoint: a, farm, isContract: singleCode[c.stakeToken] === true });
   };
 
+  // Add to farm on a row: tick that pool and bring it into view, once the list has loaded.
+  useEffect(() => {
+    if (!focusPool || discovery.state !== 'ready') return;
+    const isPair = candidates.some(c => c.pair.toLowerCase() === focusPool);
+    const isSingle = singles.some(c => c.stakeToken === focusPool);
+    if (isPair || isSingle) setPicked(p => ({ ...p, [focusPool]: true }));
+    const timer = setTimeout(() => {
+      document.getElementById(`farm-candidate-${focusPool}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      onFocusShown?.();
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [focusPool, discovery.state, candidates, singles, onFocusShown]);
+
   const chosen = candidates.filter(c => picked[c.pair.toLowerCase()]);
   const chosenSingles = singles.filter(c => picked[c.stakeToken]);
   // one list for both kinds, so a single transaction batch, one total and one button cover everything ticked
   interface AddItem { label: string; token: string; alloc: bigint | null; pair?: PairInfo; isFactoryPool?: boolean }
   const addItems: AddItem[] = [
-    ...chosen.map<AddItem>(c => ({ label: `${c.token0.symbol || '?'} / ${c.token1.symbol || '?'}`, token: c.pair, alloc: allocOf(c.pair), pair: pairInfoOf(c), isFactoryPool: true })),
+    ...chosen.map<AddItem>(c => ({ label: `${c.token0.symbol || '?'} / ${c.token1.symbol || '?'}`, token: c.pair, alloc: allocOf(c.pair), pair: pairInfoOf(c), isFactoryPool: c.dex === 'CIRCLESWAP' })),
     ...chosenSingles.map<AddItem>(c => ({ label: `${singleSymbol(c)} (single token)`, token: c.stakeToken, alloc: singleAllocOf(c.stakeToken) }))
   ];
   const chosenErrors = chosen.some(c => hasErrors(candidateChecks(c))) || chosenSingles.some(c => hasErrors(singleChecks(c)));
@@ -474,18 +495,18 @@ export default function FarmAdminPanel({ farm, rows, tokens, rewards, wallet, is
       <Section
         icon={<Sprout size={18} />}
         title="Add pools"
-        hint="Every pair the Circleswap factory lists that is not farming yet, and the single-token pools (stake Q0 or BDELTA itself). Tick the ones to add, set a reward weight, and sign once per pool."
+        hint="Every pool on Circleswap, Quaiswap and Quainance that is not farming yet, and the single-token pools (stake Q0 or BDELTA itself). Tick the ones to add, set a reward weight, and sign once per pool."
       >
-        {discovery.state === 'loading' && <div style={{ ...muted, fontSize: '0.85rem' }}><Spinner /> Listing the AMM's pairs…</div>}
+        {discovery.state === 'loading' && <div style={{ ...muted, fontSize: '0.85rem' }}><Spinner /> Listing every pool…</div>}
         {discovery.state === 'error' && <Notice tone="danger">{discovery.error} <button type="button" style={smallBtn} onClick={() => void discover()}>Retry</button></Notice>}
         {discovery.error && discovery.state === 'ready' && <Notice tone="warn">Some pairs could not be read: {discovery.error}</Notice>}
         {discovery.state === 'ready' && (
           <>
             <p style={{ ...muted, fontSize: '0.8rem', margin: '0 0 0.5rem' }}>
-              {candidates.length} of {discovery.total} pair{discovery.total === 1 ? '' : 's'} not farming &middot; {farm.pools.length} farming
+              {candidates.length} of {discovery.total} pool{discovery.total === 1 ? '' : 's'} not farming &middot; {farm.pools.length} farming
               {farm.pools.length >= POOL_COUNT_MAX ? ' (limit reached)' : ''}
             </p>
-            {candidates.length === 0 && <div style={{ ...box, fontSize: '0.85rem' }}>Every pair is already in the farm. New pairs appear here as soon as they are created.</div>}
+            {candidates.length === 0 && <div style={{ ...box, fontSize: '0.85rem' }}>Every pool is already in the farm. New pools appear here as soon as they are created.</div>}
             {candidates.map(c => {
               const key = c.pair.toLowerCase();
               const checks = candidateChecks(c);
@@ -494,10 +515,11 @@ export default function FarmAdminPanel({ farm, rows, tokens, rewards, wallet, is
               const alloc = allocOf(c.pair);
               const flagDanger = c.flags.some(f => f.severity === 'danger');
               return (
-                <div key={key} className="farm-candidate">
+                <div key={key} id={`farm-candidate-${key}`} className="farm-candidate">
                   <label className="farm-candidate-head">
                     <input type="checkbox" checked={isPicked} onChange={e => setPicked(p => ({ ...p, [key]: e.target.checked }))} disabled={errs.some(k => k.code !== 'ALLOC_NOT_A_NUMBER')} />
                     <strong>{c.token0.symbol || '?'} / {c.token1.symbol || '?'}</strong>
+                    <Badge severity={c.dex === 'CIRCLESWAP' ? 'info' : 'neutral'}>{DEXES[c.dex].label}</Badge>
                     <span style={muted}>{c.tvlUsd !== null ? `${formatUsd(c.tvlUsd)} liquidity` : 'unpriced'}</span>
                     <AddrLink address={c.pair} />
                     {c.flags.map(f => (
@@ -532,7 +554,7 @@ export default function FarmAdminPanel({ farm, rows, tokens, rewards, wallet, is
               const alloc = singleAllocOf(key);
               const sym = singleSymbol(c);
               return (
-                <div key={key} className="farm-candidate farm-candidate-single">
+                <div key={key} id={`farm-candidate-${key}`} className="farm-candidate farm-candidate-single">
                   <label className="farm-candidate-head">
                     <input type="checkbox" checked={isPicked} onChange={e => setPicked(p => ({ ...p, [key]: e.target.checked }))} disabled={errs.some(k => k.code !== 'ALLOC_NOT_A_NUMBER')} />
                     <strong>Stake {sym}</strong>
