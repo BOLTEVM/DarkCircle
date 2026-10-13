@@ -42,8 +42,22 @@ describe('planAirdrop', () => {
         expect(plan.accounts).toBe(3);
     });
 
-    test('a burner counts 1.5x the same stake, and burned liquidity counts toward the threshold', () => {
-        const plan = planAirdrop([pos(1, 1000n), pos(2, 0n, 1000n)]);
+    test('by default only what is still staked counts: burned liquidity earns the multiplier but is not stake', () => {
+        const plan = planAirdrop([pos(1, 1000n), pos(2, 0n, 5000n), pos(3, 1000n, 5000n)]);
+        // account 2 burned a lot and holds nothing: not eligible. Account 3 is eligible on its held 1,000 alone.
+        expect(plan.entries.map(e => e.account)).toEqual([acct(1), acct(3)]);
+        const [plain, burner] = plan.entries;
+        expect(plain.stake).toBe(1000n * E18);
+        expect(burner.stake).toBe(1000n * E18);
+        expect(burner.burner).toBe(true);
+        // same stake, 1.5x the weight: 3 : 2 between burner and plain
+        expect(burner.amountA * 2n).toBeGreaterThanOrEqual(plain.amountA * 3n - 2n);
+        expect(burner.amountA * 2n).toBeLessThanOrEqual(plain.amountA * 3n + 2n);
+    });
+
+    test('a burner counts 1.5x the same stake, and with countBurned the burned liquidity counts toward the threshold', () => {
+        const plan = planAirdrop([pos(1, 1000n), pos(2, 0n, 1000n)], { countBurned: true });
+        expect(plan.params.countBurned).toBe(true);
         const [plain, burner] = plan.entries;
         expect(plain.burner).toBe(false);
         expect(burner.burner).toBe(true);
@@ -254,6 +268,28 @@ describe('snapshot arithmetic', () => {
 
     test('a node error aborts the scan instead of returning a partial history', async () => {
         const batch: BatchFn = async calls => calls.map(() => ({ ok: false as const, error: 'rate limited' }));
-        await expect(scanTransfers(batch, PAIR, 50_000, { perCall: 2 })).rejects.toThrow(/rate limited/);
+        await expect(scanTransfers(batch, PAIR, 50_000, { perCall: 2, retryDelayMs: 0 })).rejects.toThrow(/rate limited/);
+    });
+
+    test('a window that fails once is retried and the scan carries on', async () => {
+        let failed = false;
+        const batch: BatchFn = async calls =>
+            calls.map(() => {
+                if (!failed) {
+                    failed = true;
+                    return { ok: false as const, error: 'timed out' };
+                }
+                return { ok: true as const, value: [] };
+            });
+        const r = await scanTransfers(batch, PAIR, 25_000, { perCall: 3, maxWindows: 3, retryDelayMs: 0 });
+        expect(r.windows).toBe(3);
+    });
+
+    test('an ordinary mint to a provider is not the first mint: the scan keeps going', async () => {
+        const ordinary = { topics: [TRANSFER_TOPIC, '0x' + '0'.repeat(64), '0x' + '0'.repeat(24) + 'aa'.repeat(20)], data: '0x' + '64'.padStart(64, '0'), blockNumber: '0x5', logIndex: '0x0' };
+        const batch: BatchFn = async calls => calls.map(() => ({ ok: true as const, value: [ordinary] }));
+        const r = await scanTransfers(batch, PAIR, 100_000, { perCall: 2, maxWindows: 4 });
+        expect(r.complete).toBe(false);
+        expect(r.windows).toBe(4);
     });
 });

@@ -10,7 +10,7 @@
 //
 // Nothing here sends anything: it reads, and returns data for planAirdrop.
 
-import { checksumAddress } from './keccak';
+import { checksumAddress, keccak256Bytes } from './keccak';
 import type { StakePosition } from './airdrop';
 import { createBatch, type BatchCall, type BatchFn } from './pairs';
 
@@ -20,6 +20,14 @@ const DEAD = '0x000000000000000000000000000000000000dead';
 export const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 /** The node refuses a log query wider than this many blocks. */
 const WINDOW = 10_000;
+
+const selector = (signature: string): string => keccak256Bytes(new TextEncoder().encode(signature)).slice(0, 10);
+/** getPoolId(address) -> (uint256 pid, bool exists) on Quainance's gauge. */
+const SEL_GET_POOL_ID = selector('getPoolId(address)');
+/** poolSummary(uint256) -> (lpToken, launchToken, creator, ..., initialBurnedLiquidity, totalStaked, ...). */
+const SEL_POOL_SUMMARY = selector('poolSummary(uint256)');
+/** balanceOf(uint256 pid, address user) on the gauge. */
+const SEL_BALANCE_OF_POOL = selector('balanceOf(uint256,address)');
 
 export interface LpTransfer {
     from: string;
@@ -54,7 +62,7 @@ export function parseTransferLog(log: any): LpTransfer | null {
 
 export interface ScanResult {
     transfers: LpTransfer[];
-    /** The pair's first mint was reached: the history is complete. */
+    /** The pair's first mint (zero address to zero address) was reached: the history is complete. */
     complete: boolean;
     fromBlock: number;
     windows: number;
@@ -68,10 +76,10 @@ export async function scanTransfers(
     batch: BatchFn,
     token: string,
     headBlock: number,
-    opts: { maxWindows?: number; perCall?: number; onProgress?: (done: number, found: number) => void } = {}
+    opts: { maxWindows?: number; perCall?: number; retryDelayMs?: number; onProgress?: (done: number, found: number) => void } = {}
 ): Promise<ScanResult> {
     const maxWindows = opts.maxWindows ?? 1500;
-    const perCall = opts.perCall ?? 8;
+    const perCall = opts.perCall ?? 3;
     const all: LpTransfer[] = [];
     let windows = 0;
     let complete = false;
@@ -87,6 +95,14 @@ export async function scanTransfers(
             to = from - 1;
         }
         const res = await batch(calls);
+        // the node serves log queries one at a time and times out under load: a failed window is retried by itself a few
+        // times before the scan gives up (a missing window would silently drop transfers)
+        for (let i = 0; i < res.length; i++) {
+            for (let attempt = 1; attempt <= 4 && (!res[i].ok || !Array.isArray((res[i] as { value: unknown }).value)); attempt++) {
+                await new Promise(resolve => setTimeout(resolve, (opts.retryDelayMs ?? 750) * attempt));
+                res[i] = (await batch([calls[i]]))[0];
+            }
+        }
         res.forEach((r, i) => {
             if (!r.ok || !Array.isArray(r.value)) throw new Error(`The node could not read blocks ${ranges[i].from}-${ranges[i].to}: ${r.ok ? 'unexpected reply' : r.error}`);
             for (const log of r.value) {
@@ -96,8 +112,9 @@ export async function scanTransfers(
         });
         windows += ranges.length;
         fromBlock = ranges[ranges.length - 1].from;
-        // the pair mints its permanent minimum liquidity to the zero address from the zero address, once, first
-        if (all.some(t => t.from === ZERO)) complete = true;
+        // the pair mints its permanent minimum liquidity from the zero address TO the zero address, once, first (an
+        // ordinary mint to a provider also comes from the zero address, so the destination matters)
+        if (all.some(t => t.from === ZERO && t.to === ZERO)) complete = true;
         opts.onProgress?.(windows, all.length);
         if (fromBlock === 0) complete = true;
     }
@@ -162,8 +179,12 @@ export interface PoolSnapshot {
     positions: StakePosition[];
     /** The log history reached the pair's first mint. False means a burner may be missing. */
     complete: boolean;
-    /** Accounts that hold liquidity tokens and are contracts: whoever is behind them is NOT counted. */
+    /** Accounts that hold liquidity tokens and are contracts that are not a known gauge: whoever is behind them is NOT counted. */
     contractHolders: string[];
+    /** Staking gauges found holding the pool's liquidity tokens, whose depositors were read individually. */
+    gauges: string[];
+    /** Liquidity tokens a gauge holds that no found account owns: stakers the history did not reveal (a burner or staker may be missing). */
+    unattributed: string[];
 }
 
 /**
@@ -221,13 +242,66 @@ export async function snapshotPool(
     const deadBal = bal[list.length + 1];
     const burnedTotal = (zeroBal.ok && isWord(zeroBal.value) ? BigInt(zeroBal.value) : 0n) + (deadBal.ok && isWord(deadBal.value) ? BigInt(deadBal.value) : 0n);
 
-    // which holders are contracts: their depositors are not visible from here
+    // which holders are contracts: their depositors are not visible from the pair alone
     const holderList = [...balances.keys()];
     const codeRes = holderList.length ? await batch(holderList.map(h => ({ method: 'quai_getCode', params: [checksumAddress(h), tag] }))) : [];
     const contractHolders = holderList.filter((_, i) => {
         const r = codeRes[i];
         return r?.ok && typeof r.value === 'string' && r.value !== '0x' && r.value.length > 2;
     });
+
+    // A contract holding the pair's liquidity tokens may be a staking gauge (Quainance's gaugeV2): it answers
+    // getPoolId(pair) with the pool the tokens are staked in. Its LP balance is then really its depositors', so it is
+    // replaced by what each of them has staked there, and the creator's burn at launch (poolSummary) is counted as theirs.
+    const staking = new Map<string, bigint>();
+    const extraBurn = new Map<string, bigint>();
+    const unattributed: string[] = [];
+    const resolvedGauges: string[] = [];
+    for (const holder of contractHolders) {
+        const idRes = (await batch([call(holder, SEL_GET_POOL_ID + word(pair), tag)]))[0];
+        if (!idRes.ok || typeof idRes.value !== 'string' || idRes.value.length < 130) continue;
+        const pid = BigInt('0x' + idRes.value.slice(2, 66));
+        if (BigInt('0x' + idRes.value.slice(66, 130)) === 0n) continue;
+        const sumRes = (await batch([call(holder, SEL_POOL_SUMMARY + pid.toString(16).padStart(64, '0'), tag)]))[0];
+        if (!sumRes.ok || typeof sumRes.value !== 'string' || sumRes.value.length < 2 + 64 * 10) continue;
+        const w = (i: number) => sumRes.value.slice(2 + 64 * i, 2 + 64 * (i + 1));
+        const lpToken = addr('0x' + w(0));
+        if (lpToken !== pair.toLowerCase()) continue;
+        const creator = addr('0x' + w(2));
+        const initialBurned = BigInt('0x' + w(6));
+        const totalStaked = BigInt('0x' + w(7));
+        if (initialBurned > 0n && creator !== ZERO) extraBurn.set(creator, (extraBurn.get(creator) ?? 0n) + initialBurned);
+
+        // candidates: whoever moved liquidity tokens to or from the gauge, and the pool's creator
+        const candidates = new Set<string>([creator]);
+        for (const t of scan.transfers) {
+            if (t.to === holder) candidates.add(t.from);
+            if (t.from === holder) candidates.add(t.to);
+        }
+        candidates.delete(ZERO);
+        candidates.delete(DEAD);
+        candidates.delete(holder);
+        const users = [...candidates];
+        const stakeRes = users.length ? await batch(users.map(u => call(holder, SEL_BALANCE_OF_POOL + pid.toString(16).padStart(64, '0') + word(u), tag))) : [];
+        let found = 0n;
+        users.forEach((u, i) => {
+            const r = stakeRes[i];
+            if (!r.ok || !isWord(r.value)) throw new Error(`Could not read ${u}'s stake in the gauge.`);
+            const v = BigInt(r.value);
+            if (v > 0n) {
+                staking.set(u, (staking.get(u) ?? 0n) + v);
+                found += v;
+            }
+        });
+        // what the gauge holds that no found account owns: staked by someone this history did not reveal
+        const gap = totalStaked > found ? totalStaked - found : 0n;
+        if (gap > 0n) unattributed.push(`${holder}: ${gap} liquidity tokens are staked by accounts the transfer history does not show`);
+        resolvedGauges.push(holder);
+        balances.delete(holder);
+    }
+    for (const [u, v] of staking) balances.set(u, (balances.get(u) ?? 0n) + v);
+    const burned = burnedBy(scan.transfers, pair);
+    for (const [u, v] of extraBurn) burned.set(u, (burned.get(u) ?? 0n) + v);
 
     const positions = positionsFromPool({
         pair,
@@ -236,7 +310,21 @@ export async function snapshotPool(
         reserve1,
         totalSupply,
         balances,
-        burned: burnedBy(scan.transfers, pair)
+        burned
     });
-    return { pair: pair.toLowerCase(), block: head, token0, token1, reserve0, reserve1, totalSupply, burnedTotal, positions, complete: scan.complete, contractHolders };
+    return {
+        pair: pair.toLowerCase(),
+        block: head,
+        token0,
+        token1,
+        reserve0,
+        reserve1,
+        totalSupply,
+        burnedTotal,
+        positions,
+        complete: scan.complete,
+        contractHolders: contractHolders.filter(h => !resolvedGauges.includes(h)),
+        gauges: resolvedGauges,
+        unattributed
+    };
 }

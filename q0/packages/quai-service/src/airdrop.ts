@@ -2,7 +2,9 @@
 //
 // The rule (set by the project, not discovered here): everyone who has at least 1,000 BDELTA staked on Quainance shares
 // a fixed pot of 2,100,000 Q0 and 210,000 QAXE in proportion to the BDELTA they have staked, and an LP burner (someone who
-// sent liquidity tokens to the dead address, locking that liquidity for good) counts 1.5x. This file is the arithmetic and
+// sent liquidity tokens to the zero or dead address, locking that liquidity for good) counts 1.5x. Read literally, only what
+// is STILL staked counts toward the 1,000 and the share; burned liquidity earns the multiplier but is not itself stake. A
+// project that wants burned liquidity to count as stake too sets `countBurned`. This file is the arithmetic and
 // the tree and nothing else: no network, no clock. The snapshot of who has staked what comes from airdropSnapshot.ts, or
 // from a file the administrator loads, and the same plan always gives the same root.
 //
@@ -16,6 +18,8 @@ export const AIRDROP_DEFAULTS = {
     thresholdWei: 1_000n * 10n ** 18n,
     /** A burner's weight, in basis points of a non-burner's: 15,000 = 1.5x. */
     burnerMultiplierBps: 15_000n,
+    /** Whether liquidity an account burned also counts as its stake (toward the threshold and the share). Off by default. */
+    countBurned: false,
     /** Q0 in the pot (2.1 million). */
     totalA: 2_100_000n * 10n ** 18n,
     /** QAXE in the pot (210 thousand). */
@@ -32,6 +36,8 @@ export interface AirdropParams {
     /** The first token of the pot (Q0) and the second (QAXE). */
     totalA: bigint;
     totalB: bigint;
+    /** Burned liquidity counts as stake too (default false: it only earns the multiplier). */
+    countBurned?: boolean;
     /** Accounts that never take part (the pair itself, a router, a vault...), lower case. Zero and dead are always out. */
     exclude?: readonly string[];
 }
@@ -51,7 +57,7 @@ export interface AirdropEntry {
     account: string;
     held: bigint;
     burned: bigint;
-    /** held + burned. */
+    /** What counts: held, plus burned when the plan counts burned liquidity. */
     stake: bigint;
     burner: boolean;
     weight: bigint;
@@ -83,7 +89,8 @@ export function planAirdrop(positions: readonly StakePosition[], overrides: Part
         thresholdWei: overrides.thresholdWei ?? AIRDROP_DEFAULTS.thresholdWei,
         burnerMultiplierBps: overrides.burnerMultiplierBps ?? AIRDROP_DEFAULTS.burnerMultiplierBps,
         totalA: overrides.totalA ?? AIRDROP_DEFAULTS.totalA,
-        totalB: overrides.totalB ?? AIRDROP_DEFAULTS.totalB
+        totalB: overrides.totalB ?? AIRDROP_DEFAULTS.totalB,
+        countBurned: overrides.countBurned ?? AIRDROP_DEFAULTS.countBurned
     };
     if (params.thresholdWei < 0n || params.totalA < 0n || params.totalB < 0n) throw new Error('Thresholds and totals cannot be negative.');
     if (params.burnerMultiplierBps < BPS) throw new Error('A burner multiplier below 1x would punish burning.');
@@ -100,7 +107,7 @@ export function planAirdrop(positions: readonly StakePosition[], overrides: Part
     }
 
     const eligible = [...merged.entries()]
-        .map(([account, v]) => ({ account, held: v.held, burned: v.burned, stake: v.held + v.burned }))
+        .map(([account, v]) => ({ account, held: v.held, burned: v.burned, stake: v.held + (params.countBurned ? v.burned : 0n) }))
         .filter(v => v.stake > 0n && v.stake >= params.thresholdWei)
         .sort((a, b) => (a.account < b.account ? -1 : a.account > b.account ? 1 : 0));
 
@@ -224,6 +231,7 @@ export interface Distribution {
     totalB: string;
     thresholdWei: string;
     burnerMultiplierBps: string;
+    countBurned: boolean;
     /** Block of the stake snapshot, for anyone who wants to reproduce it. */
     snapshotBlock: number | null;
     entries: DistributionEntry[];
@@ -255,6 +263,7 @@ export function buildDistribution(input: DistributionInput): Distribution {
         totalB: plan.distributedB.toString(),
         thresholdWei: plan.params.thresholdWei.toString(),
         burnerMultiplierBps: plan.params.burnerMultiplierBps.toString(),
+        countBurned: plan.params.countBurned,
         snapshotBlock: input.snapshotBlock,
         entries: plan.entries.map(e => ({
             index: e.index,
