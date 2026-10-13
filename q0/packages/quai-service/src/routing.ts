@@ -29,7 +29,7 @@ import {
     type SwapRoute
 } from './registries/pools';
 import { quoteCrossDexRoute, quoteRoute, type LPReserves, type RouteQuote } from './index';
-import type { CurveLeg } from './curves';
+import { GAS_CURVE_BUY, GAS_CURVE_SELL, type CurveLeg } from './curves';
 
 /**
  * A route that is easier to execute goes first when it is within this many basis points of the best output: fewer wallet
@@ -224,13 +224,22 @@ export function sortByOutput(list: RouteCandidate[]): RouteCandidate[] {
     );
 }
 
-/** Gas for the legs of a route: a router call per leg (more pools, more gas) and an approval for every leg paid in a token. */
+/**
+ * Gas for the legs of a route: a router call per AMM leg (more pools, more gas), a buy or sell per curve leg, and an approval
+ * for every leg paid in a token (a leg paid in native QUAI, the first one or the one after a curve sell, needs none).
+ */
 export function gasForLegs(legs: Leg[], nativeIn: boolean): bigint {
     let gas = 0n;
     legs.forEach((leg, i) => {
+        const previous = legs[i - 1];
+        const paidNative = (i === 0 && nativeIn) || (previous?.kind === 'CURVE' && previous.side === 'SELL');
         if (leg.kind === 'AMM') {
             gas += GAS_PER_SWAP_CALL + GAS_PER_POOL * BigInt(leg.path.length - 1);
-            if (!(i === 0 && nativeIn)) gas += GAS_PER_APPROVAL;
+            if (!paidNative) gas += GAS_PER_APPROVAL;
+        } else if (leg.side === 'BUY') {
+            gas += GAS_CURVE_BUY;
+        } else {
+            gas += GAS_CURVE_SELL + GAS_PER_APPROVAL;
         }
     });
     return gas;
