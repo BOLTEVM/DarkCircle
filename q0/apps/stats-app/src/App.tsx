@@ -30,22 +30,20 @@ import {
   prepareContractCall,
   type QrbBoostStatus,
   POOL_REGISTRY,
-  CANDIDATE_POOLS,
-  SWAP_ROUTES,
-  buildCrossDexRoutes,
-  findPool,
-  getPairAddress,
-  isDexLive,
+  QUAINANCE_DEX_IDS,
   type PoolInfo,
   type DexId,
   requireDex,
-  discoverCircleswapPools,
-  buildCircleswapRoutes,
-  orientedPath,
-  orientedSegments,
   tokenAddress,
   quoteRoute,
-  quoteCrossDexRoute,
+  listRoutes,
+  isConnected,
+  requoteCandidate,
+  verifyDexCode,
+  canSign,
+  mergePools,
+  type RouteCandidate,
+  type DexCodeReport,
   parseUnits,
   formatUnits as formatBaseUnits,
   getTokenMetadata,
@@ -53,13 +51,10 @@ import {
   getLatestBlockNumber,
   getTokenBalance,
   getAllowance,
-  getQuaiBalance,
   quaiRpcCall,
   getTokenDetailV2,
   getQuainanceTVL,
   mergeQuainance,
-  tokenMarket,
-  loadPairSnapshots,
   analyzePairs,
   getTokenByAddress,
   type PairSnapshot,
@@ -82,13 +77,15 @@ import FarmsPage from './FarmsPage';
 import PrimaryNav from './PrimaryNav';
 import { SectionBoundary } from './CrashScreen';
 import { resolveQuaiUsd } from './quaiUsd';
-import { useTokenPricesUsd } from './useYieldBoard';
+import { useQrbMarket } from './useQrbMarket';
+import QrbMarketCards from './QrbMarketCards';
 import QuainanceMarkets from './QuainanceMarkets';
 import { loadQuainanceCatalog, type CatalogLoad } from './quainanceCatalog';
 import { useAdministrator } from './useAdministrator';
 import { deployTabVisible } from './adminAccess';
 import TokenAnalyticsPage from './TokenAnalyticsPage';
 import { readImportedTokens, writeImportedTokens } from './customTokens';
+import { loadBalances, loadSwapLiquidity } from './swapLiquidity';
 
 // The deploy tooling carries the contracts' creation bytecode and the quais SDK; it loads only when opened.
 const DeployPage = lazy(() => import('./DeployPage'));
@@ -136,8 +133,9 @@ export default function App() {
   // Wallet first: the administrator check below needs it. (Declared here so the hash handler can read the result.)
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const { isAdmin } = useAdministrator(walletAddress);
-  // QRB has no explorer price yet, so its price and market cap come from its Circleswap pools.
-  const { prices: poolPricesUsd } = useTokenPricesUsd();
+  // QRB price and market cap refresh in the background (explorer + pool reserves), independent of the loading screen:
+  // the first read starts now, and the tab keeps it fresh while it is open.
+  const qrbMarket = useQrbMarket(activeTab === 'QRB');
   const deployVisible = isAdmin || DEPLOY_BOOTSTRAP_OPEN;
   const deployVisibleRef = useRef(deployVisible);
   deployVisibleRef.current = deployVisible;
@@ -199,13 +197,24 @@ export default function App() {
   const [quaiUsdNow, setQuaiUsdNow] = useState<number | null>(null);
   
   // Swap States
-  // Pools created after the registry was written (e.g. via the Create Pool modal), found by factory.getPair().
+  // Every pool on every DEX factory (read from the factories themselves), and the tokens found in them.
   const [discoveredPools, setDiscoveredPools] = useState<PoolInfo[]>([]);
+  const [discoveredTokens, setDiscoveredTokens] = useState<TokenInfo[]>([]);
+  // Whether each DEX's contracts are still the ones this app pins, the gas price, and pools that could not be used.
+  const [dexState, setDexState] = useState<Partial<Record<DexId, DexCodeReport>>>({});
+  const [gasPriceWei, setGasPriceWei] = useState<bigint | null>(null);
+  const [skippedPools, setSkippedPools] = useState<number>(0);
+  // The two tokens being swapped (registry keys; native QUAI is WQUAI plus `nativeQuaiSide`), and a way the user chose.
+  const [pair, setPair] = useState<{ from: string; to: string }>({ from: 'Q0', to: 'WQUAI' });
+  const [forcedRouteId, setForcedRouteId] = useState<string | null>(null);
   const [poolModalOpen, setPoolModalOpen] = useState<boolean>(false);
   const [customTokens, setCustomTokens] = useState(() => readImportedTokens());
   const [importTokenOpen, setImportTokenOpen] = useState(false);
   const [importPrefill, setImportPrefill] = useState<string | undefined>(undefined);
-  const tokenCatalog = useMemo(() => [...REGISTERED_TOKENS, ...customTokens], [customTokens]);
+  const tokenCatalog = useMemo(() => {
+    const known = new Set([...REGISTERED_TOKENS, ...customTokens].map(token => token.address.toLowerCase()));
+    return [...REGISTERED_TOKENS, ...customTokens, ...discoveredTokens.filter(token => !known.has(token.address.toLowerCase()))];
+  }, [customTokens, discoveredTokens]);
   const tokenCatalogRef = useRef(tokenCatalog);
   tokenCatalogRef.current = tokenCatalog;
 
@@ -219,7 +228,21 @@ export default function App() {
   // Live token metadata (see quai-service/tokenMetadata.ts): contract fields come from the chain in one
   // batch and win over everything else; the explorer adds logo, price and holders. Cached profiles paint
   // immediately, results stream in per token, and a failed source never erases what is already known.
-  const { profiles: tokenProfiles, status: contractMetadataStatus, refreshing: tokenMetadataRefreshing, refresh: refreshTokenMetadata } = useTokenProfiles(tokenCatalog);
+  // Live profiles (logo, price, holders) are fetched for curated and imported tokens, for tokens the wallet holds or the swap
+  // screen shows, and for the deepest discovered ones: not for all of the hundred or so, which would be one explorer request
+  // each every few minutes. A discovered token whose symbol imitates another keeps its suffixed key and is never looked up,
+  // so a contract cannot dress itself up as a listed token by answering symbol().
+  const profileTokens = useMemo(() => {
+    const wanted = new Set<string>([pair.from, pair.to]);
+    for (const [symbol, raw] of Object.entries(rawBalances)) if (raw !== '0') wanted.add(symbol);
+    let deepest = 0;
+    return tokenCatalog.filter(token => {
+      if (!token.discovered) return true;
+      if (token.symbol.includes('#')) return false;
+      return wanted.has(token.symbol) || deepest++ < 24;
+    });
+  }, [tokenCatalog, rawBalances, pair.from, pair.to]);
+  const { profiles: tokenProfiles, status: contractMetadataStatus, refreshing: tokenMetadataRefreshing, refresh: refreshTokenMetadata } = useTokenProfiles(profileTokens);
   const contractMetadata = useMemo(() => {
     const map: Record<string, TokenBubbleMetadata> = {};
     for (const token of tokenCatalog) {
@@ -240,37 +263,16 @@ export default function App() {
   }, [tokenCatalog, tokenProfiles]);
   const importedAddresses = useMemo(() => new Set(customTokens.map(token => token.address.toLowerCase())), [customTokens]);
 
-  const allPools: PoolInfo[] = [...POOL_REGISTRY, ...discoveredPools];
+  // The curated pools plus every pool the factories report (the same pair address is listed once).
+  const allPools = useMemo<PoolInfo[]>(() => mergePools(POOL_REGISTRY, discoveredPools), [discoveredPools]);
   const allPoolsRef = useRef<PoolInfo[]>(allPools);
   allPoolsRef.current = allPools;
   const tokenLabel = (symbol: string) => TOKEN_REGISTRY[symbol]?.symbol ?? symbol;
-  const discoveredDirectRoutes = discoveredPools
-    .filter(pool => pool.dex !== 'CIRCLESWAP')
-    .filter(pool => !SWAP_ROUTES.some(route => route.dex === pool.dex && ((route.path[0] === pool.tokens[0] && route.path[route.path.length - 1] === pool.tokens[1]) || (route.path[0] === pool.tokens[1] && route.path[route.path.length - 1] === pool.tokens[0]))))
-    .map(pool => ({
-      id: `POOL_${pool.dex}_${pool.pair.toLowerCase()}`,
-      label: `${tokenLabel(pool.tokens[0])} / ${tokenLabel(pool.tokens[1])} (${DEXES[pool.dex].label})`,
-      dex: pool.dex,
-      path: [...pool.tokens]
-    }));
-  // Circleswap's pools are created by users, so its routes are built from what the factory reports.
-  const availableRoutes = [
-    ...SWAP_ROUTES.filter(r =>
-      !r.optional || r.path.slice(0, -1).every((sym, i) => findPool(r.dex, sym, r.path[i + 1], allPools))
-    ),
-    ...discoveredDirectRoutes,
-    ...buildCircleswapRoutes(discoveredPools),
-    ...buildCrossDexRoutes(allPools)
-  ];
-  // Circleswap pools that exist but use a token this app does not list (so cannot be priced or shown).
-  const [circleswapUnlisted, setCircleswapUnlisted] = useState<number>(0);
 
   // The wallet's boost as the Qrb contract reports it (balance AND holding time), not inferred from a balance.
   const [qrbStatus, setQrbStatus] = useState<QrbBoostStatus | null>(null);
-  // High price impact must be acknowledged before the swap can be sent.
+  // A swap that moves the price a lot, or involves a token nobody has vetted, must be acknowledged before it is sent.
   const [impactAck, setImpactAck] = useState<boolean>(false);
-  const [routeId, setRouteId] = useState<string>(SWAP_ROUTES[0].id);
-  const [reversed, setReversed] = useState<boolean>(false);
   const [nativeQuaiSide, setNativeQuaiSide] = useState<'FROM' | 'TO' | null>(null);
   const [swapAmountIn, setSwapAmountIn] = useState<string>('');
   const [slippage, setSlippage] = useState<number>(1.0);
@@ -280,6 +282,8 @@ export default function App() {
 
   // Atomic router swap progress state ('IDLE' | 'APPROVING' | 'SWAPPING')
   const [pendingSwapStep, setPendingSwapStep] = useState<'IDLE' | 'APPROVING' | 'SWAPPING'>('IDLE');
+  // Which step of a route that takes several transactions is being sent.
+  const [swapStep, setSwapStep] = useState<{ index: number; total: number }>({ index: 0, total: 1 });
 
   // Top Holders
   const [topHolders, setTopHolders] = useState<{address: string, balance: string, pct: string}[]>([]);
@@ -366,114 +370,52 @@ export default function App() {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
 
+    // Liquidity first and on its own: the swap screen needs only the chain, so a slow or blocked explorer must not hold it up
+    // or take it down. Every pool of every DEX factory is read in one pass (see swapLiquidity.ts).
+    let snapshots: PairSnapshot[] = [];
+    let allSnapshots: PairSnapshot[] = [];
+    let factoryTotal = 0;
     try {
-      const [meta, poolRes, blockNum, detail] = await Promise.all([
-        getTokenMetadata(CONTRACTS.Q0),
-        Promise.all(POOL_REGISTRY.map(async (pool) => [pool.pair.toLowerCase(), await getLPReserves(pool.pair)] as const)),
-        getLatestBlockNumber(),
-        getTokenDetailV2(CONTRACTS.Q0)
-      ]);
-      const reservesMap: Record<string, LPReserves> = Object.fromEntries(poolRes);
+      const liquidity = await loadSwapLiquidity();
+      setDiscoveredPools(liquidity.pools);
+      setDiscoveredTokens(liquidity.tokens);
+      setPoolReserves(liquidity.reserves);
+      setDexState(liquidity.dexState);
+      setGasPriceWei(liquidity.gasPriceWei);
+      setSkippedPools(liquidity.skippedPools);
+      setLpWquai(liquidity.reserves[CONTRACTS.LP_WQUAI.toLowerCase()] ?? null);
+      setLpBoss(liquidity.reserves[CONTRACTS.LP_BOSS.toLowerCase()] ?? null);
+      snapshots = liquidity.snapshots.filter(p => QUAINANCE_DEX_IDS.includes(p.dex));
+      factoryTotal = QUAINANCE_DEX_IDS.reduce((sum, id) => sum + (liquidity.totals[id] ?? 0), 0);
+      for (const note of liquidity.errors) console.warn('Liquidity read:', note);
+      setLatestBlock(liquidity.block || (await getLatestBlockNumber().catch(() => 0)));
+      // Priced from every pair, so a token is valued through whichever DEX holds its deepest pool.
+      allSnapshots = liquidity.snapshots;
+    } catch (e) {
+      console.error('Error loading pools from Quai:', e);
+    }
 
-      const found: PoolInfo[] = [];
-      await Promise.all(CANDIDATE_POOLS.map(async (cand) => {
-        try {
-          const pair = await getPairAddress(cand.dex, cand.tokens[0], cand.tokens[1]);
-          if (!pair || POOL_REGISTRY.some(p => p.pair.toLowerCase() === pair.toLowerCase())) return;
-          reservesMap[pair.toLowerCase()] = await getLPReserves(pair);
-          found.push({ ...cand, pair });
-        } catch (e) {
-          console.warn(`Pool discovery failed for ${cand.dex} ${cand.tokens.join('/')}:`, e);
-        }
-      }));
-
-      // Imported tokens are not part of the generated candidate list. Look for a direct pair against every
-      // known deployed token on the live external DEXes so an imported contract becomes tradable when its pool
-      // already exists, without guessing at a router or silently creating a pool.
-      const knownSymbols = [...new Set([
-        ...REGISTERED_TOKENS.filter(token => token.deployed !== false && !token.isNative).map(token => token.symbol),
-        ...customTokens.map(token => token.symbol)
-      ])];
-      const customCandidates: { dex: DexId; tokens: [string, string] }[] = [];
-      const customPairKeys = new Set<string>();
-      for (const custom of customTokens) {
-        for (const other of knownSymbols) {
-          if (custom.symbol === other) continue;
-          for (const dexId of (['QUAISWAP', 'QUAINANCE'] as DexId[])) {
-            const pairKey = `${dexId}:${[custom.symbol, other].sort().join('/')}`;
-            if (customPairKeys.has(pairKey)) continue;
-            customPairKeys.add(pairKey);
-            customCandidates.push({ dex: dexId, tokens: [custom.symbol, other] });
-          }
-        }
-      }
-      await Promise.all(customCandidates.map(async (cand) => {
-        if (!isDexLive(cand.dex)) return;
-        try {
-          const pair = await getPairAddress(cand.dex, cand.tokens[0], cand.tokens[1]);
-          if (!pair || POOL_REGISTRY.some(pool => pool.pair.toLowerCase() === pair.toLowerCase())) return;
-          if (found.some(pool => pool.pair.toLowerCase() === pair.toLowerCase())) return;
-          reservesMap[pair.toLowerCase()] = await getLPReserves(pair);
-          found.push({ ...cand, pair });
-        } catch (e) {
-          console.warn(`Imported token pool discovery failed for ${cand.dex} ${cand.tokens.join('/')}:`, e);
-        }
-      }));
-      // Circleswap has no fixed pool list: ask its factory. A failure here must not hide the other DEXes.
-      try {
-        const cs = await discoverCircleswapPools();
-        await Promise.all(cs.pools.map(async (p) => {
-          reservesMap[p.pair.toLowerCase()] = await getLPReserves(p.pair);
-        }));
-        found.push(...cs.pools);
-        setCircleswapUnlisted(cs.unlisted);
-      } catch (e) {
-        console.warn('Circleswap pool discovery failed:', e);
-      }
-      // Quainance: take EVERY pair its factory reports, by default (not only the ones named in CANDIDATE_POOLS). A pair
-      // whose two tokens the app lists is routable straight away; the rest still appear in the Quainance list and on the
-      // Pairs page, and become tradable here once their tokens are imported.
-      let quainanceSnapshots: PairSnapshot[] = [];
-      let quainanceFactoryTotal = 0;
-      try {
-        const snap = await loadPairSnapshots(['QUAINANCE'], { maxPerDex: 1000 });
-        quainanceSnapshots = snap.pairs;
-        quainanceFactoryTotal = snap.totals.QUAINANCE ?? snap.pairs.length;
-        for (const p of snap.pairs) {
-          const a = getTokenByAddress(p.token0.address);
-          const b = getTokenByAddress(p.token1.address);
-          if (!a || !b || a.deployed === false || b.deployed === false || a.isNative || b.isNative) continue;
-          const key = p.pair.toLowerCase();
-          if (POOL_REGISTRY.some(r => r.pair.toLowerCase() === key) || found.some(f => f.pair.toLowerCase() === key)) continue;
-          reservesMap[key] = { reserve0: p.reserve0.toString(), reserve1: p.reserve1.toString(), blockTime: 0, token0: p.token0.address, token1: p.token1.address };
-          found.push({ pair: p.pair, dex: 'QUAINANCE', tokens: [a.symbol, b.symbol] });
-        }
-      } catch (e) {
-        console.warn('Quainance pair discovery failed:', e);
-      }
-      setDiscoveredPools(found);
-      setPoolReserves(reservesMap);
-      const wquaiRes = reservesMap[CONTRACTS.LP_WQUAI.toLowerCase()];
-      const bossRes = reservesMap[CONTRACTS.LP_BOSS.toLowerCase()];
-
+    try {
+      const [meta, detail] = await Promise.all([getTokenMetadata(CONTRACTS.Q0), getTokenDetailV2(CONTRACTS.Q0)]);
       setQ0Meta(meta);
-      setLpWquai(wquaiRes);
-      setLpBoss(bossRes);
-      setLatestBlock(blockNum);
       setTokenDetail(detail);
       setTransfers(detail.transfers);
       setHolderCount(detail.token.holder_count || 34);
+      setTopHolders(
+        detail.holders
+          .filter(h => h.address.toLowerCase() !== '0x0000000000000000000000000000000000000000')
+          .slice(0, 8)
+          .map(h => ({
+            address: h.address,
+            balance: (Number(h.balance) / 1e18).toLocaleString(undefined, { maximumFractionDigits: 0 }),
+            pct: h.percentage.toFixed(2) + '%'
+          }))
+      );
+    } catch (e) {
+      console.warn('Q0 token details unavailable:', e);
+    }
 
-      const parsedHolders = detail.holders
-        .filter(h => h.address.toLowerCase() !== '0x0000000000000000000000000000000000000000')
-        .slice(0, 8)
-        .map(h => ({
-          address: h.address,
-          balance: (Number(h.balance) / 1e18).toLocaleString(undefined, { maximumFractionDigits: 0 }),
-          pct: h.percentage.toFixed(2) + '%'
-        }));
-      setTopHolders(parsedHolders);
-
+    try {
       // The explorer's indexed stats are optional: partial (top 25 pools) and blocked from browsers in production.
       // Only the development proxy can read this endpoint: the explorer sends no CORS header, so in production the call would
       // fail on every load (and fill the console), and the figures are derived from pool reserves either way.
@@ -489,62 +431,49 @@ export default function App() {
       } else {
         setQuainanceTvl(null);
       }
-      try {
-        const [quaiUsd, catalog] = await Promise.all([resolveQuaiUsd(), loadQuainanceCatalog()]);
-        setQuaiUsdNow(quaiUsd);
-        setQuainanceCatalog(catalog);
-        setQuainanceAgg(
-          mergeQuainance({
-            snapshots: quainanceSnapshots,
-            analysis: analyzePairs(quainanceSnapshots, { quaiUsd }),
-            explorer: indexed,
-            factoryTotal: quainanceFactoryTotal,
-            launches: catalog ? catalog.launches : undefined,
-            isListed: address => {
-              const t = getTokenByAddress(address);
-              return Boolean(t) && t!.deployed !== false && !t!.isNative;
-            }
-          })
-        );
-      } catch (aggErr) {
-        console.warn('Could not aggregate Quainance pairs:', aggErr);
-      }
-
-    } catch (e) {
-      console.error("Error loading data from Quai:", e);
+      const [quaiUsd, catalog] = await Promise.all([resolveQuaiUsd(), loadQuainanceCatalog()]);
+      setQuaiUsdNow(quaiUsd);
+      setQuainanceCatalog(catalog);
+      setQuainanceAgg(
+        mergeQuainance({
+          snapshots,
+          analysis: analyzePairs(allSnapshots, { quaiUsd }).filter(a => QUAINANCE_DEX_IDS.includes(a.dex)),
+          explorer: indexed,
+          factoryTotal,
+          launches: catalog ? catalog.launches : undefined,
+          isListed: address => {
+            const t = getTokenByAddress(address);
+            return Boolean(t) && t!.deployed !== false && !t!.isNative;
+          }
+        })
+      );
+    } catch (aggErr) {
+      console.warn('Could not aggregate Quainance pairs:', aggErr);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [customTokens]);
+  }, []);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Load wallet balances for every registered token, plus LP tokens for every registered pool.
-  // A failed read is left unset (rendered as an em dash) rather than shown as 0.
+  // Load wallet balances for every known token, plus LP tokens for every pool, as a few batched requests (there are a
+  // hundred or more of each; one request per read would hammer the node). A failed read is left unset (rendered as an em
+  // dash) rather than shown as 0.
   const loadWalletBalances = useCallback(async (addr: string) => {
-    const raw: Record<string, string> = {};
-    const lp: Record<string, string> = {};
-    await Promise.all([
-      ...tokenCatalogRef.current.filter(tok => tok.deployed !== false).map(async (tok) => {
-        try {
-          raw[tok.symbol] = tok.isNative ? await getQuaiBalance(addr) : await getTokenBalance(tok.address, addr);
-        } catch (e) {
-          console.warn(`Balance read failed for ${tok.symbol}:`, e);
-        }
-      }),
-      ...allPoolsRef.current.map(async (pool) => {
-        try {
-          lp[pool.pair.toLowerCase()] = await getTokenBalance(pool.pair, addr);
-        } catch (e) {
-          console.warn(`LP balance read failed for ${pool.pair}:`, e);
-        }
-      })
-    ]);
-    setRawBalances(raw);
-    setLpBalances(lp);
+    try {
+      const { raw, lp } = await loadBalances(
+        addr,
+        tokenCatalogRef.current.filter(tok => tok.deployed !== false),
+        allPoolsRef.current.map(pool => pool.pair)
+      );
+      setRawBalances(raw);
+      setLpBalances(lp);
+    } catch (e) {
+      console.warn('Balance read failed:', e);
+    }
   }, []);
 
   const getBalanceForToken = (symbol: string) => {
@@ -584,7 +513,7 @@ export default function App() {
     if (walletAddress) {
       loadWalletBalances(walletAddress);
     }
-  }, [walletAddress, loadWalletBalances, discoveredPools, customTokens]);
+  }, [walletAddress, loadWalletBalances, discoveredPools, discoveredTokens, customTokens]);
 
   useEffect(() => {
     let live = true;
@@ -665,21 +594,9 @@ export default function App() {
     }
   };
 
-  // Swap quote, derived from live reserves on every render (no cached copy to go stale).
-  const route = availableRoutes.find(r => r.id === routeId) ?? SWAP_ROUTES[0];
-  const routeIsCrossDex = 'crossDex' in route;
-  const swapPathSymbols = routeIsCrossDex
-    ? (reversed ? [...route.path].reverse() : route.path)
-    : orientedPath(route, reversed);
-  const routeSegments = routeIsCrossDex
-    ? orientedSegments(route, reversed)
-    : [{ dex: route.dex, path: swapPathSymbols }];
-  const routeFromSymbol = swapPathSymbols[0];
-  const routeToSymbol = swapPathSymbols[swapPathSymbols.length - 1];
-  const fromSymbol = nativeQuaiSide === 'FROM' ? 'QUAI' : routeFromSymbol;
-  const toSymbol = nativeQuaiSide === 'TO' ? 'QUAI' : routeToSymbol;
-  const dex = requireDex(routeSegments[0].dex);
-  const routeDexLabels = [...new Set(routeSegments.map(segment => DEXES[segment.dex].label))].join(' → ');
+  // ---- the swap, derived from live reserves on every render (no cached copy to go stale) ----
+  const fromSymbol = nativeQuaiSide === 'FROM' ? 'QUAI' : pair.from;
+  const toSymbol = nativeQuaiSide === 'TO' ? 'QUAI' : pair.to;
   const fromTokenDecimals = TOKEN_REGISTRY[fromSymbol]?.decimals ?? 18;
   const toTokenDecimals = TOKEN_REGISTRY[toSymbol]?.decimals ?? 18;
 
@@ -717,22 +634,67 @@ export default function App() {
       amountParseError = e.message;
     }
   }
-  const quote = amountInWei && amountInWei > 0n
-    ? routeIsCrossDex
-      ? quoteCrossDexRoute(route, reversed, amountInWei, poolReserves, slippage, allPools)
-      : quoteRoute(route, reversed, amountInWei, poolReserves, slippage, allPools)
-    : null;
+
+  // Every way to swap this pair for the amount typed (or for one whole token when nothing is typed, so there is a price to
+  // show), best first. Ranked by what a route returns after its network fees; a route in one transaction is preferred when
+  // it is within 1% of the best. Routes cross every DEX the app can read, so there is no list of "supported" pairs.
+  const probeAmount = amountInWei && amountInWei > 0n ? amountInWei : 10n ** BigInt(fromTokenDecimals);
+  const candidates = useMemo(
+    () =>
+      listRoutes({
+        from: pair.from,
+        to: pair.to,
+        amountIn: probeAmount,
+        pools: allPools,
+        reserves: poolReserves,
+        slippagePct: slippage,
+        nativeIn: nativeQuaiSide === 'FROM',
+        gas: gasPriceWei !== null ? { gasPriceWei } : null
+      }),
+    [pair.from, pair.to, probeAmount, allPools, poolReserves, slippage, nativeQuaiSide, gasPriceWei]
+  );
+  const active: RouteCandidate | null = candidates.find(c => c.id === forcedRouteId) ?? candidates[0] ?? null;
+  const routeLegs = active ? active.legs : [];
+  const routeDexLabels = [...new Set(routeLegs.map(leg => (leg.kind === 'AMM' ? DEXES[leg.dex].label : 'Launch curve')))].join(' → ');
+  const routeSteps = routeLegs.length;
+  // When nothing connects the two tokens, say which of the two situations it is.
+  const connected = useMemo(() => isConnected(pair.from, pair.to, allPools, poolReserves), [pair.from, pair.to, allPools, poolReserves]);
+  const noRouteText = active
+    ? null
+    : connected
+      ? `The pools between ${tokenLabel(fromSymbol)} and ${tokenLabel(toSymbol)} cannot fill that amount. Try a smaller amount.`
+      : `No pool connects ${tokenLabel(fromSymbol)} and ${tokenLabel(toSymbol)} yet. Add liquidity to start one.`;
+  /** A route's tokens as the person would say them: native QUAI at the ends where it is the one paid or received. */
+  const pathLabel = (path: string[]) =>
+    path.map((key, i) => (i === 0 && nativeQuaiSide === 'FROM') || (i === path.length - 1 && nativeQuaiSide === 'TO') ? 'QUAI' : tokenLabel(key)).join(' → ');
+
+  const quote = active && amountInWei && amountInWei > 0n ? active.quote : null;
   const fromBalanceRaw = rawBalances[fromSymbol];
   const insufficientBalance = amountInWei !== null && fromBalanceRaw !== undefined && BigInt(fromBalanceRaw) < amountInWei;
 
-  // A swap this far from the market price hands most of its value to whoever trades against it.
+  // A swap this far from the market price hands most of its value to whoever trades against it, and a token found in a pool
+  // (not listed by this app) can be called anything: either needs an explicit tick before the swap can be sent.
   const HIGH_IMPACT_PCT = 10;
   const needsImpactAck = !!quote && quote.priceImpactPct >= HIGH_IMPACT_PCT;
+  const unverifiedInRoute = active ? active.unverified : [];
+  const needsUnverifiedAck = !!quote && unverifiedInRoute.length > 0;
+  const needsAck = needsImpactAck || needsUnverifiedAck;
 
   const swapAmountOut = quote ? formatBaseUnits(quote.amountOut, toTokenDecimals, 6) : '';
   const minReceived = quote ? formatBaseUnits(quote.minimumReceived, toTokenDecimals, 6) : '0';
   const priceImpact = quote ? quote.priceImpactPct.toFixed(2) + '%' : '0.00%';
-  const execPrice = quote ? quote.executionPrice.toFixed(6) : '0';
+  // Output per input in WHOLE tokens (the quote's own ratio is in base units, which differ when decimals differ).
+  const execPrice = (() => {
+    // With nothing typed the rate is for one whole token, so the screen still shows a price.
+    if (!active) return '0';
+    const wholeIn = Number(probeAmount) / 10 ** fromTokenDecimals;
+    const wholeOut = Number(active.quote.amountOut) / 10 ** toTokenDecimals;
+    const n = wholeIn > 0 ? wholeOut / wholeIn : 0;
+    return n === 0 ? '0' : n >= 1 ? n.toFixed(4) : n.toPrecision(4);
+  })();
+  const feeQuaiText = active && active.feeWei !== null ? formatBaseUnits(active.feeWei, 18, 2) : null;
+  // The fees can be most of a small swap: say so before it is sent.
+  const feesDominate = !!quote && !!active && active.feeOut !== null && active.feeOut * 2n > quote.amountOut;
 
   const handleAmountInChange = (val: string) => {
     setImpactAck(false);
@@ -743,14 +705,15 @@ export default function App() {
 
   const toggleSwapDirection = () => {
     setImpactAck(false);
-    setReversed(r => !r);
+    setPair(p => ({ from: p.to, to: p.from }));
+    setForcedRouteId(null);
     setNativeQuaiSide(side => side === 'FROM' ? 'TO' : side === 'TO' ? 'FROM' : null);
     setSwapAmountIn('');
     setSwapError(null);
     setSwapTxHash(null);
   };
 
-  // Execute swap through the router of the DEX that owns the route's pools
+  // Execute the swap: one transaction per step, each through the router of the DEX that owns that step's pools.
   const executeSwap = async () => {
     if (!walletAddress) {
       connectWallet();
@@ -764,12 +727,16 @@ export default function App() {
       setSwapError("Enter an amount to swap.");
       return;
     }
-    if (insufficientBalance) {
-      setSwapError(`Insufficient ${fromSymbol}: you hold ${getBalanceForToken(fromSymbol)}.`);
+    if (!active || !quote) {
+      setSwapError(noRouteText ?? 'There is no way to swap this pair for that amount.');
       return;
     }
-    if (needsImpactAck && !impactAck) {
-      setSwapError('This swap moves the price by ' + priceImpact + '. Tick the box to confirm you accept that.');
+    if (insufficientBalance) {
+      setSwapError(`Insufficient ${tokenLabel(fromSymbol)}: you hold ${getBalanceForToken(fromSymbol)}.`);
+      return;
+    }
+    if (needsAck && !impactAck) {
+      setSwapError('Tick the box to confirm you understand the risk before swapping.');
       return;
     }
 
@@ -784,104 +751,72 @@ export default function App() {
       return;
     }
 
-    let completedSegments = 0;
+    const legs = active.legs;
+    let completedSteps = 0;
     try {
-      // Re-read every hop's reserves right before signing so amountOutMin is not built from a stale page load.
+      // The DEX contracts must still be the ones this app was written for: a swap is never signed against code that changed.
+      const dexIds = [...new Set(legs.flatMap(leg => (leg.kind === 'AMM' ? [leg.dex] : [])))];
+      const integrity = await verifyDexCode(dexIds);
+      for (const id of dexIds) {
+        if (!canSign(integrity[id].state)) throw new Error(integrity[id].detail);
+      }
+
+      // Re-read every pool of the route right before signing so the minimum is not built from a stale page load.
       const hopPairs = new Set<string>();
-      for (const segment of routeSegments) {
-        for (let i = 0; i < segment.path.length - 1; i++) {
-          const pool = findPool(segment.dex, segment.path[i], segment.path[i + 1], allPools);
-          if (!pool) throw new Error(`No ${DEXES[segment.dex].label} pool for ${segment.path[i]}/${segment.path[i + 1]}.`);
+      for (const leg of legs) {
+        if (leg.kind !== 'AMM') continue;
+        for (let i = 0; i < leg.path.length - 1; i++) {
+          const pool = allPools.find(p => p.dex === leg.dex && ((p.tokens[0] === leg.path[i] && p.tokens[1] === leg.path[i + 1]) || (p.tokens[1] === leg.path[i] && p.tokens[0] === leg.path[i + 1])));
+          if (!pool) throw new Error(`No ${DEXES[leg.dex].label} pool for ${leg.path[i]}/${leg.path[i + 1]}.`);
           hopPairs.add(pool.pair);
         }
       }
       const fresh: Record<string, LPReserves> = { ...poolReserves };
-      await Promise.all([...hopPairs].map(async pair => {
-        fresh[pair.toLowerCase()] = await getLPReserves(pair);
+      await Promise.all([...hopPairs].map(async pairAddress => {
+        fresh[pairAddress.toLowerCase()] = await getLPReserves(pairAddress);
       }));
       setPoolReserves(fresh);
-      const freshQuote = routeIsCrossDex
-        ? quoteCrossDexRoute(route, reversed, amountInWei, fresh, slippage, allPools)
-        : quoteRoute(route, reversed, amountInWei, fresh, slippage, allPools);
+      const freshQuote = requoteCandidate(active, amountInWei, fresh, slippage, allPools);
       if (!freshQuote) throw new Error("Could not quote this swap from live reserves.");
+      // Never send a swap that would now pay out less than the minimum the person was shown.
+      if (freshQuote.amountOut < quote.minimumReceived) {
+        throw new Error(`The price moved while you were confirming: this swap would now give ${formatBaseUnits(freshQuote.amountOut, toTokenDecimals, 6)} ${tokenLabel(toSymbol)}, below the minimum of ${minReceived} shown. Nothing was sent. Check the new quote and try again.`);
+      }
 
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+      let carried = amountInWei;
+      for (const [index, leg] of legs.entries()) {
+        if (leg.kind !== 'AMM') throw new Error('This kind of step is not available in this version of the app.');
+        const legDex = requireDex(leg.dex);
+        const last = index === legs.length - 1;
+        const nativeInput = fromSymbol === 'QUAI' && index === 0;
+        const nativeOutput = toSymbol === 'QUAI' && last;
+        setSwapStep({ index, total: legs.length });
 
-      if (routeIsCrossDex) {
-        let segmentAmountIn = amountInWei;
-        for (const [segmentIndex, segment] of routeSegments.entries()) {
-          const segmentDex = requireDex(segment.dex);
-          const segmentRoute = { id: `segment_${segment.dex}`, label: segment.path.join(' / '), dex: segment.dex, path: segment.path };
-          const segmentQuote = quoteRoute(segmentRoute, false, segmentAmountIn, fresh, slippage, allPools);
-          if (!segmentQuote) throw new Error(`Could not quote the ${segmentDex.label} segment ${segment.path.join(' → ')}.`);
-
-          const nativeInput = fromSymbol === 'QUAI' && segmentIndex === 0;
-          const outputSymbol = segment.path[segment.path.length - 1];
-          const nativeOutput = toSymbol === 'QUAI' && segmentIndex === routeSegments.length - 1;
-          const outputToken = nativeOutput ? null : tokenAddress(outputSymbol);
-          const outputBefore = BigInt(nativeOutput ? await getQuaiBalance(walletAddress) : await getTokenBalance(outputToken!, walletAddress));
-          const inputToken = nativeInput ? null : tokenAddress(segment.path[0]);
-          if (inputToken) {
-            const allowance = await getAllowance(inputToken, walletAddress, segmentDex.router);
-            if (allowance < segmentAmountIn) {
-              setPendingSwapStep('APPROVING');
-              const approveTx = await sendWalletTransaction(provider, {
-                from: walletAddress,
-                to: inputToken,
-                data: encodeApprove(segmentDex.router, segmentAmountIn),
-                gas: '0x186a0'
-              });
-              await waitForTransaction(approveTx);
-            }
-          }
-
-          setPendingSwapStep('SWAPPING');
-          const segmentData = nativeInput
-            ? encodeRouterSwapExactETH(segmentQuote.minimumReceived, segment.path.map(tokenAddress), walletAddress, deadline)
-            : nativeOutput
-              ? encodeRouterSwapExactTokensForETH(segmentAmountIn, segmentQuote.minimumReceived, segment.path.map(tokenAddress), walletAddress, deadline)
-              : encodeRouterSwap(segmentAmountIn, segmentQuote.minimumReceived, segment.path.map(tokenAddress), walletAddress, deadline);
-          const prepared = await prepareContractCall(
-            walletAddress,
-            segmentDex.router,
-            segmentData,
-            1.5,
-            undefined,
-            nativeInput ? segmentAmountIn : 0n
-          );
-          const swapTx = await sendWalletTransaction(provider, prepared.tx);
-          setSwapTxHash(swapTx);
-          await waitForTransaction(swapTx);
-
-          // Native QUAI output is the terminal hop. Its wallet balance also moves down by gas, so a raw
-          // before/after balance delta would be an unreliable receipt check here.
-          if (nativeOutput) {
-            completedSegments++;
-            continue;
-          }
-
-          // Chain the confirmed balance delta into the next router; a quote is not guaranteed to be the exact
-          // output if the pool moved between the read and confirmation.
-          const outputAfter = BigInt(nativeOutput ? await getQuaiBalance(walletAddress) : await getTokenBalance(outputToken!, walletAddress));
-          const received = outputAfter - outputBefore;
-          if (received <= 0n) throw new Error(`The ${segmentDex.label} segment confirmed but no ${nativeOutput ? 'QUAI' : outputSymbol} was received.`);
-          segmentAmountIn = received;
-          completedSegments++;
+        const legRoute = { id: `step_${index}`, label: leg.path.join(' / '), dex: leg.dex, path: leg.path };
+        const legQuote = quoteRoute(legRoute, false, carried, fresh, slippage, allPools);
+        if (!legQuote) throw new Error(`Could not quote the ${legDex.label} step ${leg.path.map(tokenLabel).join(' → ')}.`);
+        // The last step may never pay out less than the minimum that was shown.
+        let minimumOut = legQuote.minimumReceived;
+        if (last && quote.minimumReceived > minimumOut) minimumOut = quote.minimumReceived;
+        if (last && legQuote.amountOut < minimumOut) {
+          throw new Error(`The earlier steps paid out less than quoted, so the last step can no longer reach the minimum shown. Nothing more was sent. You hold the ${tokenLabel(leg.path[0])} from the earlier steps.`);
         }
-      } else {
-        const swapPath = swapPathSymbols.map(tokenAddress);
-        const nativeInput = fromSymbol === 'QUAI';
-        const nativeOutput = toSymbol === 'QUAI';
-        const tokenInAddress = nativeInput ? null : tokenAddress(routeFromSymbol);
-        if (tokenInAddress) {
-          const allowance = await getAllowance(tokenInAddress, walletAddress, dex.router);
-          if (allowance < amountInWei) {
+
+        const outputSymbol = leg.path[leg.path.length - 1];
+        const outputToken = nativeOutput ? null : tokenAddress(outputSymbol);
+        // The amount the next step receives is the balance change, not the quote: the pool may have moved in between.
+        const outputBefore = !last && outputToken ? BigInt(await getTokenBalance(outputToken, walletAddress)) : 0n;
+
+        const inputToken = nativeInput ? null : tokenAddress(leg.path[0]);
+        if (inputToken) {
+          const allowance = await getAllowance(inputToken, walletAddress, legDex.router);
+          if (allowance < carried) {
             setPendingSwapStep('APPROVING');
-            console.log(`[Swap] Approving ${dex.label} router ${dex.router} to spend ${amountInWei}`);
             const approveTx = await sendWalletTransaction(provider, {
               from: walletAddress,
-              to: tokenInAddress,
-              data: encodeApprove(dex.router, amountInWei),
+              to: inputToken,
+              data: encodeApprove(legDex.router, carried),
               gas: '0x186a0'
             });
             await waitForTransaction(approveTx);
@@ -889,25 +824,25 @@ export default function App() {
         }
 
         setPendingSwapStep('SWAPPING');
-        const swapData = nativeInput
-          ? encodeRouterSwapExactETH(freshQuote.minimumReceived, swapPath, walletAddress, deadline)
+        const path = leg.path.map(tokenAddress);
+        const data = nativeInput
+          ? encodeRouterSwapExactETH(minimumOut, path, walletAddress, deadline)
           : nativeOutput
-            ? encodeRouterSwapExactTokensForETH(amountInWei, freshQuote.minimumReceived, swapPath, walletAddress, deadline)
-            : encodeRouterSwap(amountInWei, freshQuote.minimumReceived, swapPath, walletAddress, deadline);
-        console.log(`[Swap] ${nativeInput ? 'swapExactETHForTokens' : nativeOutput ? 'swapExactTokensForETH' : 'swapExactTokensForTokens'} via ${dex.label} path=${JSON.stringify(swapPath)}`);
-        // On Cyprus-1 a reverted transaction burns its whole gas limit, so the swap is simulated against the
-        // now-approved allowance first; if it would revert (slippage, dust pool, stale price) nothing is sent.
-        const prepared = await prepareContractCall(
-          walletAddress,
-          dex.router,
-          swapData,
-          1.5,
-          undefined,
-          nativeInput ? amountInWei : 0n
-        );
+            ? encodeRouterSwapExactTokensForETH(carried, minimumOut, path, walletAddress, deadline)
+            : encodeRouterSwap(carried, minimumOut, path, walletAddress, deadline);
+        // On Cyprus-1 a reverted transaction burns its whole gas limit, so each step is simulated against the now-approved
+        // allowance first; if it would revert (slippage, dust pool, stale price) nothing is sent.
+        const prepared = await prepareContractCall(walletAddress, legDex.router, data, 1.5, undefined, nativeInput ? carried : 0n);
         const swapTx = await sendWalletTransaction(provider, prepared.tx);
         setSwapTxHash(swapTx);
         await waitForTransaction(swapTx);
+        completedSteps++;
+
+        if (!last) {
+          const received = BigInt(await getTokenBalance(outputToken!, walletAddress)) - outputBefore;
+          if (received <= 0n) throw new Error(`The ${legDex.label} step confirmed but no ${tokenLabel(outputSymbol)} was received.`);
+          carried = received;
+        }
       }
 
       setPendingSwapStep('IDLE');
@@ -922,8 +857,8 @@ export default function App() {
     } catch (e: any) {
       console.error("[Swap] Failed:", e);
       const detail = parseSwapError(e);
-      setSwapError(routeIsCrossDex && completedSegments > 0
-        ? `${completedSegments} route segment${completedSegments === 1 ? '' : 's'} confirmed. The remaining route was not completed; your intermediate tokens remain in your wallet. ${detail}`
+      setSwapError(legs.length > 1 && completedSteps > 0
+        ? `${completedSteps} of ${legs.length} steps confirmed. The rest was not completed; the token from the finished steps is in your wallet. ${detail}`
         : detail);
       setPendingSwapStep('IDLE');
     } finally {
@@ -931,49 +866,61 @@ export default function App() {
     }
   };
 
-
-
-  const selectRoute = (id: string, nativeSide: 'FROM' | 'TO' | null = null) => {
+  // Open the swap screen on a pair ("FROM|TO", registry keys; QUAI is native QUAI), as the Quainance list's Trade button does.
+  const selectPair = (key: string) => {
+    const [a, b] = key.split('|');
+    if (!a || !b || !TOKEN_REGISTRY[a] || !TOKEN_REGISTRY[b]) return;
+    const from = a === 'QUAI' ? 'WQUAI' : a;
+    const to = b === 'QUAI' ? 'WQUAI' : b;
+    if (from === to) return;
     setImpactAck(false);
-    setRouteId(id);
-    setReversed(false);
-    setNativeQuaiSide(nativeSide);
+    setPair({ from, to });
+    setForcedRouteId(null);
+    setNativeQuaiSide(a === 'QUAI' ? 'FROM' : b === 'QUAI' ? 'TO' : null);
     setSwapAmountIn('');
     setSwapError(null);
     setSwapTxHash(null);
   };
 
   const handleImportedToken = (token: TokenInfo) => {
+    // The same contract may already be known (found in a pool): then there is nothing to add.
+    const sameContract = tokenCatalog.find(candidate => candidate.address.toLowerCase() === token.address.toLowerCase());
     const existing = tokenCatalog.find(candidate => candidate.symbol.toLowerCase() === token.symbol.toLowerCase());
-    if (existing && existing.address.toLowerCase() !== token.address.toLowerCase()) {
+    if (!sameContract && existing && existing.address.toLowerCase() !== token.address.toLowerCase()) {
       setSwapError(`${token.symbol} is already used by another token in this app. Import it using its existing contract or choose a token with a different symbol.`);
       setImportTokenOpen(false);
       return;
     }
-    if (!existing) setCustomTokens(tokens => [...tokens, token]);
+    if (!sameContract) setCustomTokens(tokens => [...tokens, token]);
     setImportTokenOpen(false);
     setSwapError(null);
   };
 
+  // Choosing a token never fails: any token can be paid or received, and if no pool connects the pair the screen says so.
   const selectToken = (side: 'FROM' | 'TO', symbol: string) => {
-    const normalized = symbol === 'QUAI' ? 'WQUAI' : symbol;
-    const nextFrom = side === 'FROM' ? normalized : routeFromSymbol;
-    const nextTo = side === 'TO' ? normalized : routeToSymbol;
-    if (nextFrom === nextTo) {
-      setSwapError('Choose two different tokens.');
+    const native = symbol === 'QUAI';
+    const key = native ? 'WQUAI' : symbol;
+    if (!TOKEN_REGISTRY[key]) return;
+    const other = side === 'FROM' ? pair.to : pair.from;
+    setImpactAck(false);
+    setForcedRouteId(null);
+    setSwapAmountIn('');
+    setSwapError(null);
+    setSwapTxHash(null);
+    if (key === other) {
+      const otherSide = side === 'FROM' ? 'TO' : 'FROM';
+      // QUAI and WQUAI are one asset, and wrapping is not a swap: say so instead of quoting a swap of a token for itself.
+      if (key === 'WQUAI' && native !== (nativeQuaiSide === otherSide)) {
+        setSwapError('QUAI and WQUAI are the same asset. Choose a different token to swap with.');
+        return;
+      }
+      // Picking the token already on the other side turns the pair around.
+      setPair(p => ({ from: p.to, to: p.from }));
+      setNativeQuaiSide(current => current === 'FROM' ? 'TO' : current === 'TO' ? 'FROM' : null);
       return;
     }
-    const direct = availableRoutes.find(candidate => candidate.path[0] === nextFrom && candidate.path[candidate.path.length - 1] === nextTo);
-    const reverse = availableRoutes.find(candidate => candidate.path[0] === nextTo && candidate.path[candidate.path.length - 1] === nextFrom);
-    if (direct) {
-      selectRoute(direct.id, symbol === 'QUAI' ? side : nativeQuaiSide === side ? null : nativeQuaiSide);
-      setReversed(false);
-    } else if (reverse) {
-      selectRoute(reverse.id, symbol === 'QUAI' ? side : nativeQuaiSide === side ? null : nativeQuaiSide);
-      setReversed(true);
-    } else {
-      setSwapError(`No live route found for ${tokenLabel(nextFrom)} / ${tokenLabel(nextTo)}. Importing a token does not create a pool.`);
-    }
+    setPair(side === 'FROM' ? { from: key, to: pair.to } : { from: pair.from, to: key });
+    setNativeQuaiSide(current => native ? side : current === side ? null : current);
   };
 
   const formatAddr = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
@@ -1065,7 +1012,8 @@ export default function App() {
 
       {/* Multi-Token Portfolio Ticker: scrolls by itself (no scrollbar); pauses while hovered or focused */}
       {walletAddress && (() => {
-        const owned = tokenCatalog.filter(t => t.deployed !== false);
+        // Curated and imported tokens always; a token only found in a pool only when this wallet holds some of it.
+        const owned = tokenCatalog.filter(t => t.deployed !== false && (!t.discovered || (rawBalances[t.symbol] !== undefined && rawBalances[t.symbol] !== '0')));
         const chips = owned.map(t => {
           const bal = getBalanceForToken(t.symbol);
           const liveMetadata = contractMetadata[t.address.toLowerCase()];
@@ -1108,17 +1056,18 @@ export default function App() {
             catalog={quainanceCatalog}
             quaiUsd={quaiUsdNow}
             tradeRouteFor={pool => {
-              const a = getTokenByAddress(pool.token0.address)?.symbol;
-              const b = getTokenByAddress(pool.token1.address)?.symbol;
-              if (!a || !b) return null;
-              const hit = availableRoutes.find(
-                r => 'dex' in r && r.dex === 'QUAINANCE' && r.path.length === 2 && ((r.path[0] === a && r.path[1] === b) || (r.path[0] === b && r.path[1] === a))
-              );
-              return hit ? hit.id : null;
+              // The swap screen picks the best way itself, so a Trade button only needs the pair: "FROM|TO" (QUAI is native
+              // QUAI, which is what a pool against WQUAI is normally traded with).
+              const a = getTokenByAddress(pool.token0.address);
+              const b = getTokenByAddress(pool.token1.address);
+              if (!a || !b || a.deployed === false || b.deployed === false || a.isNative || b.isNative) return null;
+              if (b.symbol === 'WQUAI') return `QUAI|${a.symbol}`;
+              if (a.symbol === 'WQUAI') return `QUAI|${b.symbol}`;
+              return `${a.symbol}|${b.symbol}`;
             }}
-            onTrade={routeId => {
-              selectRoute(routeId);
-              setActiveTab('SWAP');
+            onTrade={pairKey => {
+              selectPair(pairKey);
+              navigateToTab('SWAP');
             }}
           />
         </>
@@ -1150,42 +1099,65 @@ export default function App() {
 
             <div className="swap-route-summary">
               <div>
-                <span className="swap-summary-label">Best price via</span>
-                <strong>{tokenLabel(fromSymbol)} <span>→</span> {tokenLabel(toSymbol)}</strong>
+                <span className="swap-summary-label">{active ? 'Best price via' : 'No way to swap yet'}</span>
+                <strong>{active ? pathLabel(active.path) : `${tokenLabel(fromSymbol)} → ${tokenLabel(toSymbol)}`}</strong>
               </div>
               <button type="button" className="swap-route-button" onClick={() => document.getElementById('route-options')?.toggleAttribute('open')}>
-                <span>{routeIsCrossDex ? 'Several exchanges' : dex.label}</span><span>⌄</span>
+                <span>{active ? (routeSteps > 1 ? `${routeSteps} steps` : routeDexLabels) : 'Options'}</span><span>⌄</span>
               </button>
             </div>
 
             <details id="route-options" className="swap-route-options">
               <summary>Choose another way to swap</summary>
               <div className="pool-selector-tabs swap-route-grid">
-                {availableRoutes.map(r => (
+                {candidates.slice(0, 6).map(c => (
                   <button
-                    key={r.id}
-                    className={`pool-tab-btn ${routeId === r.id ? 'active' : ''}`}
-                    onClick={() => selectRoute(r.id)}
-                    title={`${'crossDex' in r ? r.segments.map(segment => DEXES[segment.dex].label).join(' → ') : DEXES[r.dex].label}: ${r.path.join(' → ')}`}
+                    key={c.id}
+                    className={`pool-tab-btn ${active?.id === c.id ? 'active' : ''}`}
+                    onClick={() => { setForcedRouteId(c.id); setImpactAck(false); }}
+                    title={`${pathLabel(c.path)} through ${[...new Set(c.legs.map(leg => (leg.kind === 'AMM' ? DEXES[leg.dex].label : 'a launch curve')))].join(', then ')}. ${c.segmentCount === 1 ? 'One transaction' : `${c.segmentCount} transactions`}.`}
                   >
-                    {r.path.map(tokenLabel).join(' → ')}<small>{'crossDex' in r ? 'Multi-DEX' : DEXES[r.dex].label}</small>
+                    {pathLabel(c.path)}
+                    <small style={{ display: 'block' }}>
+                      {[...new Set(c.legs.map(leg => (leg.kind === 'AMM' ? DEXES[leg.dex].label : 'Launch curve')))].join(' → ')}
+                      {' · '}{c.segmentCount === 1 ? '1 transaction' : `${c.segmentCount} transactions`}
+                    </small>
+                    <small style={{ display: 'block' }}>{formatBaseUnits(c.quote.amountOut, toTokenDecimals, 4)} {tokenLabel(toSymbol)}{amountInWei && amountInWei > 0n ? '' : ` for 1 ${tokenLabel(fromSymbol)}`}</small>
                   </button>
                 ))}
+                {candidates.length === 0 && <span className="dimmed-text">No way to swap this pair yet.</span>}
                 <button className="pool-tab-btn route-create-button" onClick={() => setPoolModalOpen(true)} title="Create a new pool or add liquidity to an existing one">
                   + Create Pool
                 </button>
               </div>
             </details>
 
-            {routeIsCrossDex && (
-              <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.35)', color: 'var(--accent-amber, #f59e0b)', padding: '0.7rem 0.85rem', borderRadius: '10px', fontSize: '0.76rem', lineHeight: 1.4, marginBottom: '1rem' }}>
-                This route crosses {routeDexLabels}. Each segment is a separate router transaction, so it is not atomic. The wallet will receive each intermediate token before the next segment is submitted; if you stop after a confirmed segment, your funds remain in your wallet.
+            {noRouteText && (
+              <div role="status" style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.35)', color: 'var(--accent-amber, #f59e0b)', padding: '0.7rem 0.85rem', borderRadius: '10px', fontSize: '0.78rem', lineHeight: 1.4, marginBottom: '1rem' }}>
+                {noRouteText}{' '}
+                {!connected && (
+                  <button type="button" onClick={() => setPoolModalOpen(true)} style={{ background: 'transparent', border: 0, padding: 0, color: 'inherit', textDecoration: 'underline', cursor: 'pointer', font: 'inherit' }}>
+                    Add liquidity
+                  </button>
+                )}
               </div>
             )}
 
-            {circleswapUnlisted > 0 && (
+            {active && routeSteps > 1 && (
+              <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.35)', color: 'var(--accent-amber, #f59e0b)', padding: '0.7rem 0.85rem', borderRadius: '10px', fontSize: '0.76rem', lineHeight: 1.4, marginBottom: '1rem' }}>
+                This swap takes {routeSteps} steps, one transaction each ({routeDexLabels}). After each step the token you receive arrives in your wallet before the next one is sent. If you stop part way, what you already received stays in your wallet.
+              </div>
+            )}
+
+            {Object.values(dexState).some(report => report && report.state === 'MISMATCH') && (
+              <div className="dimmed-text" style={{ marginBottom: '0.75rem', color: 'var(--accent-amber, #f59e0b)' }}>
+                {Object.values(dexState).filter(report => report && report.state === 'MISMATCH').map(report => report!.detail).join(' ')}
+              </div>
+            )}
+
+            {skippedPools > 0 && (
               <div className="dimmed-text" style={{ marginBottom: '0.75rem' }}>
-                {circleswapUnlisted} more Circleswap pool{circleswapUnlisted === 1 ? '' : 's'} use{circleswapUnlisted === 1 ? 's' : ''} a token this app does not list, so {circleswapUnlisted === 1 ? 'it is' : 'they are'} not shown.
+                {skippedPools} pool{skippedPools === 1 ? ' was' : 's were'} left out because the details of a token in {skippedPools === 1 ? 'it' : 'them'} could not be read.
               </div>
             )}
 
@@ -1312,24 +1284,23 @@ export default function App() {
               </div>
             </div>
 
-            {/* Step 1 Progress Card */}
+            {/* Progress: the approval, then the swap, for each step of the route */}
             {pendingSwapStep === 'APPROVING' && (
               <div style={{ background: 'rgba(0, 242, 254, 0.05)', border: '1px solid rgba(0, 242, 254, 0.15)', padding: '1rem', borderRadius: '14px', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <div className="loader" style={{ width: '24px', height: '24px', borderWidth: '2px', margin: 0 }}></div>
                 <div style={{ fontSize: '0.8rem' }}>
-                  <strong>{routeIsCrossDex ? 'Approving route segment…' : 'Step 1 of 2: Approving Router…'}</strong>
-                  <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>{routeIsCrossDex ? `Authorising the next router in ${routeDexLabels}` : `Authorising the ${dex.label} Router to spend your tokens`}</div>
+                  <strong>{swapStep.total > 1 ? `Step ${swapStep.index + 1} of ${swapStep.total}: allowing the swap…` : 'Allowing the swap…'}</strong>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>Confirm in your wallet to let the exchange take exactly the amount you are swapping. Nothing else can be taken.</div>
                 </div>
               </div>
             )}
 
-            {/* Step 2 Progress Card */}
             {pendingSwapStep === 'SWAPPING' && (
               <div style={{ background: 'rgba(255, 51, 68, 0.08)', border: '1px solid rgba(255, 51, 68, 0.25)', padding: '1rem', borderRadius: '14px', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <div className="loader" style={{ width: '24px', height: '24px', borderWidth: '2px', margin: 0, borderColor: 'rgba(255, 51, 68, 0.2)', borderTopColor: 'var(--accent-plasma)' }}></div>
                 <div style={{ fontSize: '0.8rem' }}>
-                  <strong>{routeIsCrossDex ? 'Executing route segment…' : 'Step 2 of 2: Routing Swap Atomically…'}</strong>
-                  <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>{routeIsCrossDex ? `Swapping through ${routeDexLabels}` : `Executing swap via ${dex.label} Router`}</div>
+                  <strong>{swapStep.total > 1 ? `Step ${swapStep.index + 1} of ${swapStep.total}: swapping…` : 'Swapping…'}</strong>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>{routeDexLabels}</div>
                 </div>
               </div>
             )}
@@ -1347,19 +1318,24 @@ export default function App() {
               </div>
             )}
 
-            {needsImpactAck && (
+            {active && feeQuaiText && quote && (
+              <div className="dimmed-text" style={{ marginBottom: '0.75rem', color: feesDominate ? 'var(--accent-amber, #f59e0b)' : undefined }}>
+                Network fees: about {feeQuaiText} QUAI for {routeSteps === 1 ? 'this swap' : `these ${routeSteps} steps`}, paid separately in QUAI.
+                {feesDominate && ' That is more than half of what you receive: a larger swap is usually better value.'}
+              </div>
+            )}
+            {needsAck && (
               <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', fontSize: '0.8rem', color: 'var(--error)', marginBottom: '1rem', cursor: 'pointer' }}>
                 <input type="checkbox" checked={impactAck} onChange={e => setImpactAck(e.target.checked)} style={{ marginTop: '0.2rem' }} />
-                <span>Price impact is {priceImpact}. This pool is small, so you will receive far less than the market rate. I understand and want to trade anyway.</span>
+                <span>
+                  {needsImpactAck && <>This swap moves the price by {priceImpact}. The pool is small, so you will receive far less than the market rate. </>}
+                  {needsUnverifiedAck && <>{unverifiedInRoute.map(tokenLabel).join(', ')} {unverifiedInRoute.length === 1 ? 'was' : 'were'} found in a pool and is not on this app&apos;s list: anyone can create a token with any name, so check the contract address in the token list before you trade. </>}
+                  I understand and want to continue.
+                </span>
               </label>
             )}
             {!swapError && amountParseError && (
               <div style={{ fontSize: '0.8rem', color: 'var(--error)', marginBottom: '1rem' }}>{amountParseError}</div>
-            )}
-            {!swapError && !amountParseError && amountInWei !== null && amountInWei > 0n && !quote && (
-              <div style={{ fontSize: '0.8rem', color: 'var(--error)', marginBottom: '1rem' }}>
-                No quote: this pool has no usable liquidity for that amount.
-              </div>
             )}
 
             {swapError && (
@@ -1372,7 +1348,7 @@ export default function App() {
             <button 
               className="btn-primary btn-swap-submit" 
               onClick={executeSwap}
-              disabled={swapLoading || pendingSwapStep !== 'IDLE' || (!!walletAddress && (insufficientBalance || !!amountParseError || (needsImpactAck && !impactAck)))}
+              disabled={swapLoading || pendingSwapStep !== 'IDLE' || (!!walletAddress && (!active || insufficientBalance || !!amountParseError || (needsAck && !impactAck)))}
               style={{ justifyContent: 'center', background: 'linear-gradient(135deg, var(--accent-plasma) 0%, #8a2be2 100%)', color: '#fff' }}
             >
               {pendingSwapStep === 'APPROVING'
@@ -1381,13 +1357,15 @@ export default function App() {
                 ? 'Swapping…'
                 : !walletAddress
                 ? 'Connect Wallet to Swap'
+                : !active
+                ? 'No way to swap this pair yet'
                 : insufficientBalance
-                ? `Insufficient ${fromSymbol} balance`
+                ? `Insufficient ${tokenLabel(fromSymbol)} balance`
                 : 'Confirm Swap'}
             </button>
                 <div className="swap-route-footer">
-                  <span>{routeIsCrossDex ? 'Multi-DEX route' : `${dex.label} route`}</span>
-                  <span>{route.path.map(tokenLabel).join(' → ')}</span>
+                  <span>{active ? (routeSteps > 1 ? `${routeSteps}-step route` : `${routeDexLabels} route`) : 'No route'}</span>
+                  <span>{active ? pathLabel(active.path) : `${tokenLabel(fromSymbol)} → ${tokenLabel(toSymbol)}`}</span>
                 </div>
           </div>
         </div>
@@ -1434,40 +1412,7 @@ export default function App() {
                   <div className="qrb-trait-name">Max Supply</div>
                   <div className="qrb-trait-val" style={{ color: 'var(--accent-plasma)' }}>1.0 QRB, ever</div>
                 </div>
-                {(() => {
-                  const addr = DEPLOYED.QRB?.toLowerCase();
-                  const profile = addr ? tokenProfiles[addr] : undefined;
-                  let supply: number | null = null;
-                  try {
-                    if (profile?.totalSupply) supply = Number(formatBaseUnits(BigInt(profile.totalSupply), 18, 18));
-                  } catch {
-                    supply = null; // unreadable supply: no market cap rather than a wrong one
-                  }
-                  const m = tokenMarket({
-                    explorerPriceUsd: profile?.priceUsd ?? null,
-                    explorerMarketCapUsd: profile?.marketCapUsd ?? null,
-                    poolPriceUsd: addr ? poolPricesUsd.get(addr) ?? null : null,
-                    supply
-                  });
-                  const money = (n: number | null) => (n === null ? '—' : formatUsd(n) || '—');
-                  return (
-                    <>
-                      <div className="qrb-trait-card">
-                        <div className="qrb-trait-name">Price</div>
-                        <div className="qrb-trait-val" style={{ color: 'var(--accent-neon)' }} title={m.priceSource === 'pools' ? 'Derived from the Circleswap pool reserves' : undefined}>
-                          {money(m.priceUsd)}
-                          {m.priceSource === 'pools' && <small style={{ color: 'var(--text-muted)', fontWeight: 400 }}> · from pools</small>}
-                        </div>
-                      </div>
-                      <div className="qrb-trait-card">
-                        <div className="qrb-trait-name">Market Cap</div>
-                        <div className="qrb-trait-val" style={{ color: 'var(--accent-neon)' }} title="Price × total supply">
-                          {money(m.marketCapUsd)}
-                        </div>
-                      </div>
-                    </>
-                  );
-                })()}
+                <QrbMarketCards market={qrbMarket} />
                 <div className="qrb-trait-card hide-sm">
                   <div className="qrb-trait-name">Core Catalyst</div>
                   <div className="qrb-trait-val">Radiant Dark Plasma</div>
@@ -1628,7 +1573,7 @@ export default function App() {
                         className="btn-primary" 
                         style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', minHeight: 'auto', borderRadius: '8px', cursor: 'pointer' }}
                         onClick={() => {
-                          selectRoute('Q0_WQUAI');
+                          selectPair('Q0|WQUAI');
                           setActiveTab('SWAP');
                         }}
                       >
@@ -1666,7 +1611,7 @@ export default function App() {
                         className="btn-primary" 
                         style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', minHeight: 'auto', borderRadius: '8px', cursor: 'pointer', background: 'linear-gradient(135deg, var(--accent-violet) 0%, #a855f7 100%)', color: '#fff' }}
                         onClick={() => {
-                          selectRoute('Q0_BOSS');
+                          selectPair('Q0|BOSS');
                           setActiveTab('SWAP');
                         }}
                       >
@@ -1704,7 +1649,7 @@ export default function App() {
                         className="btn-primary" 
                         style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', minHeight: 'auto', borderRadius: '8px', cursor: 'pointer', background: 'linear-gradient(135deg, var(--accent-gold) 0%, #f59e0b 100%)', color: '#000' }}
                         onClick={() => {
-                          selectRoute('BOSS_WQUAI');
+                          selectPair('BOSS|WQUAI');
                           setActiveTab('SWAP');
                         }}
                       >
