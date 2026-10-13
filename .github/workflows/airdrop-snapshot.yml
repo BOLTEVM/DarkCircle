@@ -1,0 +1,125 @@
+name: Airdrop snapshot
+
+# Takes the stake snapshot for the Q0 + QAXE airdrop on 21 October 2026 at 12:00 UTC with nobody at the keyboard, and keeps the
+# result for 90 days as a downloadable artifact (snapshot-<block>.json for audit, distribution-<root>.json for the contract).
+#
+# It is READ-ONLY: it reads Cyprus-1 through the public RPC and writes two files. It holds no key, signs nothing and sends nothing;
+# publishing the distribution and calling setMerkleRoot stay with the administrator (q0/docs/AIRDROP.md).
+#
+# A scheduled workflow always runs from the default branch. GitHub may start it a little late. Run it by hand at any time from
+# the Actions tab ("Run workflow") to take an extra snapshot, with burned liquidity counted as stake or accounts excluded.
+
+on:
+  schedule:
+    - cron: '0 12 21 10 *'
+  workflow_dispatch:
+    inputs:
+      count_burned:
+        description: 'Count burned liquidity as stake too (default: it only earns the 1.5x)'
+        type: boolean
+        default: false
+      exclude:
+        description: 'Accounts that do not take part, space separated (0x...)'
+        type: string
+        default: ''
+      contract:
+        description: 'The deployed claim contract to stamp into the file (0x...), if there is one'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: airdrop-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    name: Snapshot, plan and Merkle tree
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: q0
+    steps:
+      # The cron has no year, so it would fire every 21 October: the schedule only counts in 2026. A manual run always counts.
+      - name: Is this the run that counts
+        id: gate
+        working-directory: .
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = "schedule" ] && [ "$(date -u +%Y)" != "2026" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "A scheduled run outside 2026: nothing to do."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.gate.outputs.run == 'true'
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        if: steps.gate.outputs.run == 'true'
+        with:
+          version: 10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.gate.outputs.run == 'true'
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+        if: steps.gate.outputs.run == 'true'
+
+      - name: Install (lockfile only)
+        if: steps.gate.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Check the arithmetic and the tree before trusting a run
+        if: steps.gate.outputs.run == 'true'
+        run: bun test tests/airdrop.test.ts
+
+      - name: Take the snapshot
+        if: steps.gate.outputs.run == 'true'
+        env:
+          COUNT_BURNED: ${{ github.event.inputs.count_burned }}
+          EXCLUDE: ${{ github.event.inputs.exclude }}
+          CONTRACT: ${{ github.event.inputs.contract }}
+        run: |
+          set -euo pipefail
+          args=(--out airdrop/out)
+          if [ "${COUNT_BURNED:-false}" = "true" ]; then args+=(--count-burned); fi
+          for a in $EXCLUDE; do
+            [[ "$a" =~ ^0x[0-9a-fA-F]{40}$ ]] || { echo "Not an address: $a"; exit 1; }
+            args+=(--exclude "$a")
+          done
+          if [ -n "${CONTRACT:-}" ]; then
+            [[ "$CONTRACT" =~ ^0x[0-9a-fA-F]{40}$ ]] || { echo "Not an address: $CONTRACT"; exit 1; }
+            args+=(--contract "$CONTRACT")
+          fi
+          mkdir -p airdrop/out
+          bun run scripts/airdrop-snapshot.ts "${args[@]}" 2>&1 | tee airdrop/out/run.log
+
+      - name: Put the plan on the run page
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          {
+            echo "## Airdrop snapshot"
+            echo
+            echo '```'
+            sed 's/\r/\n/g' airdrop/out/run.log | grep -v '^Reading ' | tail -60
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the files
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: airdrop-snapshot-${{ github.run_id }}
+          path: |
+            q0/airdrop/out/snapshot-*.json
+            q0/airdrop/out/distribution-*.json
+            q0/airdrop/out/run.log
+          retention-days: 90
+          if-no-files-found: error

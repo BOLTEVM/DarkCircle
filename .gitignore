@@ -155,3 +155,6 @@ desktop.ini
 
 # Blender save backups
 *.blend1
+
+# Airdrop snapshots (public chain data, but generated: build them, do not commit them)
+q0/airdrop/out/
