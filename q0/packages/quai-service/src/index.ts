@@ -15,6 +15,8 @@ export * from './keccak';
 export * from './dexIntegrity';
 export * from './curves';
 export * from './venues';
+export * from './airdrop';
+export * from './airdropSnapshot';
 export * from './eip1967';
 export * from './tokenMetadata';
 export * from './farm';
