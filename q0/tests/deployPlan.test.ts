@@ -63,7 +63,9 @@ describe('generated artifacts', () => {
     test.skipIf(!haveArtifacts)('match the Hardhat artifacts byte for byte (regenerate with export:artifacts if this fails)', () => {
         for (const name of Object.keys(CIRCLESWAP_ARTIFACTS) as (keyof typeof CIRCLESWAP_ARTIFACTS)[]) {
             const a = loadArtifact(name);
-            expect(CIRCLESWAP_ARTIFACTS[name].bytecode).toBe(a.bytecode);
+            // The CBOR metadata trailer hashes the source text, so it differs with line endings (a CRLF checkout vs LF in CI).
+            // Everything the EVM executes is compared; the trailer is not code and the deploy path ignores it (stripMetadata).
+            expect(stripMetadata(CIRCLESWAP_ARTIFACTS[name].bytecode)).toBe(stripMetadata(a.bytecode));
             expect(JSON.stringify(CIRCLESWAP_ARTIFACTS[name].abi)).toBe(JSON.stringify(a.abi));
             expect(CIRCLESWAP_ARTIFACTS[name].runtimeBytes).toBe((a.deployedBytecode.length - 2) / 2);
             expect(CIRCLESWAP_RUNTIME_BYTES[name]).toBe(CIRCLESWAP_ARTIFACTS[name].runtimeBytes);

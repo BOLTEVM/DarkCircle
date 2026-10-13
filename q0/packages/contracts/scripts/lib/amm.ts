@@ -8,6 +8,7 @@ import { inspectAmm, type IntegrityReport } from "../../../quai-service/src/depl
 import { CIRCLESWAP_ARTIFACTS } from "../../../quai-service/src/generated/circleswapArtifacts";
 import { CIRCLESWAP_RUNTIME_BYTES } from "../../../quai-service/src/generated/circleswapRuntimeSizes";
 import { creationGasLimit } from "../../../quai-service/src/deploy/gas";
+import { stripMetadata } from "../../../quai-service/src/codeHash";
 
 /**
  * Deploys the Circleswap AMM exactly the way the browser does, because it runs the same plan (`ammFlow`, shared with the
@@ -99,15 +100,17 @@ export function readerOf(client: ChainClient): Reader {
 
 /**
  * The browser modal deploys the bytes in `generated/circleswapArtifacts.ts` and checks the chain against the hashes beside
- * them; this script deploys the freshly compiled bytes. They must be identical, or a deployment would be spent on code the
- * verification then rejects. Run `compile` and `export:artifacts` if this fails.
+ * them; this script deploys the freshly compiled bytes. The code must be identical, or a deployment would be spent on code
+ * the verification then rejects. The CBOR metadata trailer is not code: it hashes the source text, so it differs between a
+ * CRLF and an LF checkout, and the verification (`normalizedCodeHash`) ignores it too. Run `compile` and `export:artifacts`
+ * if this fails.
  */
 export function assertGeneratedMatchesCompiled(names: string[], load: (name: string) => Artifact = loadArtifact) {
     for (const name of names) {
         const compiled = load(name).bytecode;
         const generated = (CIRCLESWAP_ARTIFACTS as Record<string, { bytecode: string }>)[name]?.bytecode;
         if (!generated) throw new Error(`${name} is not in the generated artifacts. Run \`pnpm --filter contracts export:artifacts\`.`);
-        if (compiled.toLowerCase() !== generated.toLowerCase()) {
+        if (stripMetadata(compiled).toLowerCase() !== stripMetadata(generated).toLowerCase()) {
             throw new Error(`The generated artifact for ${name} is stale: it differs from the compiled contract. Run \`pnpm --filter contracts compile && pnpm --filter contracts export:artifacts\`, then try again. Nothing was sent.`);
         }
     }
