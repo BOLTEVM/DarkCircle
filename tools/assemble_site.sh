@@ -5,7 +5,7 @@
 #
 # One script for CI (.github/workflows/deploy-pages.yml) and for local runs, so what is tested
 # locally is exactly what is deployed. It fails if any navigation target of the portal
-# (index.html -> ./x402tumbler/ ./q0/ ./multisigows/) would be a dead link.
+# (index.html -> ./x402tumbler/ ./q0/ ./multisigows/ ./darkquestate/) would be a dead link.
 set -euo pipefail
 
 OUT="${1:-_site}"
@@ -42,6 +42,11 @@ mkdir -p "$OUT/multisigows" "$OUT/darksafe"
 cp -r multisigows/apps/web/dist/. "$OUT/multisigows/"
 cp -r multisigows/apps/web/dist/. "$OUT/darksafe/"
 
+# Dark Questate brokerage (vite build, base './', hash routes). One copy only: 404.html sends the
+# questate/ alias here, so the folder name b6/ is never published.
+mkdir -p "$OUT/darkquestate"
+cp -r b6/apps/web/dist/. "$OUT/darkquestate/"
+
 # integrity: everything the portal links to or loads must exist in the bundle
 missing=0
 for f in index.html 404.html 0.png Boltfont.png \
@@ -51,7 +56,8 @@ for f in index.html 404.html 0.png Boltfont.png \
          assets/3d/vendor/three/addons/postprocessing/EffectComposer.js \
          assets/3d/vendor/three/addons/postprocessing/OutputPass.js \
          q0/0logov3.png q0/Boltfont.png x402tumbler/Boltfont.png multisigows/Boltfont.png \
-         x402tumbler/index.html q0/index.html multisigows/index.html \
+         darkquestate/0.png darkquestate/Boltfont.png \
+         x402tumbler/index.html q0/index.html multisigows/index.html darkquestate/index.html \
          darkcircle/index.html circleswap/index.html darksafe/index.html; do
   if [ ! -f "$OUT/$f" ]; then
     echo "MISSING in bundle: $f" >&2

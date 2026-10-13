@@ -17,7 +17,7 @@
       if (/\.github\.io$/.test(host)) {
         var first = path.split('/')[1];
         // app folders are lowercase; the repo folder ("DarkCircle") is not, so match case-sensitively
-        if (first && !/^(q0|circleswap|multisigows|darksafe|x402tumbler|darkcircle)$/.test(first)) {
+        if (first && !/^(q0|circleswap|multisigows|darksafe|x402tumbler|darkcircle|darkquestate|questate)$/.test(first)) {
           base = '/' + first + '/';
         }
       }
@@ -35,6 +35,10 @@
         window.location.replace(base + 'x402tumbler/' + search + hash);
         return;
       }
+      if (host.startsWith('questate.') || host.startsWith('darkquestate.') || host.startsWith('realestate.') || host.includes('questate-')) {
+        window.location.replace(base + 'darkquestate/' + search + hash);
+        return;
+      }
 
       // 2. Sub-path fallback: a deep link into an app that has no such file
       var rest = path.slice(base.length - 1);
@@ -48,6 +52,10 @@
       }
       if (/^\/(x402tumbler|darkcircle)(\/|$)/i.test(rest)) {
         window.location.replace(base + 'x402tumbler/' + search + hash);
+        return;
+      }
+      if (/^\/(darkquestate|questate)(\/|$)/i.test(rest)) {
+        window.location.replace(base + 'darkquestate/' + search + hash);
         return;
       }
 

@@ -116,6 +116,8 @@ out/
 **/.turbo/
 .scratch-build/
 **/.scratch-build/
+# the Pages bundle from tools/assemble_site.sh (CI builds it fresh on every deploy)
+/_site/
 *.tsbuildinfo
 **/*.tsbuildinfo
 

@@ -3,6 +3,8 @@
 //
 //   node tools/test_404_router.mjs [path/to/404.html]
 //
+// It also runs the subdomain router at the top of index.html, which must agree with 404.html.
+//
 // The suite is served from a domain root or, on GitHub project pages, from /<repo>/.
 // The first version of 404.html hard-coded absolute /q0/ style targets, which sent project-pages
 // visitors out of the site; these cases pin the prefix handling.
@@ -36,6 +38,17 @@ const cases = [
   ['q0.example.com', '/anything', '', '', '/q0/'],
   ['safe.example.com', '/anything', '', '', '/multisigows/'],
   ['tumbler.example.com', '/anything', '', '', '/x402tumbler/'],
+  // Dark Questate: one folder (darkquestate/), questate/ is a path alias. The site uses hash routes,
+  // so the hash must survive, and the app folders must not be mistaken for the repo prefix.
+  ['boltevm.github.io', '/DarkCircle/darkquestate/listing/7', '', '#/listing/7', '/DarkCircle/darkquestate/#/listing/7'],
+  ['boltevm.github.io', '/DarkCircle/questate/x', '', '', '/DarkCircle/darkquestate/'],
+  ['boltevm.github.io', '/darkquestate/x', '', '', '/darkquestate/'],
+  ['boltevm.github.io', '/questate/x', '', '', '/darkquestate/'],
+  ['example.com', '/questate/sell', '?a=1', '#/sell', '/darkquestate/?a=1#/sell'],
+  ['questate.example.com', '/anything', '', '', '/darkquestate/'],
+  ['darkquestate.example.com', '/anything', '', '', '/darkquestate/'],
+  ['realestate.example.com', '/anything', '?x=1', '', '/darkquestate/?x=1'],
+  ['boltevm-questate-preview.example.com', '/anything', '', '', '/darkquestate/'],
 ];
 
 let failed = 0;
@@ -45,5 +58,33 @@ for (const [host, path, search, hash, want] of cases) {
   if (!ok) failed++;
   console.log((ok ? 'ok   ' : 'FAIL ') + host + path + ' -> ' + got + (ok ? '' : '   (want ' + want + ')'));
 }
-console.log(failed ? `\nFAIL ${failed}/${cases.length}` : `\nPASS ${cases.length}/${cases.length}`);
+
+// index.html carries its own copy of the subdomain rules (it runs before the portal paints);
+// it must send every app's subdomains to the same folder as 404.html does.
+const portal = readFileSync(join(here, '..', 'index.html'), 'utf8');
+const portalCode = portal.match(/<script>([\s\S]*?)<\/script>/)[1];
+function runPortal(host, path) {
+  let dest = null;
+  const window = { location: { hostname: host, pathname: path, search: '', hash: '', replace: (u) => { dest = u; } } };
+  new Function('window', portalCode)(window);
+  return dest;
+}
+const portalCases = [
+  ['q0.example.com', '/', './q0/'],
+  ['safe.example.com', '/', './multisigows/'],
+  ['tumbler.example.com', '/', './x402tumbler/'],
+  ['questate.example.com', '/', './darkquestate/'],
+  ['darkquestate.example.com', '/index.html', './darkquestate/'],
+  ['realestate.example.com', '/', './darkquestate/'],
+  ['example.com', '/', null],
+];
+for (const [host, path, want] of portalCases) {
+  const got = runPortal(host, path);
+  const ok = got === want;
+  if (!ok) failed++;
+  console.log((ok ? 'ok   ' : 'FAIL ') + 'index.html ' + host + path + ' -> ' + got + (ok ? '' : '   (want ' + want + ')'));
+}
+
+const total = cases.length + portalCases.length;
+console.log(failed ? `\nFAIL ${failed}/${total}` : `\nPASS ${total}/${total}`);
 process.exit(failed ? 1 : 0);

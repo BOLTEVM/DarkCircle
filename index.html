@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>DarkCircle Suite &mdash; Quai Network 3D Ecosystem Experience</title>
-  <meta name="description" content="Interactive 3D navigation experience for the DarkCircle decentralized suite on Quai Network: DarkCircle x402 Privacy, Circleswap AMM DEX, and DarkSafe Multi-Sig.">
+  <meta name="description" content="Interactive 3D navigation experience for the DarkCircle decentralized suite on Quai Network: DarkCircle x402 Privacy, Circleswap AMM DEX, DarkSafe Multi-Sig, and the Dark Questate real estate brokerage.">
   <meta name="theme-color" content="#05070a">
   <link rel="icon" type="image/png" href="./0.png">
 
@@ -27,6 +27,10 @@
         }
         if (host.startsWith('tumbler.') || host.startsWith('privacy.') || host.startsWith('x402.') || host.includes('tumbler-')) {
           window.location.replace('./x402tumbler/' + search + hash);
+          return;
+        }
+        if (host.startsWith('questate.') || host.startsWith('darkquestate.') || host.startsWith('realestate.') || host.includes('questate-')) {
+          window.location.replace('./darkquestate/' + search + hash);
           return;
         }
       }
@@ -173,6 +177,29 @@
     .app-pill[data-app="darkcircle"]:hover { color: #34d399; background: rgba(16, 185, 129, 0.15); }
     .app-pill[data-app="circleswap"]:hover { color: #38bdf8; background: rgba(6, 182, 212, 0.15); }
     .app-pill[data-app="darksafe"]:hover { color: #c084fc; background: rgba(168, 85, 247, 0.15); }
+    .app-pill[data-app="darkquestate"]:hover { color: #fbbf24; background: rgba(245, 158, 11, 0.15); }
+
+    /* Carousel arrows: spin the ring of app nodes around the orb, either way */
+    .carousel-arrow {
+      position: absolute; top: 50%;
+      transform: translateY(-50%);
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      border: 1px solid var(--hud-border);
+      background: var(--hud-bg);
+      color: var(--text-muted);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+      transition: color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+    }
+    .carousel-arrow svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    .carousel-arrow.prev { left: 1.5rem; }
+    .carousel-arrow.next { right: 1.5rem; }
+    .carousel-arrow:hover, .carousel-arrow:focus-visible { color: #fff; border-color: var(--accent-red); box-shadow: 0 0 14px var(--accent-glow); outline: none; }
+    .carousel-arrow:active { transform: translateY(-50%) scale(0.92); }
+    html.no-webgl .carousel-arrow { top: 38%; }
 
     /* Live telemetry readout for the targeted node */
     .telemetry {
@@ -199,10 +226,10 @@
     /* Station cards */
     .portal-stations {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 1.25rem;
       width: 100%;
-      max-width: 1100px;
+      max-width: 1320px;
       margin: 0 auto;
     }
     .station-card {
@@ -235,9 +262,10 @@
     .station-darkcircle:hover::before, .station-darkcircle:focus-visible::before, .station-darkcircle.targeted::before { background: linear-gradient(90deg, #10b981, #06b6d4); }
     .station-circleswap:hover::before, .station-circleswap:focus-visible::before, .station-circleswap.targeted::before { background: linear-gradient(90deg, #06b6d4, #ff3b30); }
     .station-darksafe:hover::before, .station-darksafe:focus-visible::before, .station-darksafe.targeted::before { background: linear-gradient(90deg, #a855f7, #10b981); }
+    .station-darkquestate:hover::before, .station-darkquestate:focus-visible::before, .station-darkquestate.targeted::before { background: linear-gradient(90deg, #f59e0b, #a855f7); }
 
-    .station-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.4rem; }
-    .station-title { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 0.4rem; }
+    .station-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.3rem 0.5rem; margin-bottom: 0.4rem; }
+    .station-title { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 0.4rem; white-space: nowrap; }
     .station-badge {
       font-family: var(--font-mono);
       font-size: 0.62rem;
@@ -250,6 +278,7 @@
     .badge-green { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
     .badge-cyan { background: rgba(6, 182, 212, 0.15); color: #38bdf8; border: 1px solid rgba(6, 182, 212, 0.3); }
     .badge-purple { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
+    .badge-amber { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
 
     .station-desc { font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 0.7rem; }
     .station-footer {
@@ -332,13 +361,25 @@
       .station-header { margin-bottom: 0.3rem; }
       .bottom-bar .keys { display: none; }
       .hud { padding: 0.9rem 0.9rem calc(0.7rem + env(safe-area-inset-bottom)); }
+      .carousel-arrow { width: 42px; height: 42px; }
+      .carousel-arrow.prev { left: 0.6rem; }
+      .carousel-arrow.next { right: 0.6rem; }
     }
     @media (max-width: 520px) {
+      .portal-stations { grid-template-columns: repeat(2, 1fr); }
+      /* phones: the side rings sit ~12% in from each edge, so the arrows hug the edge to stay clear of them */
+      .carousel-arrow { width: 36px; height: 36px; }
+      .carousel-arrow svg { width: 18px; height: 18px; }
+      .carousel-arrow.prev { left: 0.25rem; }
+      .carousel-arrow.next { right: 0.25rem; }
       .shard-extra { display: none; }
       .station-footer span:first-child { display: none; }
       .station-footer { justify-content: center; }
       .brand-text .shard-tag { font-size: 0.6rem; }
       .bottom-bar { flex-wrap: wrap; justify-content: center; row-gap: 0.4rem; }
+    }
+    @media (max-height: 600px) {
+      .station-desc { display: none; }                         /* short screens: keep the carousel band open */
     }
     @media (prefers-reduced-motion: reduce) {
       .station-card, .warp-flash, .boot { transition: none; }
@@ -378,6 +419,7 @@
         <a class="app-pill" data-app="darkcircle" href="./x402tumbler/">&#x1F6E1;&#xFE0F; DarkCircle</a>
         <a class="app-pill" data-app="circleswap" href="./q0/">&#x26A1; Circleswap</a>
         <a class="app-pill" data-app="darksafe" href="./multisigows/">&#x1F510; DarkSafe</a>
+        <a class="app-pill" data-app="darkquestate" href="./darkquestate/">&#x1F3E0; Dark Questate</a>
       </nav>
 
       <div class="top-controls">
@@ -388,7 +430,14 @@
 
     <div class="hud-spacer"></div>
 
-    <div class="telemetry" id="telemetry" role="status" aria-live="polite">Drag to orbit &middot; hover a node to read it &middot; click or press 1 / 2 / 3 to warp</div>
+    <button class="carousel-arrow prev" id="carousel-prev" type="button" aria-label="Spin the carousel: previous app" title="Previous app [&larr;]">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <button class="carousel-arrow next" id="carousel-next" type="button" aria-label="Spin the carousel: next app" title="Next app [&rarr;]">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+    </button>
+
+    <div class="telemetry" id="telemetry" role="status" aria-live="polite">Drag to orbit &middot; arrows spin the carousel &middot; click the front node or press 1-4 to warp</div>
 
     <div class="portal-stations">
       <a href="./x402tumbler/" class="station-card station-darkcircle" data-app="darkcircle">
@@ -426,10 +475,22 @@
           <span class="station-warp-hint">ACCESS VAULT &rarr;</span>
         </div>
       </a>
+
+      <a href="./darkquestate/" class="station-card station-darkquestate" data-app="darkquestate">
+        <div class="station-header">
+          <div class="station-title">&#x1F3E0; Dark Questate</div>
+          <span class="station-badge badge-amber">REAL ESTATE</span>
+        </div>
+        <p class="station-desc">Real estate brokerage on Quai with EIP-6065 deeds and escrowed offers. Sample listings: contracts not deployed yet.</p>
+        <div class="station-footer">
+          <span>PORTAL [4]</span>
+          <span class="station-warp-hint">VIEW LISTINGS &rarr;</span>
+        </div>
+      </a>
     </div>
 
     <footer class="bottom-bar">
-      <div class="keys">ORBIT: drag &middot; WARP: click a node or press [1] DarkCircle [2] Circleswap [3] DarkSafe</div>
+      <div class="keys">ORBIT: drag &middot; SPIN: &larr; &rarr; &middot; WARP: front node, Enter or [1]-[4]</div>
       <div class="net-status" id="net-status" title="The portal makes no network request to a Quai RPC until you first target a node.">RPC idle</div>
       <a class="powered-by" href="https://boltevm.com" target="_blank" rel="noopener noreferrer"><span>Powered by</span><img src="./Boltfont.png" alt="BOLT" width="63" height="18"></a>
       <div><a href="https://github.com/BOLTEVM/DarkCircle" target="_blank" rel="noopener">BOLTEVM/DarkCircle</a></div>
@@ -443,13 +504,16 @@
     //   default camera at (0, 1.7, 5.9) looking down -Z.
     // ------------------------------------------------------------------------------
     const ORB_Y = 1.7;
+    // The apps ride a carousel round the orb, in this order; the one at the front is the selected app.
     const NODES = [
       { id: 'darkcircle', key: '1', title: 'DarkCircle', sub: 'x402 shielded pools', hint: 'ENTER POD',
-        url: './x402tumbler/', color: 0x10b981, pos: [-1.75, ORB_Y, 0.2] },
+        url: './x402tumbler/', color: 0x10b981 },
       { id: 'circleswap', key: '2', title: 'Circleswap', sub: 'QRB core \u00B7 AMM DEX', hint: 'WARP CORE',
-        url: './q0/', color: 0x06b6d4, pos: [0, ORB_Y, 0], core: true },
+        url: './q0/', color: 0x06b6d4 },
       { id: 'darksafe', key: '3', title: 'DarkSafe', sub: 'multi-sig vaults', hint: 'ACCESS VAULT',
-        url: './multisigows/', color: 0xa855f7, pos: [1.75, ORB_Y, 0.2] },
+        url: './multisigows/', color: 0xa855f7 },
+      { id: 'darkquestate', key: '4', title: 'Dark Questate', sub: 'real estate deeds', hint: 'VIEW LISTINGS',
+        url: './darkquestate/', color: 0xf59e0b },
     ];
     const byId = Object.fromEntries(NODES.map((n) => [n.id, n]));
     const params = new URLSearchParams(location.search);
@@ -505,6 +569,7 @@
         osc.start(t); osc.stop(t + dur + 0.02);
       }
       playHover() { this.blip(320, 740, 0.12, 0.05, 'sine'); }
+      playSpin() { this.blip(180, 420, 0.22, 0.06, 'triangle'); }
       playWarp() { this.blip(110, 1800, 0.45, 0.12, 'sawtooth'); }
     }
     const sound = new SciFiSoundEngine();
@@ -611,9 +676,48 @@
     cards.forEach(wireLink);
     pills.forEach(wireLink);
 
+    // --- carousel: which app is at the front of the ring --------------------------------------
+    // `turns` counts steps without wrapping, so the ring always spins the way the arrow points.
+    // It starts with Circleswap in front, DarkCircle left and DarkSafe right (the original layout).
+    const carousel = { turns: 1 };
+    const frontIndex = () => ((carousel.turns % NODES.length) + NODES.length) % NODES.length;
+    const frontNode = () => NODES[frontIndex()];
+    function spin(steps) {
+      if (navigating || !steps) return;
+      carousel.turns += steps;
+      sound.playSpin();
+      const node = frontNode();
+      showTelemetry(node);
+      scene3d?.focus(node);
+    }
+    function stepsTo(node) {               // the short way round
+      let d = NODES.indexOf(node) - frontIndex();
+      if (d > NODES.length / 2) d -= NODES.length;
+      if (d < -NODES.length / 2) d += NODES.length;
+      return d;
+    }
+    const bringToFront = (node) => spin(stepsTo(node));
+    [['#carousel-prev', -1], ['#carousel-next', 1]].forEach(([sel, dir]) => {
+      const btn = $(sel);
+      btn.addEventListener('click', (e) => {
+        spin(dir);
+        if (e.detail) btn.blur();          // after a mouse click, Enter should open the front app, not spin again
+      });
+    });
+
     window.addEventListener('keydown', (e) => {
       if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
       if (e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        spin(e.key === 'ArrowLeft' ? -1 : 1);
+        return;
+      }
+      // Enter on a focused link or button belongs to that control
+      if (e.key === 'Enter' && (e.target === document.body || e.target === document.documentElement)) {
+        go(frontNode());
+        return;
+      }
       const node = NODES.find((n) => n.key === e.key);
       if (node) go(node);
     });
@@ -679,11 +783,9 @@
         camera.aspect = aspect;
         camera.updateProjectionMatrix();
         const portrait = aspect < 0.8;
-        beacons.forEach((b) => {                                   // keep the side nodes inside a narrow frame
-          b.group.position.x = b.node.pos[0] * (portrait ? 0.74 : 1);
-          const k = portrait ? 1.35 : 1;
-          b.label.scale.set(b.label.userData.baseScale[0] * k, b.label.userData.baseScale[1] * k, 1);
-        });
+        ringSquash = portrait ? 0.74 : 1;                          // keep the side nodes inside a narrow frame
+        labelK = portrait ? 1.35 : 1;
+        track.scale.x = ringSquash;
         renderer.setSize(w, h, false);
         composer.setPixelRatio(pixelRatio);
         composer.setSize(w, h);
@@ -743,6 +845,21 @@
       });
       const shell = new THREE.Mesh(new THREE.SphereGeometry(0.72, 48, 32), shellMat);
 
+      // --- carousel ring: the beacons ride a circle round the orb; the front slot faces the camera
+      const RING_R = 1.85;                                         // side slots land where the old side nodes stood
+      const STEP = (Math.PI * 2) / NODES.length;
+      const TRACK_Y = ORB_Y - 0.62;                                // the track runs under the beacons, like a carousel floor
+      const HOME_DIST = 5.9;                                       // labels keep the size they have at this distance
+      let shown = carousel.turns;                                  // eased copy of carousel.turns
+      let ringSquash = 1, labelK = 1;
+      const track = new THREE.Group();
+      track.position.y = TRACK_Y;
+      const trackRing = new THREE.Mesh(new THREE.TorusGeometry(RING_R, 0.006, 8, 180),
+        new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.4, depthWrite: false }));
+      trackRing.rotation.x = Math.PI / 2;
+      track.add(trackRing);
+      world.add(track);
+
       // --- beacons ----------------------------------------------------------------------------
       function labelTexture(node) {
         const c = document.createElement('canvas');
@@ -767,32 +884,34 @@
         const g = new THREE.Group();
         const color = new THREE.Color(node.color);
         const hot = color.clone();                                 // true hue: >1 would tone-map to white
-        g.position.set(...node.pos);
-        const ringR = node.core ? 0.92 : 0.38;
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(ringR, node.core ? 0.012 : 0.016, 12, 72),
-          new THREE.MeshBasicMaterial({ color: hot, toneMapped: true, transparent: true, opacity: node.core ? 0.55 : 0.95 }));
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.016, 12, 72),
+          new THREE.MeshBasicMaterial({ color: hot, toneMapped: true, transparent: true, opacity: 0.95 }));
         g.add(ring);
-        let crystal = null;
-        if (!node.core) {
-          crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.14, 0),
-            new THREE.MeshBasicMaterial({ color: hot, wireframe: true }));
-          g.add(crystal);
-        }
+        const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.14, 0),
+          new THREE.MeshBasicMaterial({ color: hot, wireframe: true, transparent: true }));
+        g.add(crystal);
         const label = new THREE.Sprite(new THREE.SpriteMaterial({
           map: labelTexture(node), transparent: true, depthWrite: false, depthTest: false, toneMapped: false, fog: false }));
         label.scale.set(1.5, 0.47, 1);
         label.userData.baseScale = [1.5, 0.47];
-        label.position.set(0, node.core ? 1.12 : 0.74, 0);
+        label.position.set(0, 0.74, 0);
         label.renderOrder = 10;
         g.add(label);
         // generous invisible hit target: the visible ring is far too thin to hover reliably
-        const hit = new THREE.Mesh(new THREE.SphereGeometry(node.core ? 0.95 : 0.62, 16, 12),
+        const hit = new THREE.Mesh(new THREE.SphereGeometry(0.62, 16, 12),
           new THREE.MeshBasicMaterial({ visible: false }));
         hit.userData.node = node;
         g.add(hit);
         world.add(g);
-        return { node, group: g, ring, crystal, hit, label, hover: 0 };
+        // where the beacon meets the track: a bead that rides round with it
+        const bead = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 8),
+          new THREE.MeshBasicMaterial({ color: hot, transparent: true }));
+        track.add(bead);
+        const b = { node, group: g, ring, crystal, hit, label, bead, hover: 0, reach: true };
+        hit.userData.beacon = b;
+        return b;
       });
+      const beaconPos = new THREE.Vector3();
       const hitMeshes = beacons.map((b) => b.hit);
 
       // --- model ------------------------------------------------------------------------------
@@ -852,7 +971,7 @@
       function buildEnvironment() {
         // 1) chamber environment for every PBR surface (PMREM from the room itself, orb excluded)
         const pmrem = new THREE.PMREMGenerator(renderer);
-        const hidden = [core, shell, ...beacons.map((b) => b.group)].filter(Boolean);
+        const hidden = [core, shell, track, ...beacons.map((b) => b.group)].filter(Boolean);
         hidden.forEach((o) => { o.visible = false; });
         scene.environment = pmrem.fromScene(scene, 0.03).texture;
         hidden.forEach((o) => { o.visible = true; });
@@ -865,10 +984,11 @@
           core.material.envMap = rtCube.texture;
           reflect = () => {
             const prev = [core.visible, shell.visible];
-            core.visible = false; shell.visible = false;
+            core.visible = false; shell.visible = false; track.visible = false;
             beacons.forEach((b) => { b.group.visible = false; });
             cam.update(renderer, scene);
             beacons.forEach((b) => { b.group.visible = true; });
+            track.visible = true;
             core.visible = prev[0]; shell.visible = prev[1];
           };
         }
@@ -897,9 +1017,11 @@
 
       function pick() {
         raycaster.setFromCamera(ndc, camera);
-        const hit = raycaster.intersectObjects(hitMeshes, false)[0];
+        // a beacon behind the orb is out of reach: spin it round first
+        const hit = raycaster.intersectObjects(hitMeshes, false).find((h) => h.object.userData.beacon.reach);
         return hit ? hit.object.userData.node : null;
       }
+      const settled = () => Math.abs(shown - carousel.turns) < 0.05;
       function setHover(node) {
         if (node === hovered) return;
         hovered = node;
@@ -920,7 +1042,9 @@
         if (downAt && Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;   // it was an orbit drag
         setNdc(e);
         const node = pick();
-        if (node) go(node);
+        if (!node) return;
+        if (node === frontNode() && settled()) go(node);           // the front node warps
+        else bringToFront(node);                                   // any other node is spun to the front
       });
 
       // device tilt (phones): same parallax channel as the pointer
@@ -944,17 +1068,25 @@
       let warping = null;
       const baseFov = () => camera.fov;
       function warp(node) {
-        const target = new THREE.Vector3();
-        beacons.find((b) => b.node === node).group.getWorldPosition(target);
-        const from = camera.position.clone();
-        const dir = from.clone().sub(target).normalize();
-        const to = target.clone().add(dir.multiplyScalar(node.core ? 0.55 : 0.9));
-        const fov0 = camera.fov, t0 = performance.now(), dur = 780;
         controls.enabled = false;
+        carousel.turns += stepsTo(node);                           // spin it to the front, then fly in
+        const beacon = beacons.find((b) => b.node === node);
+        const tSpin = performance.now(), dur = 780;
+        let from, to, target, fov0, t0 = 0;
         return new Promise((resolve) => {
-          warping = { done: resolve, fov0 };
+          warping = { done: resolve };
           function step(now) {
             if (!warping) return;                                  // reset by pageshow
+            if (!t0) {
+              if (Math.abs(shown - carousel.turns) > 0.01 && now - tSpin < 1500) { requestAnimationFrame(step); return; }
+              target = new THREE.Vector3();
+              beacon.group.getWorldPosition(target);
+              from = camera.position.clone();
+              const dir = from.clone().sub(target).normalize();
+              to = target.clone().add(dir.multiplyScalar(0.9));
+              fov0 = camera.fov;
+              t0 = now;
+            }
             const k = Math.min((now - t0) / dur, 1);
             const e = k * k * k;                                   // ease-in: accelerate into the node
             camera.position.lerpVectors(from, to, e);
@@ -991,7 +1123,8 @@
       window.addEventListener('resize', fitCamera);
 
       renderer.setAnimationLoop(() => {
-        const dt = Math.min(clock.getDelta(), 0.1);
+        const rawDt = clock.getDelta();
+        const dt = Math.min(rawDt, 0.1);
         const t = clock.elapsedTime;
         frame++;
 
@@ -1010,18 +1143,37 @@
           world.rotation.x = parallax.y * 0.025;
         }
 
-        // beacons: spin, breathe, lean towards the hovered/focused one
+        // carousel: ease the ring towards its step in real time (an exponential cannot overshoot, so
+        // the unclamped delta keeps the spin at the same speed on a slow GPU)
+        shown = reducedMotion ? carousel.turns : shown + (carousel.turns - shown) * (1 - Math.exp(-rawDt * 6));
+
+        // beacons: ride the ring, spin, breathe, lean towards the hovered/focused one
         const active = hovered || focusedNode;
         beacons.forEach((b, i) => {
+          const a = (i - shown) * STEP;                            // 0 = front slot, +/-90 deg = right / left
+          const c = Math.cos(a);
+          const x = Math.sin(a) * RING_R, z = c * RING_R;
+          b.group.position.set(x * ringSquash, ORB_Y, z);
+          b.bead.position.set(x, 0, z);                            // the track squashes x itself
+          const front = Math.pow(Math.max(c, 0), 6);              // 1 in the front slot, ~0 at the sides
+          const seen = THREE.MathUtils.smoothstep(c, -0.8, 0.2);   // fades out behind the orb
+          b.reach = c > -0.4;
           const on = b.node === active;
           b.hover += ((on ? 1 : 0) - b.hover) * Math.min(dt * 8, 1);
           b.ring.rotation.z = t * (0.6 + i * 0.15);
-          b.ring.rotation.x = 0.35 * Math.sin(t * 0.7 + i);
-          if (b.crystal) { b.crystal.rotation.x = t * 1.4; b.crystal.rotation.y = t * 1.9; }
-          const s = (b.node.core ? 1 : 1) * (1 + b.hover * 0.28 + 0.03 * Math.sin(t * 2.4 + i));
+          b.ring.rotation.x = 0.35 * Math.sin(t * 0.7 + i) * (1 - front);   // the front ring faces you and haloes the orb
+          b.crystal.rotation.x = t * 1.4; b.crystal.rotation.y = t * 1.9;
+          b.crystal.scale.setScalar(Math.max(1 - front, 0.001));   // keeps the orb's face clear
+          // the front ring is already big, so it grows less on hover: it must stay under its own label
+          const s = (1 + 0.35 * front) * (1 + b.hover * 0.28 * (1 - 0.6 * front) + 0.03 * Math.sin(t * 2.4 + i));
           b.ring.scale.setScalar(s);
-          b.ring.material.opacity = (b.node.core ? 0.45 : 0.85) + 0.15 * b.hover;
-          b.label.material.opacity = 0.7 + 0.3 * b.hover;
+          b.ring.material.opacity = (0.85 + 0.15 * b.hover) * (0.15 + 0.85 * seen);
+          b.crystal.material.opacity = 0.15 + 0.85 * seen;
+          b.bead.material.opacity = 0.3 + 0.7 * seen;
+          b.label.material.opacity = (0.7 + 0.3 * b.hover) * seen;
+          b.group.getWorldPosition(beaconPos);
+          const k = labelK * camera.position.distanceTo(beaconPos) / HOME_DIST;   // same size on screen at any depth
+          b.label.scale.set(b.label.userData.baseScale[0] * k, b.label.userData.baseScale[1] * k, 1);
         });
 
         if (pointerIn && !warping) setHover(pick());
@@ -1046,10 +1198,10 @@
     start3D().then((api) => { scene3d = api; }).catch((err) => {
       console.warn('3D experience unavailable; showing the 2D portal:', err && err.message ? err.message : err);
       document.documentElement.classList.add('no-webgl');
-      IDLE_TEXT = 'Click a card or press 1 / 2 / 3 to enter';
+      IDLE_TEXT = 'Click a card or press 1-4 to enter \u00B7 arrows pick an app, Enter opens it';
       if (!current) telemetryEl.textContent = IDLE_TEXT;
       const keys = document.querySelector('.bottom-bar .keys');
-      if (keys) keys.textContent = 'WARP: click a card or press [1] DarkCircle [2] Circleswap [3] DarkSafe';
+      if (keys) keys.textContent = 'PICK: \u2190 \u2192 \u00B7 WARP: click a card, Enter or [1]-[4]';
     });
   </script>
 </body>

@@ -92,6 +92,18 @@ jobs:
           pnpm --filter @darksafe/web build
           cd ..
 
+      # The contract suites, the SDK tests (including an end-to-end run against a Hardhat node the test
+      # starts itself on 127.0.0.1:18545) and the integrity gate run before the site ships: the integrity
+      # gate also checks the production bundle carries no local dev wallet.
+      - name: Build, test and gate Dark Questate
+        run: |
+          cd b6
+          pnpm install --frozen-lockfile
+          pnpm build
+          pnpm test
+          pnpm integrity
+          cd ..
+
       - name: Assemble Unified GitHub Pages Site
         run: bash tools/assemble_site.sh _site
 
