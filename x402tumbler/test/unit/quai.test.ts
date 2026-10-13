@@ -151,7 +151,10 @@ describe("Quai Network integration", () => {
       // registering an Orchard deployment does not leak into mainnet lookups
       const reg = new QuaiTokenRegistry();
       reg.register({ ...WQUAI, networkId: "quai-orchard-cyprus1", address: "0x0000000000000000000000000000000000000abc" });
-      assert.equal(reg.list(QUAI_ORCHARD_CYPRUS1).length, 1);
+      // Orchard already carries the verified WQI (same address, read back 2026-10-13); the registered look-alike is the second
+      assert.deepEqual(reg.list(QUAI_ORCHARD_CYPRUS1).map((t) => t.symbol).sort(), ["WQI", "WQUAI"]);
+      assert.equal(reg.list(QUAI_ORCHARD_CYPRUS1).filter((t) => t.address === WQI_ADDRESS).length, 1, "WQI is on Orchard at the mainnet address");
+      assert.equal(defaultQuaiTokenRegistry.getBySymbol("WQUAI", QUAI_ORCHARD_CYPRUS1), undefined, "no WQUAI contract exists on Orchard");
       assert.equal(reg.list(QUAI_CYPRUS1).length, 2);
     });
 

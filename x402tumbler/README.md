@@ -179,8 +179,8 @@ The pool and the payment gateway each run in one of two modes. **`verified`** (t
 - Persistence saves the whole simulated environment, keys included, under a passphrase-derived key. It is not a KMS-backed production store.
 - The `test/e2e/tier*.test.ts` suites exercise `test/e2e/harness.ts`, a self-contained reference implementation, not `src/`. End-to-end coverage of `src/` is in the unit and hardening suites.
 - No Quai-specific sanctions list is bundled. The seed is Ethereum OFAC addresses, screened as bridge deposit origins; load your provider's list at startup.
-- The voice agent understands English commands from a fixed grammar only. Microphone capture and the real Whisper model are exercised by hand, not by the test suite (which uses a worker that speaks the same protocol). On Orchard only QUAI balances and QUAI sends work: no WQUAI or WQI is registered there, so wrapping, token sends and paid services are refused with `ASSET_NOT_ON_NETWORK`.
-- Orchard has no registered WQUAI/WQI deployment here; register one with `QuaiTokenRegistry.register` once you have verified it on chain.
+- The voice agent understands English commands from a fixed grammar only. Microphone capture and the real Whisper model are exercised by hand, not by the test suite (which uses a worker that speaks the same protocol). On Orchard QUAI balances and sends work, and WQI is registered (verified on chain 2026-10-13); WQUAI has no contract there, so wrapping and WQUAI sends are refused with `ASSET_NOT_ON_NETWORK`.
+- Orchard has the verified WQI (the mainnet address, `DOMAIN_SEPARATOR` matches chain 15000) and no WQUAI contract, so the testnet can host the WQI pool only. Register another deployment with `QuaiTokenRegistry.register` once you have verified it on chain.
 
 ## License
 

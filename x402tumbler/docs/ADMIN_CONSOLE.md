@@ -80,10 +80,17 @@ binds to, what an operator must do, and every gate with its verdict. `broadcast`
 | G-06 an independent audit exists | warns | **blocks** |
 | G-07 compliance (C8) is enforced on chain | warns | **blocks** |
 | G-08 a production relayer exists | warns | **blocks** |
-| G-09 WQUAI and WQI are registered for the network | blocks | blocks |
+| G-09 the network's settlement tokens are registered (Orchard: one verified token is enough; mainnet: WQUAI and WQI) | blocks | blocks |
 
-Today G-05 to G-08 cannot pass inside this repository, so a mainnet plan is always blocked, and an Orchard
-plan is blocked by G-09 until a verified WQUAI/WQI deployment is registered there.
+Today G-05 to G-08 cannot pass inside this repository, so a mainnet plan is always blocked. Orchard has WQI
+at the mainnet address (read back 2026-10-13: name, symbol, decimals and a DOMAIN_SEPARATOR equal to the
+EIP-712 hash for chain 15000) and no WQUAI contract, so the Orchard plan has one pool, WQI, and passes G-09.
+
+**Launch checklist.** The top of the Deploy tab lists the whole sequence in four phases: build and local
+proof, an Orchard rehearsal, the mainnet release gates, then the mainnet deployment. Rows turn `done` only
+from verified gates and receipt-checked recorded deployments (`GET /api/admin/deploy/launch`), never from a
+click; rows marked `you do this` (a shield and unshield against the deployed pool, `pnpm verify:quai` on the
+day, the final sign-off) are yours.
 
 **Audit log.** The action log described above.
 

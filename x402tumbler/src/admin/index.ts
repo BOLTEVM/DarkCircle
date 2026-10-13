@@ -222,6 +222,52 @@ export function createAdminModule(options: AdminOptions, state: ApiState, factor
 
     "GET /api/admin/deploy/manifest": () => ({ manifest: readManifest(buildDir) }),
 
+    /* The launch checklist: build, rehearse on Orchard, then mainnet. Derived from the same gates the plans use and
+     * from the deployments recorded on disk, so it cannot say "done" about anything that was not verified. Reads no
+     * chain and holds no key. Items marked `manual` are the operator's: nothing here can tick them. */
+    "GET /api/admin/deploy/launch": () => {
+      type Item = { id: string; phase: string; title: string; state: "done" | "todo" | "blocked" | "manual"; detail: string };
+      const items: Item[] = [];
+      const add = (phase: string, id: string, title: string, state: Item["state"], detail: string) => items.push({ id, phase, title, state, detail });
+      const orchard = pipeline.plan("orchard");
+      const mainnet = pipeline.plan("mainnet");
+      const gateOf = (plan: typeof orchard, id: string) => plan.gates.find((g) => g.id === id)!;
+      for (const id of ["G-01", "G-02", "G-03", "G-04"]) {
+        const g = gateOf(orchard, id);
+        add("1. Build and local proof", id, g.title, g.ok ? "done" : "todo", g.detail);
+      }
+      const recorded = (network: QuaiNetwork) => deployerFor(network).deployments().records as Record<string, { address: string } | undefined>;
+      const rehearsal = recorded(QUAI_ORCHARD_CYPRUS1);
+      const orchardOpen = ["G-01", "G-02", "G-03", "G-04"].every((id) => gateOf(orchard, id).ok);
+      const g09 = gateOf(orchard, "G-09");
+      add("2. Orchard testnet rehearsal", "T-00", g09.title, g09.ok ? "done" : "blocked", g09.detail);
+      const shared: Array<[string, string]> = [["PoseidonT3", "PoseidonT3 hasher"], ["PoseidonT5", "PoseidonT5 hasher"], ["Groth16Verifier", "Groth16 verifier"], ["DarkCirclePool:WQI", "WQI pool"]];
+      shared.forEach(([key, title], i) => {
+        const r = rehearsal[key];
+        add("2. Orchard testnet rehearsal", `T-0${i + 1}`, `Deploy the ${title}`, r ? "done" : orchardOpen && g09.ok ? "todo" : "blocked", r ? `${r.address} (receipt-verified)` : "Deploy tab > Orchard > connect your wallet > Deploy; the address is read off the receipt");
+      });
+      add("2. Orchard testnet rehearsal", "T-05", "Verify the pool's bindings on chain", rehearsal["DarkCirclePool:WQI"] ? "todo" : "blocked", "Deploy tab > Verify bindings: reads token, verifier, hashers and the empty-tree root back from Orchard");
+      add("2. Orchard testnet rehearsal", "T-06", "Shield and unshield once against the deployed pool", "manual", "The UI still drives the simulation; nothing in this console shields into a deployed pool (AUDIT.md O-5). Use your own wallet and a funded test account, then confirm the nullifier was recorded");
+      add("2. Orchard testnet rehearsal", "T-07", "Run pnpm verify:quai --network quai-orchard-cyprus1", "manual", "Re-checks the registry token against the live testnet endpoint on the day of the rehearsal");
+      for (const id of ["G-05", "G-06", "G-07", "G-08"]) {
+        const g = gateOf(mainnet, id);
+        add("3. Mainnet release gates", id, g.title, g.ok ? "done" : "blocked", g.detail + ". Deploying anyway requires acknowledging this gate by name in the Deploy tab");
+      }
+      const g09m = gateOf(mainnet, "G-09");
+      add("3. Mainnet release gates", "G-09", g09m.title, g09m.ok ? "done" : "blocked", g09m.detail);
+      const live = recorded(DEFAULT_QUAI_NETWORK);
+      add("4. Mainnet deployment", "M-01", "Rehearsal complete: every Orchard step above done and T-06 signed off by you", "manual", "Do not start mainnet until you have done the whole sequence once on the testnet");
+      const mainSteps: Array<[string, string]> = [["PoseidonT3", "PoseidonT3 hasher"], ["PoseidonT5", "PoseidonT5 hasher"], ["Groth16Verifier", "Groth16 verifier"], ["DarkCirclePool:WQUAI", "WQUAI pool"], ["DarkCirclePool:WQI", "WQI pool"]];
+      mainSteps.forEach(([key, title], i) => {
+        const r = live[key];
+        add("4. Mainnet deployment", `M-0${i + 2}`, `Deploy the ${title}`, r ? "done" : "todo", r ? `${r.address} (receipt-verified)` : "Deploy tab > Mainnet; each risk gate must be acknowledged on the server first");
+      });
+      add("4. Mainnet deployment", "M-07", "Verify both pools' bindings, then record addresses and run pnpm verify:quai", "manual", "Do not point value at a pool until this passes");
+      const phases = Array.from(new Set(items.map((i) => i.phase)));
+      audit.append("deploy.launch", "ok", `${items.filter((i) => i.state === "done").length}/${items.length} items done; nothing was sent`);
+      return { items, phases, summary: { done: items.filter((i) => i.state === "done").length, total: items.length, blocked: items.filter((i) => i.state === "blocked").length } };
+    },
+
     "POST /api/admin/deploy/run": (req) => {
       const stage = str(req.body?.stage, 40);
       if (!stage) throw new AdminError(400, "BAD_REQUEST", "stage is required");

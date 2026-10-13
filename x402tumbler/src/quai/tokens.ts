@@ -62,8 +62,17 @@ export const WQI: QuaiToken = {
   permitDomain: { name: "Wrapped Qi", version: "1" }
 };
 
+/**
+ * WQI on the Orchard testnet (chain id 15000). It sits at the same address as on mainnet and was read back from
+ * https://orchard.rpc.quai.network/cyprus1 on 2026-10-13: name "Wrapped Qi", symbol WQI, decimals 18, and a
+ * DOMAIN_SEPARATOR() of 0xfdd3a530...e85f, which is exactly keccak of {name "Wrapped Qi", version "1", chain 15000,
+ * this address}, so the contract is the same permit token and not an unrelated one at a coincident address.
+ * There is no WQUAI on Orchard (no code at the mainnet address), so Orchard can host the WQI pool only.
+ */
+export const WQI_ORCHARD: QuaiToken = { ...WQI, networkId: "quai-orchard-cyprus1" };
+
 /** The assets DarkCircle is willing to settle in by default. */
-export const DEFAULT_QUAI_TOKENS: readonly QuaiToken[] = [WQUAI, WQI];
+export const DEFAULT_QUAI_TOKENS: readonly QuaiToken[] = [WQUAI, WQI, WQI_ORCHARD];
 
 export class QuaiTokenRegistry {
   private readonly byNetwork = new Map<string, Map<string, QuaiToken>>();

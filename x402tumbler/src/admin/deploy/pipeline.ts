@@ -329,7 +329,12 @@ export class Pipeline {
     gate("G-07", "C8 (PPOI compliance) is enforced on chain", false, mainnet, "the circuit covers C1 to C7 only; the pool cannot refuse a note from a sanctioned origin (AUDIT.md O-14)");
     gate("G-08", "A production relayer exists", false, mainnet, "the relayer is an in-process simulation with no signer, gas funding or nonce handling (AUDIT.md O-2)");
     const tokens = defaultQuaiTokenRegistry.list(network);
-    gate("G-09", `WQUAI and WQI are registered on ${network.title}`, tokens.length >= 2, true, tokens.length >= 2 ? tokens.map((t) => `${t.symbol} ${t.address}`).join(", ") : "no verified WQUAI/WQI deployment is registered for this network, so there is no token address to bind a pool to");
+    // Mainnet needs both pools. Orchard has WQI only (there is no WQUAI contract on the testnet), so one verified
+    // token is enough to deploy that pool there; the missing asset is named, not hidden.
+    const need = mainnet ? 2 : 1;
+    const missing = ["WQUAI", "WQI"].filter((s) => !tokens.some((t) => t.symbol === s));
+    gate("G-09", mainnet ? `WQUAI and WQI are registered on ${network.title}` : `A verified settlement token is registered on ${network.title}`, tokens.length >= need,
+      true, tokens.length >= need ? `${tokens.map((t) => `${t.symbol} ${t.address}`).join(", ")}${missing.length ? `; no ${missing.join(" or ")} contract exists here, so that pool cannot be deployed on this network` : ""}` : "no verified WQUAI/WQI deployment is registered for this network, so there is no token address to bind a pool to");
 
     const compiled = readManifest(this.buildDir).stages["contracts.compile"];
     const hashes = ((compiled?.details as { contracts?: Record<string, { bytecodeHash: string; hashKind: string }> } | undefined)?.contracts) ?? {};

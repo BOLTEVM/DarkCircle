@@ -90,6 +90,18 @@ describe("on-chain deployment routes", () => {
     assert.equal(r.status, 401);
   });
 
+  it("launch checklist: needs a session, never ticks what was not verified, and leaves the operator's steps manual", async () => {
+    assert.equal((await call(api, "GET", "/api/admin/deploy/launch")).status, 401);
+    const r = await call(api, "GET", "/api/admin/deploy/launch", { admin });
+    assert.equal(r.status, 200);
+    const byId = Object.fromEntries(r.json.items.map((i: { id: string }) => [i.id, i]));
+    assert.equal(byId["T-00"].state, "done", "WQI is registered on Orchard");
+    for (const id of ["G-05", "G-06", "G-07", "G-08"]) assert.equal(byId[id].state, "blocked", id);
+    for (const id of ["T-06", "T-07", "M-01", "M-07"]) assert.equal(byId[id].state, "manual", id);
+    for (const id of ["T-04", "M-02", "M-03", "M-04", "M-05", "M-06"]) assert.notEqual(byId[id].state, "done", `${id}: nothing is recorded as deployed`);
+    assert.deepEqual(r.json.phases.length, 4);
+  });
+
   it("status reports the network and (empty, at first) recorded deployments, for either target", async () => {
     const orchard = await call(api, "GET", "/api/admin/deploy/chain/status?target=orchard", { admin });
     assert.equal(orchard.status, 200);

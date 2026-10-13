@@ -172,16 +172,20 @@ describe("pipeline logic", () => {
     assert.equal(p.plan("mainnet").digest, plan.digest, "the same inputs give the same digest");
   });
 
-  it("orchard plan: the ceremony, audit, PPOI and relayer gates warn instead of blocking, but a missing token registration still blocks", () => {
+  it("orchard plan: the ceremony, audit, PPOI and relayer gates warn instead of blocking; the verified WQI is the one pool Orchard can host", () => {
     const dir = tmp();
     seed(dir, STAGES.map((s) => s.id));
     const plan = new Pipeline({ buildDir: dir, selftestInput: selftestRequest }).plan("orchard");
     const blocking = plan.gates.filter((g) => !g.ok && g.blocking).map((g) => g.id);
     const warnings = plan.gates.filter((g) => !g.ok && !g.blocking).map((g) => g.id);
     assert.deepEqual(warnings, ["G-05", "G-06", "G-07", "G-08"]);
-    assert.deepEqual(blocking, ["G-09"], "there is no verified WQUAI/WQI on Orchard to bind a pool to");
-    assert.equal(plan.canProceed, false);
+    assert.deepEqual(blocking, [], "WQI is registered on Orchard, so nothing blocks the testnet plan");
+    assert.equal(plan.canProceed, true);
     assert.equal(plan.broadcast, false);
+    const g09 = plan.gates.find((g) => g.id === "G-09")!;
+    assert.ok(g09.ok && /WQI 0x002b2596EcF05C93a31ff916E8b456DF6C77c750/.test(g09.detail) && /no WQUAI contract exists here/.test(g09.detail), g09.detail);
+    assert.deepEqual(plan.steps.map((s) => s.contract), ["PoseidonT3", "PoseidonT5", "Groth16Verifier", "DarkCirclePool"], "one pool: there is no WQUAI to bind a second one to");
+    assert.equal(plan.network.chainId, 15000);
   });
 
   it("a plan made before anything was built fails the build gates too", () => {

@@ -428,6 +428,7 @@ export function mountAdmin(ctx) {
     const d = await call("/api/admin/deploy");
     S.data.deploy = d;
     const evm = d.stages.find((s) => s.id === "evm.local");
+    const launch = await call("/api/admin/deploy/launch");
     const planBox = h("div", { id: "plan-slot" });
     if (S.data.plan) put(planBox, planView(S.data.plan));
     const target = (name, title, text, kind) => box(h("div", { class: "row" }, h("h3", { text: title }), h("span", { class: "spacer" }), pill(kind === "run" ? (evm.state === "ok" ? "ok" : evm.state) : kind === "block" ? "blocked" : "warn", kind === "run" ? (evm.state === "ok" ? "verified" : evm.state) : "plan only")), h("p", { class: "lead", text }),
@@ -435,14 +436,27 @@ export function mountAdmin(ctx) {
         ? h("button", { class: "btn small primary", type: "button", onclick: () => { S.tab = "pipeline"; render(); }, text: evm.state === "ok" ? "See the local EVM result" : "Run it in the pipeline" })
         : h("button", { class: "btn small", type: "button", onclick: async (ev) => { const b = ev.currentTarget; b.disabled = true; try { const r = await call("/api/admin/deploy/plan", { target: name }); S.data.plan = r.plan; put(planBox, planView(r.plan)); } catch (e) { put(planBox, errBox(e)); } b.disabled = false; }, text: "Generate the plan" }));
     paint(
+      launchChecklist(launch),
       banner("bad", h("strong", { text: "This server never signs or sends a transaction. " }), "For Orchard and mainnet it writes a plan (the ordered steps, the bytecode hashes to expect, every gate that is still failing) and, once you generate one, a wallet-signed deploy flow: it builds the calldata and a gas budget, YOUR OWN wallet (Pelagus/Blip) signs and sends each transaction in its own confirmation screen, and this server only reads back what actually landed on chain before recording it. Nothing is assumed from a signature alone."),
       h("div", { class: "grid2" },
         target("local", "Local EVM", "Deploys the compiled hashers, verifier, dev token and pool into an in-process EVM and runs a shield and a proven unshield with a real proof. This is real execution of the exact bytecode, on a local chain.", "run"),
-        target("orchard", "Orchard testnet", "Plan for the test network. Gates that need audits and a real ceremony are warnings here, not blockers; a missing WQUAI/WQI registration still blocks.", "plan"),
+        target("orchard", "Orchard testnet", "Plan for the test network. Gates that need audits and a real ceremony are warnings here, not blockers. Orchard has the verified WQI token only (no WQUAI contract exists there), so it hosts the WQI pool.", "plan"),
         target("mainnet", "Quai mainnet (Cyprus-1)", "Plan for real funds. Blocked outright while the ceremony is a development one, the contracts are unaudited, compliance (PPOI) is not in the circuit and no production relayer exists.", "plan")
       ),
       planBox
     );
+  }
+
+  /* The launch checklist: derived on the server from the gates and the recorded deployments. "manual" rows are yours to do. */
+  function launchChecklist(l) {
+    const tone = { done: "ok", todo: "ready", blocked: "bad", manual: "warn" };
+    const label = { done: "done", todo: "to do", blocked: "blocked", manual: "you do this" };
+    return box(
+      h("div", { class: "row" }, h("h3", { text: "Launch checklist" }), h("span", { class: "spacer" }), pill(l.summary.blocked ? "warn" : "ok", `${l.summary.done} of ${l.summary.total} done`)),
+      h("p", { class: "lead", text: "Build and prove locally, rehearse the whole sequence on Orchard, then mainnet. Ticks come from verified gates and receipt-checked deployments, never from a click. Mainnet stays blocked while its release gates are unmet; deploying anyway needs each gate acknowledged by name." }),
+      l.phases.map((ph) => h("div", {}, h("h4", { text: ph }),
+        h("div", { class: "table-wrap" }, h("table", { class: "mini-table" }, h("tbody", {}, l.items.filter((i) => i.phase === ph).map((i) =>
+          h("tr", {}, h("td", { class: "mono", text: i.id }), h("td", {}, i.title, h("div", { class: "hash", text: i.detail })), h("td", {}, pill(tone[i.state], label[i.state]))))))))));
   }
 
   function planView(p) {
@@ -462,7 +476,7 @@ export function mountAdmin(ctx) {
 
   /* ---------------------------------------------------------------- deploy on chain (wallet-signed) */
   function chainState(target) {
-    if (!S.chain[target]) S.chain[target] = { address: null, walletName: null, walletChainId: null, asset: "WQUAI", preflight: null, unmetGates: null, ackMainnet: false, busy: false, deployingKey: null, log: [], status: null };
+    if (!S.chain[target]) S.chain[target] = { address: null, walletName: null, walletChainId: null, asset: target === "orchard" ? "WQI" : "WQUAI", preflight: null, unmetGates: null, ackMainnet: false, busy: false, deployingKey: null, log: [], status: null };
     return S.chain[target];
   }
   const chainLog = (cs, line) => { cs.log.push(`${new Date().toLocaleTimeString()}  ${line}`); if (cs.log.length > 200) cs.log.shift(); };
@@ -608,7 +622,7 @@ export function mountAdmin(ctx) {
 
     if (!cs.address) return h("div", {}, walletRow);
 
-    const assetSelect = h("select", { onchange: (e) => { cs.asset = e.target.value; cs.preflight = null; repaintChain(); } }, ["WQUAI", "WQI"].map((a) => h("option", { value: a, ...(a === cs.asset ? { selected: true } : {}), text: a })));
+    const assetSelect = h("select", { onchange: (e) => { cs.asset = e.target.value; cs.preflight = null; repaintChain(); } }, (target === "orchard" ? ["WQI"] : ["WQUAI", "WQI"]).map((a) => h("option", { value: a, ...(a === cs.asset ? { selected: true } : {}), text: a })));
 
     let unmetGatesBox = null;
     if (cs.unmetGates) {
