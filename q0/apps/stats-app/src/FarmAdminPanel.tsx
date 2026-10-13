@@ -39,6 +39,7 @@ import { AddrLink, Badge, CopyButton, Field, Notice, Spinner, box, input, muted,
 import { describeTxError, sendContractCall } from './farmSend';
 import { formatUsd } from './TokenPicker';
 import './singleStake.css';
+import AirdropAdmin from './AirdropAdmin';
 
 interface Props {
   farm: FarmState;
@@ -752,6 +753,9 @@ export default function FarmAdminPanel({ farm, rows, tokens, rewards, wallet, is
           </>
         )}
       </Section>
+
+      {/* the Q0 + QAXE airdrop to Quainance BDELTA stakers: snapshot, plan, Merkle tree, deposit, claims */}
+      <AirdropAdmin wallet={wallet} />
     </div>
   );
 }

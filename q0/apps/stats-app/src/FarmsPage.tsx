@@ -23,6 +23,8 @@ import { TokenAvatar } from './TokenBubble';
 import { useTokenProfiles } from './useTokenProfiles';
 import { useFarm } from './useFarm';
 import { useYieldBoard } from './useYieldBoard';
+import { useQuainanceStake } from './useQuainanceStake';
+import AirdropClaim from './AirdropClaim';
 import { resolveQuaiUsd } from './quaiUsd';
 import YieldBoard from './YieldBoard';
 import { formatUsd } from './TokenPicker';
@@ -69,6 +71,8 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
   const farmAddress = DEPLOYED.MASTERCHEF;
   const { farm, pairs, positions, balances, status, error, updatedAt, refreshing, refresh } = useFarm(farmAddress, walletAddress, SINGLE_TOKENS);
   const board = useYieldBoard(farm);
+  // The single-token pools are offered to wallets with 1,000 BDELTA staked on Quainance. A rule of this page, not of the contract.
+  const gate = useQuainanceStake(walletAddress);
   const [quaiUsd, setQuaiUsd] = useState<number | null>(null);
   const [tab, setTab] = useState<'POOLS' | 'ADMIN'>('POOLS');
   // The pool the person asked to add (its LP or token address): the admin tab opens with it ticked and in view.
@@ -292,6 +296,9 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
         </div>
       </div>
 
+      {/* the airdrop claim card: invisible until a distribution is published and its contract holds the same root */}
+      {tab === 'POOLS' && <AirdropClaim wallet={walletAddress} onConnect={onConnect} />}
+
       {/* yield by pool: always first, for every pool with liquidity, whether or not the farm has added it */}
       {tab === 'POOLS' && (
         <YieldBoard
@@ -446,6 +453,7 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
                   paused={farm.paused}
                   busy={busy}
                   maxBoostPct={Number(farm.boostBps) / 100}
+                  stakeLockedReason={row.kind === 'SINGLE' ? gate.reason : null}
                   onStake={async () => {
                     await requireWallet();
                     setAction({ mode: 'stake', pid: row.pid });
@@ -459,6 +467,7 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
                   <div className="farm-subhead" role="row">
                     <strong>Single-token pools</strong> &middot; deposit {plannedVisible.map(p => p.symbol).join(' or ')} itself and earn {rewards.a.symbol} + {rewards.b.symbol}.
                     The farm owner has not added {plannedVisible.length === 1 ? 'this pool' : 'these pools'} yet, so there is nothing to deposit into; the numbers are estimates until then.
+                    {' '}Single-token pools are for wallets with at least 1,000 BDELTA staked on Quainance{gate.status === 'eligible' ? ': yours qualifies.' : gate.bdelta !== null ? `; yours has ${compactNumber(Number(formatUnits(gate.bdelta, 18, 2)), 2)}.` : '.'}
                   </div>
                   {plannedVisible.map(p => (
                     <SingleStakeRow
@@ -468,6 +477,7 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
                       wallet={walletAddress}
                       isOwner={isOwner}
                       loading={board.status === 'loading'}
+                      gateReason={gate.reason}
                       onConnect={() => void onConnect()}
                       onOpenAdmin={() => openAdmin(p.token)}
                     />
@@ -528,6 +538,7 @@ function PoolRow({
   paused,
   busy,
   maxBoostPct,
+  stakeLockedReason,
   onStake,
   onUnstake,
   onHarvest
@@ -539,6 +550,8 @@ function PoolRow({
   paused: boolean;
   busy: string | null;
   maxBoostPct: number;
+  /** Why a deposit is not offered (a single-token pool and a wallet without 1,000 BDELTA on Quainance); null when it is. */
+  stakeLockedReason?: string | null;
   onStake: () => void;
   onUnstake: () => void;
   onHarvest: () => void;
@@ -575,6 +588,7 @@ function PoolRow({
         <span style={{ minWidth: 0 }}>
           <strong>{poolTitle(row)}</strong>
           {row.kind === 'SINGLE' && <small className="farm-sub">{earnsLine(rewards.a.symbol, rewards.b.symbol)}</small>}
+          {row.kind === 'SINGLE' && stakeLockedReason && <small className="farm-sub" style={{ color: 'var(--warning)' }}>{stakeLockedReason}</small>}
           <small className="farm-sub">
             <Badge severity={row.kind === 'LP' ? 'info' : 'neutral'}>{row.kind === 'LP' ? 'Pool' : 'Single token'}</Badge>{' '}
             <a className="link-hash" href={`https://quaiscan.io/address/${row.lpToken}`} target="_blank" rel="noreferrer" title={row.lpToken}>
@@ -618,7 +632,7 @@ function PoolRow({
       </div>
 
       <div className="farm-cell farm-actions-cell">
-        <button type="button" className="btn-primary" style={{ padding: '0.4rem 0.9rem', fontSize: '0.78rem' }} onClick={onStake} disabled={(paused || !row.stakeDecimalsKnown) && !!wallet} title={paused ? 'Deposits are paused' : !row.stakeDecimalsKnown ? 'This token did not report its decimals, so an amount cannot be sized safely' : undefined}>
+        <button type="button" className="btn-primary" style={{ padding: '0.4rem 0.9rem', fontSize: '0.78rem' }} onClick={onStake} disabled={(paused || !row.stakeDecimalsKnown || !!stakeLockedReason) && !!wallet} title={paused ? 'Deposits are paused' : !row.stakeDecimalsKnown ? 'This token did not report its decimals, so an amount cannot be sized safely' : stakeLockedReason ? stakeLockedReason : undefined}>
           {wallet ? 'Deposit' : 'Connect'}
         </button>
         {wallet && staked > 0n && (
@@ -655,6 +669,7 @@ function FarmDetails({ farm, rewards, runA, runB, updatedAt }: { farm: NonNullab
         <li>The farm&apos;s code can never be changed.</li>
         <li>The owner can add pools, change how rewards are split and pause deposits. The owner cannot take your tokens.</li>
         <li>Withdrawing is never paused, and rewards come only from the farm&apos;s own reward balance, never from your deposit.</li>
+        <li>This page offers the single-token pools only to wallets with 1,000 BDELTA staked on Quainance. That is a rule of this page: the farm contract itself accepts deposits from any wallet.</li>
       </ul>
     </details>
   );

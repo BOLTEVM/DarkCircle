@@ -25,6 +25,8 @@ interface Props {
   isOwner: boolean;
   /** The board is still reading pools: an estimate that is not there yet is "coming", not "unknown". */
   loading: boolean;
+  /** Why this wallet will not be offered a deposit once the pool exists (the BDELTA-on-Quainance rule); null when it will. */
+  gateReason?: string | null;
   onConnect: () => void;
   onOpenAdmin: () => void;
 }
@@ -36,7 +38,7 @@ const usd = (n: number | null): string => (n === null ? '—' : n === 0 ? '$0' :
  * It is a real row with real numbers, labelled as an estimate, and it cannot be deposited into until it is added:
  * there is no pool id on the chain to deposit to.
  */
-export default function SingleStakeRow({ view, rewards, wallet, isOwner, loading, onConnect, onOpenAdmin }: Props) {
+export default function SingleStakeRow({ view, rewards, wallet, isOwner, loading, gateReason, onConnect, onOpenAdmin }: Props) {
   const y = view.yieldInfo;
   const r = y.reward;
   const share = r.sharePct;
@@ -121,6 +123,7 @@ export default function SingleStakeRow({ view, rewards, wallet, isOwner, loading
         <a href={`https://quaiscan.io/address/${view.token}`} target="_blank" rel="noreferrer" style={{ ...smallBtn, textDecoration: 'none' }} aria-label={`View ${view.symbol} on the explorer`}>
           <ExternalLink size={12} />
         </a>
+        {wallet && gateReason && <small className="farm-sub" style={{ color: 'var(--warning)', flexBasis: '100%' }}>{gateReason}</small>}
       </div>
     </div>
   );
