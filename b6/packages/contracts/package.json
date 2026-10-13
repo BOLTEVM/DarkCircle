@@ -1,0 +1,33 @@
+{
+  "name": "@darkquestate/contracts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Dark Questate contracts for Quai Cyprus-1: the EIP-6065 deed registry and the brokerage (listings, escrowed offers, commissions).",
+  "scripts": {
+    "build": "hardhat compile",
+    "compile": "hardhat compile",
+    "test": "hardhat test test/QuestateDeed.test.ts test/QuestateBrokerage.test.ts",
+    "lint": "tsc --noEmit",
+    "clean": "hardhat clean",
+    "deploy:testnet": "node scripts/deploy-quai.mjs --network orchard",
+    "deploy:mainnet": "node scripts/deploy-quai.mjs --network mainnet",
+    "keystore:new": "node scripts/keystore-new.mjs"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
+    "@nomicfoundation/hardhat-ethers": "^3.0.8",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/contracts": "5.2.0",
+    "@types/chai": "^4.3.20",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.0.0",
+    "chai": "^4.5.0",
+    "ethers": "6.17.0",
+    "hardhat": "^2.22.18",
+    "quais": "1.0.0-alpha.57",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  }
+}

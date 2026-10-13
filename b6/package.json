@@ -1,0 +1,22 @@
+{
+  "name": "dark-questate",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dark Questate: a real estate brokerage on Quai Network (Cyprus-1). EIP-6065 deeds, on-chain listings, escrowed offers and broker commissions.",
+  "packageManager": "pnpm@10.29.3",
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "dev": "pnpm --filter @darkquestate/web dev",
+    "dev:local": "pnpm --filter @darkquestate/web exec vite --mode localchain",
+    "local:market": "node scripts/local-market.mjs",
+    "integrity": "node scripts/integrity.mjs",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "turbo": "^2.4.0",
+    "typescript": "^5.7.3"
+  }
+}

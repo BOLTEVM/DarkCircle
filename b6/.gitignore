@@ -1,0 +1,17 @@
+node_modules
+dist
+.turbo
+.next
+artifacts
+cache
+typechain-types
+coverage
+.DS_Store
+*.tsbuildinfo
+.env
+.env.local
+
+# deployer keystores never belong in the repo
+keystores/
+*.keystore.json
+.env.*.local
