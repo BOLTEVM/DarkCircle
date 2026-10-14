@@ -42,14 +42,6 @@ export const AppShell: React.FC = () => {
 
   return (
     <div className="h-screen bg-[#0b0f17] text-slate-100 flex flex-col selection:bg-emerald-500/30 selection:text-emerald-300">
-      <div
-        className="bg-amber-950/60 border-b border-amber-800/50 text-amber-200 text-[11px] text-center px-4 py-1.5"
-        data-testid="beta-banner"
-      >
-        Beta: the DarkSafe vault contract has not had an independent security audit. Do not store funds you cannot
-        afford to lose.
-      </div>
-
       {/* Header */}
       <Header
         onOpenQrModal={() => setIsReceiveOpen(true)}

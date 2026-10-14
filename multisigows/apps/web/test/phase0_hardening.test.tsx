@@ -32,10 +32,10 @@ describe('network config', () => {
 });
 
 describe('app shell', () => {
-  it('always shows the unaudited-beta banner', async () => {
+  it('does not show the unaudited-beta banner', async () => {
     const { App } = await import('../src/App.js');
     render(<App />);
-    expect(screen.getByTestId('beta-banner').textContent).toMatch(/not had an independent security audit/);
+    expect(screen.queryByTestId('beta-banner')).toBeNull();
   });
 
   it('refuses mainnet vault creation in a default build', async () => {
