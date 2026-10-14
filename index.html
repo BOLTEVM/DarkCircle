@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>DarkCircle Suite &mdash; Quai Network 3D Ecosystem Experience</title>
-  <meta name="description" content="Interactive 3D navigation experience for the DarkCircle decentralized suite on Quai Network: DarkCircle x402 Privacy, Circleswap AMM DEX, DarkSafe Multi-Sig, the Dark Questate real estate brokerage, and the DarkOrder Grand Guild Halls.">
+  <title>DarkCircle Suite &mdash; Private payments, swaps, vaults, homes and guilds</title>
+  <meta name="description" content="Explore the DarkCircle suite in 3D: private payments, token swaps, shared vaults, property listings and guild halls on Quai Network.">
   <meta name="theme-color" content="#05070a">
   <link rel="icon" type="image/png" href="./0.png">
 
@@ -228,14 +228,43 @@
     .telemetry.live { border-color: rgba(255, 255, 255, 0.3); color: #e2e8f0; }
 
     /* Station cards */
+    /* The carousel shows one app card at a time: the app at the front of the ring */
     .portal-stations {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
       width: 100%;
-      max-width: 1320px;
+      max-width: 440px;
       margin: 0 auto;
     }
+    .portal-stations.carousel-on .station-card { display: none; }
+    .portal-stations.carousel-on .station-card.is-front { display: block; }
+    .station-card.is-front.from-right { animation: card-from-right 0.35s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+    .station-card.is-front.from-left { animation: card-from-left 0.35s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+    @keyframes card-from-right { from { opacity: 0; transform: translateX(32px); } to { opacity: 1; transform: none; } }
+    @keyframes card-from-left { from { opacity: 0; transform: translateX(-32px); } to { opacity: 1; transform: none; } }
+
+    .carousel-dots { align-self: center; display: flex; gap: 0.15rem; }
+    .carousel-dots .dot {
+      position: relative;
+      width: 24px; height: 24px;
+      padding: 0; border: 0;
+      background: transparent;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    .carousel-dots .dot::after {
+      content: '';
+      position: absolute; left: 50%; top: 50%;
+      width: 8px; height: 8px;
+      margin: -4px 0 0 -4px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.28);
+      transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .carousel-dots .dot:hover::after, .carousel-dots .dot:focus-visible::after { background: rgba(255, 255, 255, 0.65); }
+    .carousel-dots .dot:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.5); }
+    .carousel-dots .dot.active::after { background: var(--dot, var(--accent-red)); transform: scale(1.4); box-shadow: 0 0 8px var(--dot, var(--accent-red)); }
     .station-card {
       background: var(--hud-bg);
       border: 1px solid var(--hud-border);
@@ -257,17 +286,17 @@
       background: transparent;
       transition: background 0.3s ease;
     }
-    .station-card:hover, .station-card:focus-visible, .station-card.targeted {
+    .station-card:hover, .station-card:focus-visible {
       transform: translateY(-5px);
       border-color: rgba(255, 255, 255, 0.3);
       box-shadow: 0 16px 32px -10px rgba(0, 0, 0, 0.7);
       outline: none;
     }
-    .station-darkcircle:hover::before, .station-darkcircle:focus-visible::before, .station-darkcircle.targeted::before { background: linear-gradient(90deg, #10b981, #06b6d4); }
-    .station-circleswap:hover::before, .station-circleswap:focus-visible::before, .station-circleswap.targeted::before { background: linear-gradient(90deg, #06b6d4, #ff3b30); }
-    .station-darksafe:hover::before, .station-darksafe:focus-visible::before, .station-darksafe.targeted::before { background: linear-gradient(90deg, #a855f7, #10b981); }
-    .station-darkquestate:hover::before, .station-darkquestate:focus-visible::before, .station-darkquestate.targeted::before { background: linear-gradient(90deg, #f59e0b, #a855f7); }
-    .station-darkorder:hover::before, .station-darkorder:focus-visible::before, .station-darkorder.targeted::before { background: linear-gradient(90deg, #ef4444, #f59e0b); }
+    .station-darkcircle:hover::before, .station-darkcircle:focus-visible::before, .station-darkcircle.is-front::before { background: linear-gradient(90deg, #10b981, #06b6d4); }
+    .station-circleswap:hover::before, .station-circleswap:focus-visible::before, .station-circleswap.is-front::before { background: linear-gradient(90deg, #06b6d4, #ff3b30); }
+    .station-darksafe:hover::before, .station-darksafe:focus-visible::before, .station-darksafe.is-front::before { background: linear-gradient(90deg, #a855f7, #10b981); }
+    .station-darkquestate:hover::before, .station-darkquestate:focus-visible::before, .station-darkquestate.is-front::before { background: linear-gradient(90deg, #f59e0b, #a855f7); }
+    .station-darkorder:hover::before, .station-darkorder:focus-visible::before, .station-darkorder.is-front::before { background: linear-gradient(90deg, #ef4444, #f59e0b); }
 
     .station-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.3rem 0.5rem; margin-bottom: 0.4rem; }
     .station-title { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 0.4rem; white-space: nowrap; }
@@ -360,11 +389,6 @@
 
     @media (max-width: 900px) {
       .app-selector-pills { display: none; }
-      .portal-stations { gap: 0.6rem; }
-      .station-desc, .station-badge { display: none; }
-      .station-card { padding: 0.8rem 0.7rem; }
-      .station-title { font-size: 0.95rem; }
-      .station-header { margin-bottom: 0.3rem; }
       .bottom-bar .keys { display: none; }
       .hud { padding: 0.9rem 0.9rem calc(0.7rem + env(safe-area-inset-bottom)); }
       .carousel-arrow { width: 42px; height: 42px; }
@@ -372,15 +396,11 @@
       .carousel-arrow.next { right: 0.6rem; }
     }
     @media (max-width: 520px) {
-      .portal-stations { grid-template-columns: repeat(2, 1fr); }
       /* phones: the side rings sit ~12% in from each edge, so the arrows hug the edge to stay clear of them */
       .carousel-arrow { width: 36px; height: 36px; }
       .carousel-arrow svg { width: 18px; height: 18px; }
       .carousel-arrow.prev { left: 0.25rem; }
       .carousel-arrow.next { right: 0.25rem; }
-      .shard-extra { display: none; }
-      .station-footer span:first-child { display: none; }
-      .station-footer { justify-content: center; }
       .brand-text .shard-tag { font-size: 0.6rem; }
       .bottom-bar { flex-wrap: wrap; justify-content: center; row-gap: 0.4rem; }
     }
@@ -389,6 +409,7 @@
     }
     @media (prefers-reduced-motion: reduce) {
       .station-card, .warp-flash, .boot { transition: none; }
+      .station-card.is-front.from-right, .station-card.is-front.from-left { animation: none; }
     }
   </style>
 
@@ -408,7 +429,7 @@
   <div class="fallback-orb" aria-hidden="true"></div>
   <div class="scanlines"></div>
   <div class="vignette"></div>
-  <div class="boot" id="boot" role="status">Charging containment field</div>
+  <div class="boot" id="boot" role="status">Loading the 3D scene</div>
   <div class="warp-flash" id="warp-flash"></div>
 
   <div class="hud">
@@ -417,7 +438,7 @@
         <img src="./0.png" alt="BOLTEVM logo" class="brand-logo" width="46" height="34" onerror="this.style.display='none'">
         <div class="brand-text">
           <h1>DarkCircle Suite</h1>
-          <div class="shard-tag">&#x25CF; Cyprus-1 shard [0x00]<span class="shard-extra"> &middot; chain id 9</span></div>
+          <div class="shard-tag">&#x25CF; Quai Network</div>
         </div>
       </div>
 
@@ -430,56 +451,56 @@
       </nav>
 
       <div class="top-controls">
-        <button class="btn-icon" id="sound-btn" type="button" title="Toggle synthesized sci-fi audio (muted by default)" aria-label="Sound off" aria-pressed="false">&#x1F507;</button>
+        <button class="btn-icon" id="sound-btn" type="button" title="Music on/off" aria-label="Music off" aria-pressed="false">&#x1F507;</button>
         <button class="btn-icon" id="fullscreen-btn" type="button" title="Toggle fullscreen" aria-label="Toggle fullscreen">&#x26F6;</button>
       </div>
     </header>
 
     <div class="hud-spacer"></div>
 
-    <button class="carousel-arrow prev" id="carousel-prev" type="button" aria-label="Spin the carousel: previous app" title="Previous app [&larr;]">
+    <button class="carousel-arrow prev" id="carousel-prev" type="button" aria-label="Previous app" title="Previous app [&larr;]">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
     </button>
-    <button class="carousel-arrow next" id="carousel-next" type="button" aria-label="Spin the carousel: next app" title="Next app [&rarr;]">
+    <button class="carousel-arrow next" id="carousel-next" type="button" aria-label="Next app" title="Next app [&rarr;]">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
     </button>
 
-    <div class="telemetry" id="telemetry" role="status" aria-live="polite">Drag to orbit &middot; arrows spin the carousel &middot; click the front node or press 1-5 to warp</div>
+    <div class="telemetry" id="telemetry" role="status" aria-live="polite">Drag to look around &middot; use the arrows to browse the apps &middot; tap or click the ring to open one</div>
 
-    <div class="portal-stations">
+    <div class="portal-stations" id="portal-stations">
       <a href="./x402tumbler/" class="station-card station-darkcircle" data-app="darkcircle">
         <div class="station-header">
           <div class="station-title">&#x1F6E1;&#xFE0F; DarkCircle</div>
-          <span class="station-badge badge-green">PPOI COMPLIANT</span>
+          <span class="station-badge badge-green">PRIVACY</span>
         </div>
-        <p class="station-desc">x402 zero-knowledge payment privacy tumbler with dual WQUAI &amp; WQI shielded pools and stealth payees.</p>
+        <p class="station-desc">Send payments privately, so no one can trace who paid whom.</p>
         <div class="station-footer">
-          <span>PORTAL [1]</span>
-          <span class="station-warp-hint">ENTER POD &rarr;</span>
+          <span>1 of 5</span>
+          <span class="station-warp-hint">SEND PRIVATELY &rarr;</span>
         </div>
       </a>
 
       <a href="./q0/" class="station-card station-circleswap" data-app="circleswap">
         <div class="station-header">
           <div class="station-title">&#x26A1; Circleswap</div>
-          <span class="station-badge badge-cyan">AMM DEX &amp; LPs</span>
+          <span class="station-badge badge-cyan">TRADING</span>
         </div>
-        <p class="station-desc">Quai DeFi protocol with live Cyprus-1 AMM pools (Q0/WQUAI/BOSS), real-time swap math, and farm rewards.</p>
+        <p class="station-desc">Swap tokens and earn rewards by adding to trading pools.</p>
         <div class="station-footer">
-          <span>PORTAL [2]</span>
-          <span class="station-warp-hint">WARP CORE &rarr;</span>
+          <span>2 of 5</span>
+          <span class="station-warp-hint">START SWAPPING &rarr;</span>
         </div>
       </a>
 
       <a href="./multisigows/" class="station-card station-darksafe" data-app="darksafe">
         <div class="station-header">
           <div class="station-title">&#x1F510; DarkSafe</div>
-          <span class="station-badge badge-purple">MULTI-SIG VAULT</span>
+          <span class="station-badge badge-purple">SHARED VAULT</span>
         </div>
-        <p class="station-desc">Browser-based multi-sig vault for Quai Cyprus-1. Native timelocks, quorum checks, zero delegatecall.</p>
+        <p class="station-desc">A vault that needs several people to approve before any money moves, with optional waiting periods.</p>
         <div class="station-footer">
-          <span>PORTAL [3]</span>
-          <span class="station-warp-hint">ACCESS VAULT &rarr;</span>
+          <span>3 of 5</span>
+          <span class="station-warp-hint">OPEN VAULT &rarr;</span>
         </div>
       </a>
 
@@ -488,29 +509,31 @@
           <div class="station-title">&#x1F3E0; Dark Questate</div>
           <span class="station-badge badge-amber">REAL ESTATE</span>
         </div>
-        <p class="station-desc">Real estate brokerage on Quai with EIP-6065 deeds and escrowed offers. Sample listings: contracts not deployed yet.</p>
+        <p class="station-desc">Browse property listings and make offers, with your money held safely until the deal closes. Sample listings only: nothing is live yet.</p>
         <div class="station-footer">
-          <span>PORTAL [4]</span>
-          <span class="station-warp-hint">VIEW LISTINGS &rarr;</span>
+          <span>4 of 5</span>
+          <span class="station-warp-hint">BROWSE HOMES &rarr;</span>
         </div>
       </a>
 
       <a href="./darkorder/" class="station-card station-darkorder" data-app="darkorder">
         <div class="station-header">
           <div class="station-title">&#x2694;&#xFE0F; DarkOrder</div>
-          <span class="station-badge badge-red">GUILD HALLS</span>
+          <span class="station-badge badge-red">GUILDS</span>
         </div>
-        <p class="station-desc">Grand Guild Halls on Quai: found guilds with their own token stack, govern by QNS names, pay dues over x402, and speak to a voice seneschal.</p>
+        <p class="station-desc">Start a guild, vote on decisions, collect dues, and ask the voice assistant for help.</p>
         <div class="station-footer">
-          <span>PORTAL [5]</span>
+          <span>5 of 5</span>
           <span class="station-warp-hint">ENTER HALL &rarr;</span>
         </div>
       </a>
     </div>
 
+    <div class="carousel-dots" id="carousel-dots" aria-label="Choose an app"></div>
+
     <footer class="bottom-bar">
-      <div class="keys">ORBIT: drag &middot; SPIN: &larr; &rarr; &middot; WARP: front node, Enter or [1]-[5]</div>
-      <div class="net-status" id="net-status" title="The portal makes no network request to a Quai RPC until you first target a node.">RPC idle</div>
+      <div class="keys">Drag to look around &middot; &larr; &rarr; to browse &middot; Enter to open</div>
+      <div class="net-status" id="net-status" title="This page does not contact the network until you pick an app.">Quai Network</div>
       <a class="powered-by" href="https://boltevm.com" target="_blank" rel="noopener noreferrer"><span>Powered by</span><img src="./Boltfont.png" alt="BOLT" width="63" height="18"></a>
       <div><a href="https://github.com/BOLTEVM/DarkCircle" target="_blank" rel="noopener">BOLTEVM/DarkCircle</a></div>
     </footer>
@@ -523,17 +546,18 @@
     //   default camera at (0, 1.7, 5.9) looking down -Z.
     // ------------------------------------------------------------------------------
     const ORB_Y = 1.7;
-    // The apps ride a carousel round the orb, in this order; the one at the front is the selected app.
+    // The apps ride a carousel round the orb, in this order; the one at the front is the selected app,
+    // and its card is the only one shown.
     const NODES = [
-      { id: 'darkcircle', key: '1', title: 'DarkCircle', sub: 'x402 shielded pools', hint: 'ENTER POD',
+      { id: 'darkcircle', key: '1', title: 'DarkCircle', sub: 'private payments', hint: 'SEND PRIVATELY',
         url: './x402tumbler/', color: 0x10b981 },
-      { id: 'circleswap', key: '2', title: 'Circleswap', sub: 'QRB core \u00B7 AMM DEX', hint: 'WARP CORE',
+      { id: 'circleswap', key: '2', title: 'Circleswap', sub: 'swap tokens', hint: 'START SWAPPING',
         url: './q0/', color: 0x06b6d4 },
-      { id: 'darksafe', key: '3', title: 'DarkSafe', sub: 'multi-sig vaults', hint: 'ACCESS VAULT',
+      { id: 'darksafe', key: '3', title: 'DarkSafe', sub: 'shared vaults', hint: 'OPEN VAULT',
         url: './multisigows/', color: 0xa855f7 },
-      { id: 'darkquestate', key: '4', title: 'Dark Questate', sub: 'real estate deeds', hint: 'VIEW LISTINGS',
+      { id: 'darkquestate', key: '4', title: 'Dark Questate', sub: 'property listings', hint: 'BROWSE HOMES',
         url: './darkquestate/', color: 0xf59e0b },
-      { id: 'darkorder', key: '5', title: 'DarkOrder', sub: 'grand guild halls', hint: 'ENTER HALL',
+      { id: 'darkorder', key: '5', title: 'DarkOrder', sub: 'guild halls', hint: 'ENTER HALL',
         url: './darkorder/', color: 0xef4444 },
     ];
     const byId = Object.fromEntries(NODES.map((n) => [n.id, n]));
@@ -549,35 +573,28 @@
     const bootEl = $('#boot');
     let IDLE_TEXT = telemetryEl.textContent;
 
-    // --- audio: Web Audio synthesis, muted until the user opts in -----------------------
-    class SciFiSoundEngine {
-      constructor() { this.ctx = null; this.muted = true; this.humGain = null; }
-      init() {
-        if (this.ctx) return;
-        const AC = window.AudioContext || window.webkitAudioContext;
-        if (!AC) return;
-        this.ctx = new AC();
-        const osc = this.ctx.createOscillator();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(55, this.ctx.currentTime);
-        const lp = this.ctx.createBiquadFilter();
-        lp.type = 'lowpass';
-        lp.frequency.setValueAtTime(140, this.ctx.currentTime);
-        this.humGain = this.ctx.createGain();
-        this.humGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
-        osc.connect(lp); lp.connect(this.humGain); this.humGain.connect(this.ctx.destination);
-        osc.start();
-      }
-      toggle() {
-        this.init();
-        if (!this.ctx) return false;
-        if (this.ctx.state === 'suspended') this.ctx.resume();
-        this.muted = !this.muted;
-        this.humGain.gain.setTargetAtTime(this.muted ? 0.0001 : 0.06, this.ctx.currentTime, 0.1);
-        return !this.muted;
+    // --- audio: background playlist (autoplay) + soft UI blips --------------------------------
+    // Browsers only allow sound after the person has touched the page, so music starts straight away
+    // where the browser allows it and otherwise on the very first tap, click or key press.
+    // To add songs, drop the files into ./playlist/ and list them here; they play in order, then repeat.
+    const PLAYLIST = ['./playlist/Wonfiddyshowcase.mp3'];
+    const MUSIC_VOLUME = 0.6;
+    const MUSIC_PREF_KEY = 'darkcircle-music';
+
+    class SoundEngine {
+      constructor() { this.ctx = null; this.muted = false; }
+      ensure() {
+        if (this.muted) return false;
+        if (!this.ctx) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (!AC) return false;
+          this.ctx = new AC();
+        }
+        if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+        return true;
       }
       blip(from, to, dur, gainPeak, type) {
-        if (this.muted || !this.ctx) return;
+        if (!this.ensure()) return;
         const t = this.ctx.currentTime;
         const osc = this.ctx.createOscillator();
         const g = this.ctx.createGain();
@@ -593,15 +610,77 @@
       playSpin() { this.blip(180, 420, 0.22, 0.06, 'triangle'); }
       playWarp() { this.blip(110, 1800, 0.45, 0.12, 'sawtooth'); }
     }
-    const sound = new SciFiSoundEngine();
+    const sound = new SoundEngine();
+
     const soundBtn = $('#sound-btn');
-    soundBtn.addEventListener('click', () => {
-      const on = sound.toggle();
-      soundBtn.textContent = on ? '\u{1F50A}' : '\u{1F507}';
-      soundBtn.setAttribute('aria-pressed', String(on));
-      soundBtn.setAttribute('aria-label', on ? 'Sound on' : 'Sound off');
-      soundBtn.classList.toggle('active', on);
+    const music = new Audio();
+    music.preload = 'auto';
+    music.volume = MUSIC_VOLUME;
+    music.loop = PLAYLIST.length === 1;
+    let wantMusic = true;                 // what the person wants; flipped only by the music button
+    let trackIndex = 0, trackErrors = 0, resumeOnShow = false;
+    try { if (localStorage.getItem(MUSIC_PREF_KEY) === 'off') wantMusic = false; } catch (_) { /* storage blocked: default on */ }
+    sound.muted = !wantMusic;
+
+    function syncSoundBtn() {
+      const playing = wantMusic && !music.paused;
+      soundBtn.textContent = playing ? '\u{1F50A}' : '\u{1F507}';
+      soundBtn.setAttribute('aria-pressed', String(playing));
+      soundBtn.setAttribute('aria-label', playing ? 'Music on' : 'Music off');
+      soundBtn.title = playing ? 'Music on (tap to turn off)' : 'Music off (tap to turn on)';
+      soundBtn.classList.toggle('active', playing);
+    }
+    function loadTrack(i) {
+      trackIndex = ((i % PLAYLIST.length) + PLAYLIST.length) % PLAYLIST.length;
+      music.src = PLAYLIST[trackIndex];
+    }
+    function startMusic() {
+      if (!wantMusic || !PLAYLIST.length) return Promise.resolve();
+      if (!music.src) loadTrack(0);
+      return music.play().then(() => { unlock.disarm(); }, () => { unlock.arm(); });
+    }
+    // first user gesture: start the music if the browser refused to autoplay it
+    const unlock = {
+      events: ['pointerup', 'touchend', 'click', 'keydown'],
+      armed: false,
+      handler(e) {
+        if (e.target instanceof Element && e.target.closest('#sound-btn')) return;   // the button decides for itself
+        startMusic();
+      },
+      arm() { if (this.armed) return; this.armed = true; this.events.forEach((n) => window.addEventListener(n, this.handler, true)); },
+      disarm() { if (!this.armed) return; this.armed = false; this.events.forEach((n) => window.removeEventListener(n, this.handler, true)); },
+    };
+    music.addEventListener('play', syncSoundBtn);
+    music.addEventListener('pause', syncSoundBtn);
+    music.addEventListener('playing', () => { trackErrors = 0; });
+    music.addEventListener('ended', () => {            // only fires with 2+ tracks (a single track loops)
+      loadTrack(trackIndex + 1);
+      music.play().catch(() => {});
     });
+    music.addEventListener('error', () => {            // a missing or broken file: try the next one, never spin forever
+      if (++trackErrors >= PLAYLIST.length) { console.warn('No playable music in the playlist'); return; }
+      loadTrack(trackIndex + 1);
+      music.play().catch(() => {});
+    });
+    // pause while the tab is hidden, pick up again when it is back
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { resumeOnShow = wantMusic && !music.paused; if (resumeOnShow) music.pause(); }
+      else if (resumeOnShow) { resumeOnShow = false; startMusic(); }
+    });
+    soundBtn.addEventListener('click', () => {
+      if (wantMusic && !music.paused) {
+        wantMusic = false;
+        music.pause();
+      } else {
+        wantMusic = true;
+        startMusic();
+      }
+      sound.muted = !wantMusic;
+      try { localStorage.setItem(MUSIC_PREF_KEY, wantMusic ? 'on' : 'off'); } catch (_) { /* ignore */ }
+      syncSoundBtn();
+    });
+    syncSoundBtn();
+    startMusic();
     $('#fullscreen-btn').addEventListener('click', () => {
       if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
       else document.exitFullscreen?.().catch(() => {});
@@ -615,7 +694,7 @@
       if (chain.pending || (chain.at && Date.now() - chain.at < 20000)) return chain.pending;
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), 4000);
-      netStatus.textContent = 'RPC querying\u2026';
+      netStatus.textContent = 'Checking network\u2026';
       chain.pending = fetch(RPC, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -629,36 +708,29 @@
           const n = parseInt(j.result, 16);
           if (!Number.isFinite(n)) throw new Error('bad block number');
           chain.block = n; chain.at = Date.now(); chain.failed = false;
-          netStatus.textContent = 'CYPRUS-1 #' + n.toLocaleString('en-US');
+          netStatus.textContent = '\u25CF Network online';
         })
-        .catch(() => { chain.failed = true; chain.at = Date.now(); netStatus.textContent = 'RPC offline'; })
+        .catch(() => { chain.failed = true; chain.at = Date.now(); netStatus.textContent = 'Network offline'; })
         .finally(() => { clearTimeout(timer); chain.pending = null; if (current) showTelemetry(current); });
       return chain.pending;
     }
 
-    // --- telemetry + highlight ----------------------------------------------------------
+    // --- plain-language caption for the selected app -------------------------------------------
+    const OPEN_HOW = matchMedia('(pointer: coarse)').matches ? 'tap the ring to open' : 'click the ring or press Enter to open';
     let current = null;
     function showTelemetry(node) {
       current = node;
-      cards.forEach((c) => c.classList.toggle('targeted', !!node && c.dataset.app === node.id));
       if (!node) {
         telemetryEl.classList.remove('live');
         telemetryEl.textContent = IDLE_TEXT;
         return;
       }
-      refreshBlock();
-      const blk = chain.block !== null ? '#' + chain.block.toLocaleString('en-US')
-        : chain.failed ? 'RPC offline' : '\u2026';
+      refreshBlock();                       // only used for the small "Network online" light in the footer
       telemetryEl.classList.add('live');
       telemetryEl.replaceChildren();
-      const parts = [['NODE', node.title], ['ROUTE', node.url], ['CYPRUS-1 BLOCK', blk], ['KEY', '[' + node.key + ']']];
-      parts.forEach(([k, v], i) => {
-        if (i) telemetryEl.append(' \u00B7 ');
-        telemetryEl.append(k + ' ');
-        const b = document.createElement('b');
-        b.textContent = v;
-        telemetryEl.append(b);
-      });
+      const b = document.createElement('b');
+      b.textContent = node.title;
+      telemetryEl.append(b, ' \u00B7 ' + node.sub + ' \u00B7 ' + OPEN_HOW);
     }
 
     // --- navigation (independent of WebGL) --------------------------------------------------
@@ -668,6 +740,8 @@
       if (navigating || !node) return;
       navigating = true;
       sound.playWarp();
+      const d = stepsTo(node);              // bring its card to the front too, if it is not there yet
+      if (d) { carousel.turns += d; syncCards(Math.sign(d)); }
       const arrive = () => { window.location.href = node.url; };
       if (scene3d && !reducedMotion) scene3d.warp(node).then(arrive);
       else { flash.classList.add('active'); setTimeout(arrive, reducedMotion ? 0 : 220); }
@@ -699,8 +773,8 @@
 
     // --- carousel: which app is at the front of the ring --------------------------------------
     // `turns` counts steps without wrapping, so the ring always spins the way the arrow points.
-    // It starts with Circleswap in front, DarkCircle left and DarkSafe right (the original layout).
-    const carousel = { turns: 1 };
+    // It starts with the first app (DarkCircle) in front.
+    const carousel = { turns: 0 };
     const frontIndex = () => ((carousel.turns % NODES.length) + NODES.length) % NODES.length;
     const frontNode = () => NODES[frontIndex()];
     function spin(steps) {
@@ -708,6 +782,7 @@
       carousel.turns += steps;
       sound.playSpin();
       const node = frontNode();
+      syncCards(Math.sign(steps));
       showTelemetry(node);
       scene3d?.focus(node);
     }
@@ -718,6 +793,38 @@
       return d;
     }
     const bringToFront = (node) => spin(stepsTo(node));
+
+    // one card at a time: show the card of the app at the front, and light its dot
+    const stationsEl = $('#portal-stations');
+    const dotsEl = $('#carousel-dots');
+    const dots = NODES.map((node) => {
+      const dot = document.createElement('button');
+      dot.type = 'button';
+      dot.className = 'dot';
+      dot.style.setProperty('--dot', '#' + node.color.toString(16).padStart(6, '0'));
+      dot.setAttribute('aria-label', node.title);
+      dot.addEventListener('click', (e) => { bringToFront(node); if (e.detail) dot.blur(); });
+      dotsEl.append(dot);
+      return dot;
+    });
+    function syncCards(dir) {
+      const front = frontNode();
+      cards.forEach((card) => {
+        const on = card.dataset.app === front.id;
+        card.classList.toggle('is-front', on);
+        card.classList.remove('from-left', 'from-right');
+        if (on && dir) {
+          void card.offsetWidth;            // restart the slide-in
+          card.classList.add(dir > 0 ? 'from-right' : 'from-left');
+        }
+      });
+      dots.forEach((dot, i) => {
+        dot.classList.toggle('active', NODES[i] === front);
+        dot.setAttribute('aria-current', NODES[i] === front ? 'true' : 'false');
+      });
+    }
+    stationsEl.classList.add('carousel-on');
+    syncCards(0);
     [['#carousel-prev', -1], ['#carousel-next', 1]].forEach(([sel, dir]) => {
       const btn = $(sel);
       btn.addEventListener('click', (e) => {
@@ -895,7 +1002,7 @@
         g.shadowBlur = 0;
         g.fillStyle = 'rgba(203, 213, 225, 0.9)';
         g.font = '500 26px "JetBrains Mono", ui-monospace, Consolas, monospace';
-        g.fillText('[' + node.key + ']  ' + node.sub, 256, 118);
+        g.fillText(node.sub, 256, 118);
         const t = new THREE.CanvasTexture(c);
         t.colorSpace = THREE.SRGBColorSpace;
         t.anisotropy = 4;
@@ -1018,7 +1125,7 @@
       const loader = new GLTFLoader();
       try {
         const gltf = await loader.loadAsync('./assets/3d/qrb_chamber.glb', (e) => {
-          if (e.lengthComputable) bootEl.textContent = 'Charging containment field ' + Math.round((e.loaded / e.total) * 100) + '%';
+          if (e.lengthComputable) bootEl.textContent = 'Loading the 3D scene ' + Math.round((e.loaded / e.total) * 100) + '%';
         });
         onModelLoaded(gltf);
       } catch (err) {
@@ -1219,10 +1326,10 @@
     start3D().then((api) => { scene3d = api; }).catch((err) => {
       console.warn('3D experience unavailable; showing the 2D portal:', err && err.message ? err.message : err);
       document.documentElement.classList.add('no-webgl');
-      IDLE_TEXT = 'Click a card or press 1-5 to enter \u00B7 arrows pick an app, Enter opens it';
+      IDLE_TEXT = 'Use the arrows to browse the apps \u00B7 tap the card to open one';
       if (!current) telemetryEl.textContent = IDLE_TEXT;
       const keys = document.querySelector('.bottom-bar .keys');
-      if (keys) keys.textContent = 'PICK: \u2190 \u2192 \u00B7 WARP: click a card, Enter or [1]-[5]';
+      if (keys) keys.textContent = '\u2190 \u2192 to browse \u00B7 Enter to open';
     });
   </script>
 </body>

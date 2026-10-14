@@ -27,6 +27,10 @@ mkdir -p "$OUT/assets/3d"
 cp assets/3d/qrb_chamber.glb "$OUT/assets/3d/"
 cp -r assets/3d/vendor "$OUT/assets/3d/vendor"
 
+# background music: the portal autoplays whatever ./playlist/ lists (see PLAYLIST in index.html)
+mkdir -p "$OUT/playlist"
+cp -r playlist/. "$OUT/playlist/"
+
 # DarkCircle tumbler UI (static)
 mkdir -p "$OUT/x402tumbler" "$OUT/darkcircle"
 cp -r x402tumbler/ui/. "$OUT/x402tumbler/"
@@ -60,6 +64,7 @@ for f in index.html 404.html 0.png Boltfont.png \
          assets/3d/vendor/three/addons/loaders/GLTFLoader.js \
          assets/3d/vendor/three/addons/postprocessing/EffectComposer.js \
          assets/3d/vendor/three/addons/postprocessing/OutputPass.js \
+         playlist/Wonfiddyshowcase.mp3 \
          q0/0logov3.png q0/Boltfont.png x402tumbler/Boltfont.png multisigows/Boltfont.png \
          darkquestate/0.png darkquestate/Boltfont.png darkorder/0.png darkorder/Boltfont.png \
          x402tumbler/index.html q0/index.html multisigows/index.html darkquestate/index.html \
