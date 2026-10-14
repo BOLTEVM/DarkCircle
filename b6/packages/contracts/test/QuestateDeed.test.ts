@@ -166,4 +166,11 @@ describe("QuestateDeed (EIP-6065 registry)", function () {
     await deed.connect(stranger).acceptOwnership();
     expect(await deed.owner()).to.equal(stranger.address);
   });
+
+  it("never lets the registrar role be renounced", async function () {
+    const { deed, operator, stranger } = await deployDesk();
+    await expect(deed.renounceOwnership()).to.be.revertedWithCustomError(deed, "RenounceDisabled");
+    await expect(deed.connect(stranger).renounceOwnership()).to.be.revertedWithCustomError(deed, "RenounceDisabled");
+    expect(await deed.owner()).to.equal(operator.address);
+  });
 });

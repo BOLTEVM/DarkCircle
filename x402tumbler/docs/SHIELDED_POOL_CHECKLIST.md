@@ -40,7 +40,7 @@ Nothing below is optional. Tick only with evidence: a report, a transaction hash
 - [ ] WQUAI sweeps have a decided gas strategy (O-13): relayer top-up with its on-chain link accepted, or another approach.
 
 ### A3. Relayer and operations
-- [ ] The relayer signs and broadcasts real transactions; its QUAI gas balance is monitored with an alert threshold. *Status: the simulated relayer has a configurable gas alert (`SP-EX-02`) and an operator off switch (`SP-EX-04`); a real relayer does not exist (O-2).*
+- [ ] The relayer signs and broadcasts real transactions; its QUAI gas balance is monitored with an alert threshold. *Status: the production relayer exists (`src/relayer/`, runbook `docs/RELAYER.md`): encrypted-keystore signer policy-guarded to `unshield` on one pool, durable nonce + idempotency store, zone simulation before every send, ≥ 2 confirmations with reorg handling, a gas floor that takes it offline by itself (`ERR_RELAYER_GAS_FLOOR`), and the operator off switch (`SP-EX-04`). Orchard rehearsal with recorded transaction hashes (RELAYER_PLAN.md phase 4) is still pending before this box can be ticked.*
 - [ ] Direct unshield stays disabled (`allowDirectUnshield` false): the treasury is never the on-chain sender.
 - [ ] Rate limiting, authentication and request logging front the resource server. Logs contain no keys, notes or blinding factors.
 - [ ] Sweep failures alert (`ResourceServer.onSweepError`); a runbook covers stranded ephemeral funds.

@@ -55,7 +55,7 @@ function ownerProblem(raw: string): string | null {
 }
 
 export const CreateVaultModal: React.FC<CreateVaultModalProps> = ({ isOpen, onClose }) => {
-  const { signer, connectEip1193, isConnecting, error: walletError, sendPrepared, isOnExpectedChain, walletChainId } = useWallet();
+  const { signer, connectEip1193, isConnecting, error: walletError, sendPrepared, isOnExpectedChain, walletChainId, refreshWalletChain } = useWallet();
   const { registerVerifiedVault, rpcClient, deployment, deploymentError } = useSafe();
 
   const [step, setStep] = useState<Step>('connect');
@@ -265,6 +265,13 @@ export const CreateVaultModal: React.FC<CreateVaultModalProps> = ({ isOpen, onCl
               <div className="bg-red-950/40 border border-red-800/50 rounded-xl p-3 text-red-300">
                 Your wallet is on chain {walletChainId ?? 'unknown'}; this app is configured for {NETWORK_CONFIG.name} (chain {NETWORK_CONFIG.chainId}).
                 Switch networks in your wallet first.
+                <button
+                  type="button"
+                  onClick={() => void refreshWalletChain()}
+                  className="mt-2 block px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-semibold"
+                >
+                  Re-check network
+                </button>
               </div>
             )}
             {signer ? (

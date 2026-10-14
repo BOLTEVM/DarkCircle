@@ -49,6 +49,17 @@ const cases = [
   ['darkquestate.example.com', '/anything', '', '', '/darkquestate/'],
   ['realestate.example.com', '/anything', '?x=1', '', '/darkquestate/?x=1'],
   ['boltevm-questate-preview.example.com', '/anything', '', '', '/darkquestate/'],
+  // DarkOrder: one folder (darkorder/), guildhalls/ is a path alias. The app uses hash routes,
+  // so the hash must survive, and the app folders must not be mistaken for the repo prefix.
+  ['boltevm.github.io', '/DarkCircle/darkorder/hall/7', '', '#/hall/7', '/DarkCircle/darkorder/#/hall/7'],
+  ['boltevm.github.io', '/DarkCircle/guildhalls/x', '', '', '/DarkCircle/darkorder/'],
+  ['boltevm.github.io', '/darkorder/x', '', '', '/darkorder/'],
+  ['boltevm.github.io', '/guildhalls/x', '', '', '/darkorder/'],
+  ['example.com', '/guildhalls/found', '?a=1', '#/found', '/darkorder/?a=1#/found'],
+  ['darkorder.example.com', '/anything', '', '', '/darkorder/'],
+  ['guild.example.com', '/anything', '', '', '/darkorder/'],
+  ['halls.example.com', '/anything', '?x=1', '', '/darkorder/?x=1'],
+  ['boltevm-darkorder-preview.example.com', '/anything', '', '', '/darkorder/'],
 ];
 
 let failed = 0;
@@ -76,6 +87,9 @@ const portalCases = [
   ['questate.example.com', '/', './darkquestate/'],
   ['darkquestate.example.com', '/index.html', './darkquestate/'],
   ['realestate.example.com', '/', './darkquestate/'],
+  ['darkorder.example.com', '/', './darkorder/'],
+  ['guild.example.com', '/', './darkorder/'],
+  ['halls.example.com', '/index.html', './darkorder/'],
   ['example.com', '/', null],
 ];
 for (const [host, path, want] of portalCases) {

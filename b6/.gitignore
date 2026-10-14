@@ -15,3 +15,14 @@ coverage
 keystores/
 *.keystore.json
 .env.*.local
+
+# foundry
+out/
+cache-forge/
+broadcast/
+
+# security tooling (scripts/security-check.ps1)
+.venv-slither/
+reports/
+# originals of files changed by the 2026-10-14 hardening pass
+.hardening-backup/

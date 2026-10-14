@@ -4,7 +4,7 @@
 
 # DarkCircle Suite
 
-**Private payments, AMM liquidity, multi-sig custody and a real estate brokerage on Quai Network, behind one 3D portal.**
+**Private payments, AMM liquidity, multi-sig custody, a real estate brokerage and grand guild halls on Quai Network, behind one 3D portal.**
 
 <br />
 
@@ -15,7 +15,7 @@
 
 <br />
 
-[The portal](#the-portal) &nbsp;·&nbsp; [The four apps](#the-four-apps) &nbsp;·&nbsp; [Build and run](#build-and-run) &nbsp;·&nbsp; [Deployment](#deployment) &nbsp;·&nbsp; [Quality gates](#quality-gates) &nbsp;·&nbsp; [Known limitations](#known-limitations)
+[The portal](#the-portal) &nbsp;·&nbsp; [The five apps](#the-five-apps) &nbsp;·&nbsp; [Build and run](#build-and-run) &nbsp;·&nbsp; [Deployment](#deployment) &nbsp;·&nbsp; [Quality gates](#quality-gates) &nbsp;·&nbsp; [Known limitations](#known-limitations)
 
 <br />
 
@@ -29,7 +29,7 @@
 
 ## The portal
 
-`index.html` is a real-time WebGL front door to the suite. A black obsidian orb hovers inside a crimson-lit octagonal containment vault, wrapped in a ring of plasma. The four apps ride a carousel round the orb, one node each on a glowing track: the node at the front haloes the orb and is the selected app, and the arrows on either side spin the ring one step either way. It opens on **Circleswap** in front, **DarkCircle** and **DarkSafe** to either side, and **Dark Questate** behind the orb.
+`index.html` is a real-time WebGL front door to the suite. A black obsidian orb hovers inside a crimson-lit octagonal containment vault, wrapped in a ring of plasma. The five apps ride a carousel round the orb, one node each on a glowing track: the node at the front haloes the orb and is the selected app, and the arrows on either side spin the ring one step either way. It opens on **Circleswap** in front, **DarkCircle** and **DarkSafe** to either side, and **Dark Questate** and **DarkOrder** behind the orb.
 
 | Input | Action |
 |---|---|
@@ -37,7 +37,7 @@
 | ‹ › arrows, `←` `→` | Spin the carousel one app either way |
 | Click a side node | Spin it to the front |
 | Click the front node (the orb), `Enter` | Warp transition into the selected app |
-| Click a card or pill, `1` `2` `3` `4` | Spin that app to the front, then warp to DarkCircle, Circleswap, DarkSafe, Dark Questate |
+| Click a card or pill, `1` `2` `3` `4` `5` | Spin that app to the front, then warp to DarkCircle, Circleswap, DarkSafe, Dark Questate, DarkOrder |
 | Hover a node | Telemetry readout: node, route, live Cyprus-1 block height |
 | Sound button | Synthesized reactor hum and cues (Web Audio, muted by default) |
 | Phone tilt | Parallax (iOS asks for permission on first touch) |
@@ -55,12 +55,13 @@
 | `darksafe.` `safe.` `multisig.` or contains `darksafe-` | `/multisigows/` |
 | `tumbler.` `privacy.` `x402.` or contains `tumbler-` | `/x402tumbler/` |
 | `questate.` `darkquestate.` `realestate.` or contains `questate-` | `/darkquestate/` |
+| `darkorder.` `guild.` `halls.` or contains `darkorder-` | `/darkorder/` |
 
-`404.html` applies the same rules to deep links and keeps the `/<repo>/` prefix on GitHub project pages. A deep link under `/questate/` goes to `/darkquestate/`.
+`404.html` applies the same rules to deep links and keeps the `/<repo>/` prefix on GitHub project pages. A deep link under `/questate/` goes to `/darkquestate/`; a deep link under `/guildhalls/` goes to `/darkorder/`.
 
 ---
 
-## The four apps
+## The five apps
 
 | | App | Route | What it is | Where it stands |
 |---|---|---|---|---|
@@ -68,8 +69,9 @@
 | ⚡ | **Circleswap**<br/>`q0/` | `/q0/` | Quai DeFi dashboard: pool analytics, swap math, LP, and a chain-driven Farms & Pools page with an owner admin dashboard for adding pairs | Reads live Cyprus-1 data. Transactions are signed by your own wallet extension. `SECURITY_AUDIT.md` is an internal, AI-assisted review and **not** an external audit |
 | 🔐 | **DarkSafe**<br/>`multisigows/` | `/multisigows/` | DarkSafe multi-sig vaults: on-chain proposals, native timelock, quorum checks, no `DELEGATECALL` | Extension-only signing, no bundled signer. The vault contract has not had an independent security audit |
 | 🏠 | **Dark Questate**<br/>`b6/` | `/darkquestate/` | Real estate brokerage on Quai: title-verified properties as EIP-6065 deeds, listings through registered brokers, offers held in escrow, closings that move the deed and the money in one transaction | The contracts (`QuestateDeed`, `QuestateBrokerage`) are **not deployed** on Orchard or mainnet, so the site runs as a **labelled showcase**: invented sample listings, marked as such, with every transaction switched off. No independent audit |
+| ⚔️ | **DarkOrder**<br/>`d0/` | `/darkorder/` | The Grand Guild Halls: found a guild with its own governance, dues and reward token stack in one transaction, govern members by QNS name (quaidomains.com), pay dues over x402, and drive every flow with a voice seneschal that turns speech into signed intent | The contracts (`GuildFactory`, `GuildHall`, `TokenStackDeployer`) are **not deployed** on Orchard or mainnet, so the site runs as a **labelled showcase**: invented sample halls, marked as such, with every transaction switched off. No independent audit |
 
-Each app has its own README with the details: [`x402tumbler/`](x402tumbler/README.md), [`q0/`](q0/README.md), [`multisigows/`](multisigows/README.md), [`b6/`](b6/README.md).
+Each app has its own README with the details: [`x402tumbler/`](x402tumbler/README.md), [`q0/`](q0/README.md), [`multisigows/`](multisigows/README.md), [`b6/`](b6/README.md), [`d0/`](d0/README.md).
 
 > **Treat everything here as pre-release.** Do not point any of it at funds you cannot afford to lose.
 
@@ -97,6 +99,7 @@ Each app has its own README with the details: [`x402tumbler/`](x402tumbler/READM
 ├── q0/                         Circleswap
 ├── multisigows/                DarkSafe
 ├── b6/                         Dark Questate
+├── d0/                         DarkOrder (Grand Guild Halls)
 └── .github/workflows/          ci.yml (tests every app), deploy-pages.yml
 ```
 
@@ -119,9 +122,12 @@ You need Node 22+, pnpm 10 and, only to regenerate the 3D asset, Blender 5.x.
 
 (cd b6 && pnpm install --frozen-lockfile \
   && pnpm build && pnpm test && pnpm integrity)
+
+(cd d0 && pnpm install --frozen-lockfile \
+  && pnpm build && pnpm test && pnpm integrity)
 ```
 
-Dark Questate's tests include an end-to-end run against a Hardhat node they start on `127.0.0.1:18545`, so that port must be free.
+Dark Questate's tests include an end-to-end run against a Hardhat node they start on `127.0.0.1:18545`, so that port must be free. DarkOrder's suites are unit tests plus Hardhat's in-process network, so they bind nothing.
 
 **2. Assemble and serve the unified site:**
 
@@ -160,13 +166,13 @@ On Windows Blender lives at `C:\Program Files\Blender Foundation\Blender 5.2\ble
 
 1. Verify the 3D asset, check portal sources are pure ASCII, test the redirect router, run the Circleswap unit tests
 2. Refresh the Quainance launchpad snapshot (best effort), then build Circleswap and DarkSafe
-3. Build Dark Questate, run its tests and its integrity gate (a failure stops the deploy)
+3. Build Dark Questate and DarkOrder, run their tests and their integrity gates (a failure stops the deploy)
 4. `tools/assemble_site.sh _site`
 5. Upload and deploy to GitHub Pages
 
-`.github/workflows/ci.yml` runs on every push and pull request and is what says a change is safe: Circleswap (types, unit tests, bun tests, the contract suites, production build), DarkSafe (build, types, core / web / verifier / watcher tests), Dark Questate (contract suites, SDK tests including the end-to-end run on a local Hardhat node, web tests, integrity gate) and the DarkCircle console (types and its 915 tests), each with a production dependency audit. DarkSafe's contract jobs (Slither, Foundry, coverage) are in `multisigows/.github/workflows/ci.yml` and run when that folder is its own repository.
+`.github/workflows/ci.yml` runs on every push and pull request and is what says a change is safe: Circleswap (types, unit tests, bun tests, the contract suites, production build), DarkSafe (build, types, core / web / verifier / watcher tests), Dark Questate (contract suites, Foundry fuzz and invariant campaigns, forge lint, SDK tests including the end-to-end run on a local Hardhat node, web tests, integrity gate), DarkOrder (contract suites, Foundry fuzz and invariant campaigns, forge lint, Slither, core units covering the voice grammar / x402 challenge / QNS naming, web tests, integrity gate) and the DarkCircle console (types and its 915 tests), each with a production dependency audit. DarkSafe's contract jobs (Slither, Foundry, coverage) are in `multisigows/.github/workflows/ci.yml` and run when that folder is its own repository.
 
-The bundle contains `index.html`, `404.html`, the `.glb`, the vendored three.js, and each app's static build under its route (plus the `circleswap/`, `darksafe/` and `darkcircle/` aliases). Dark Questate ships once, as `darkquestate/`: the `b6/` folder name is never published. The `.blend` is source and is not published.
+The bundle contains `index.html`, `404.html`, the `.glb`, the vendored three.js, and each app's static build under its route (plus the `circleswap/`, `darksafe/` and `darkcircle/` aliases). Dark Questate ships once, as `darkquestate/`: the `b6/` folder name is never published. DarkOrder ships once, as `darkorder/`: the `d0/` folder name is never published. The `.blend` is source and is not published.
 
 ---
 
@@ -181,6 +187,9 @@ The bundle contains `index.html`, `404.html`, the `.glb`, the vendored three.js,
 | Portal encoding | CI step | Any non-ASCII byte in `index.html` or `404.html` (the first build shipped corrupted dashes and emoji) |
 | Bundle integrity | `bash tools/assemble_site.sh` | A navigation target or vendored module missing from the deployed bundle |
 | Dark Questate integrity | `cd b6 && pnpm integrity` | Names, fake IPFS CIDs or a misattributed pool address from the old b6 demo coming back, wrong chain ids, the local dev wallet in the production bundle |
+| DarkOrder integrity | `cd d0 && pnpm integrity` | Legacy d0 codenames or a foreign chain id coming back, the local dev wallet in the production bundle, the voice grammar accepting a raw address |
+| DarkOrder fuzz | `cd d0/packages/contracts && forge test` | 43 fuzz properties and 3 invariant campaigns over the exact Hardhat-compiled bytecode: the QNS charset rule, the permission wall, all-or-nothing batches, vote tallies and threshold arithmetic, quorum at execution, treasury accounting |
+| Dark Questate fuzz | `cd b6/packages/contracts && forge test` | 27 fuzz properties and 2 invariant campaigns over the exact Hardhat-compiled bytecode: registrar-only servicing, custody on listing, the settlement split against the quote, the money identity (desk balance == proceeds + offer escrow), parcel uniqueness, foreclosure monotonicity, hostile payees |
 
 ---
 
@@ -192,6 +201,7 @@ These are tracked, not hidden:
 - **Circleswap on static hosting.** Neither the explorer's indexed stats nor Quainance's launchpad catalog send a CORS header, so the hosted page does not request them: USD values come from pool reserves, and Hartii / POOP / curve launches come from a snapshot taken at deploy time and labelled with its date. Token metadata is unaffected: it uses the CORS-open `/api/token/<address>` endpoint and the RPC.
 - **Wallet extensions.** Every app treats an injected wallet as untrusted input: a provider that throws or lacks events is reported as absent rather than allowed to break the page, and Circleswap shows a crash screen with details instead of a blank page.
 - **Dark Questate on static hosting.** Until its contracts are deployed and recorded in `b6/packages/core/src/deployments.ts`, the hosted site shows invented sample listings with a "Showcase" banner, and every transaction is switched off.
+- **DarkOrder on static hosting.** Until its contracts are deployed and recorded in `d0/packages/core/src/deployments.ts`, the hosted site shows invented sample halls with a "Showcase" banner, and every transaction is switched off. QNS names resolve only against a live deployment.
 - **Portal metrics.** The hover readout shows the Cyprus-1 block height only. Pool TVL and vault status are not wired in.
 - **No licence file yet.** Until one is added, reuse rights are unspecified. The vendored three.js keeps its MIT licence in `assets/3d/vendor/three/LICENSE`.
 

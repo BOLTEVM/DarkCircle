@@ -269,7 +269,7 @@ export function mountAdmin(ctx) {
   async function viewRelayer() {
     const r = await call("/api/admin/relayer");
     paint(
-      banner("info", h("strong", { text: "This is the simulated relayer. " }), "Turning it off makes every payment and sweep refuse (the checklist item SP-EX-04 blocks them before anything is attempted). A production relayer with a real signer, gas funding and nonce handling does not exist yet (AUDIT.md O-2)."),
+      banner("info", h("strong", { text: "This is the simulated relayer. " }), "Turning it off makes every payment and sweep refuse (the checklist item SP-EX-04 blocks them before anything is attempted). The production relayer (src/relayer/, runbook docs/RELAYER.md) has its own process: a policy-guarded keystore signer, durable nonces, zone simulation before every send and reorg-aware confirmation; its Orchard rehearsal is still pending (docs/RELAYER_PLAN.md phase 4)."),
       h("div", { class: "grid2" }, r.relayers.map(relayerBox))
     );
   }

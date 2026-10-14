@@ -1,0 +1,69 @@
+# Foundry runs alongside Hardhat. Hardhat compiles the bytecode that the deploy script ships
+# (artifacts/); the Foundry tests deploy that exact bytecode (see test/foundry/Base.sol) and use
+# Foundry's own compile only for interfaces and test helpers. Run `hardhat compile` first.
+
+[profile.default]
+src = "contracts"
+test = "test/foundry"
+out = "out"
+cache_path = "cache-forge"
+libs = ["lib", "node_modules"]
+remappings = [
+  "forge-std/=lib/forge-std/src/",
+  "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
+]
+# Same compiler settings as hardhat.config.cjs.
+solc_version = "0.8.24"
+evm_version = "paris"
+optimizer = true
+optimizer_runs = 200
+# Tests read the Hardhat artifacts and nothing else.
+fs_permissions = [{ access = "read", path = "./artifacts/contracts" }]
+ffi = false
+
+[profile.default.fuzz]
+runs = 1000
+seed = "0xd0d0"
+
+[profile.default.invariant]
+runs = 128
+depth = 150
+fail_on_revert = true
+
+# Longer campaigns: forge test --profile deep
+[profile.deep]
+
+[profile.deep.fuzz]
+runs = 20000
+seed = "0xd0d0"
+
+[profile.deep.invariant]
+runs = 1000
+depth = 400
+fail_on_revert = true
+
+[lint]
+# Test helpers are not shipped.
+ignore = ["test/**", "lib/**", "script/**"]
+# Every remaining lint is a design property of a governance system, not a defect:
+# - block-timestamp / unsafe-typecast: voting windows are minutes to days; a block producer
+#   can skew seconds at most, and uint64 holds timestamps for 584 billion years.
+# - require-revert-in-loop / calls-loop: guild.execute is an all-or-nothing batch by design,
+#   and name validation rejects inside its scan loop; both are bounded by proposal gas.
+# - arbitrary-send-eth: proposals spending the treasury to chosen destinations IS the
+#   product; the entry point is gated by EXECUTE_ROLE and fuzzed for it.
+# - unused-return: the governance modules intentionally ignore execute's results array.
+# - reentrancy-events: proposal state settles (executed flag set) before any external call.
+# - missing-events-access-control / missing-zero-check: grant/revoke emit Granted/Revoked
+#   and the council validates members explicitly; the linter misses both.
+exclude_lints = [
+  "block-timestamp",
+  "unsafe-typecast",
+  "require-revert-in-loop",
+  "calls-loop",
+  "arbitrary-send-eth",
+  "unused-return",
+  "reentrancy-events",
+  "missing-events-access-control",
+  "missing-zero-check",
+]

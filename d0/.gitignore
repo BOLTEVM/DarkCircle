@@ -1,0 +1,11 @@
+node_modules/
+dist/
+artifacts/
+cache/
+typechain-types/
+*.local
+.DS_Store
+out/
+cache-forge/
+broadcast/
+.slither-venv/

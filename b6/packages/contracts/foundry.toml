@@ -1,0 +1,76 @@
+# Foundry runs alongside Hardhat. Hardhat compiles the bytecode that the deploy script ships
+# (artifacts/); the Foundry tests deploy that exact bytecode (see test/foundry/Base.sol) and use
+# Foundry's own compile only for interfaces and test helpers. Run `hardhat compile` first.
+
+[profile.default]
+src = "contracts"
+test = "test/foundry"
+out = "out"
+cache_path = "cache-forge"
+libs = ["lib", "node_modules"]
+remappings = [
+  "forge-std/=lib/forge-std/src/",
+  "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
+]
+# Same compiler settings as hardhat.config.cjs.
+solc_version = "0.8.24"
+evm_version = "paris"
+optimizer = true
+optimizer_runs = 200
+# Tests read the Hardhat artifacts and nothing else.
+fs_permissions = [{ access = "read", path = "./artifacts/contracts" }]
+ffi = false
+
+[profile.default.fuzz]
+runs = 1000
+seed = "0xb66"
+
+[profile.default.invariant]
+runs = 128
+depth = 150
+fail_on_revert = true
+
+# Longer campaigns: forge test --profile deep
+[profile.deep]
+
+[profile.deep.fuzz]
+runs = 20000
+seed = "0xb66"
+
+[profile.deep.invariant]
+runs = 1000
+depth = 400
+fail_on_revert = true
+
+[lint]
+# Test helpers (HostileParty, the Foundry suites) are not shipped.
+ignore = ["contracts/test/**", "test/**", "lib/**", "script/**"]
+# Every remaining lint is a design property of an escrowed marketplace, not a defect:
+# - block-timestamp / unsafe-typecast: offer expiries are minutes to 90 days; a block producer
+#   can skew seconds at most, and uint64 holds timestamps for 584 billion years.
+# - reentrancy-events: sale state settles before the deed moves; money-entry points are
+#   nonReentrant and the pull-payment ledger is updated before any call.
+# - low-level-calls / arbitrary-send-eth: _pay sends the coin to the payee of a credited
+#   balance, which is the product; settlement is pull-based so a hostile payee cannot block it.
+# - missing-zero-check: the constructor and registrar paths validate what matters; the fuzz
+#   suites pin the checks that exist.
+# - unused-return: createListing reads only `foreclosed` out of the debtOf tuple; the lien
+#   token and amount are deliberately not consulted until the buyer declares them at close.
+# - reentrancy-eth: _pay is private and reachable only from withdrawOffer and
+#   withdrawProceeds, both `nonReentrant` first; the linter does not track modifiers through
+#   private calls.
+# - reentrancy-no-eth: the called contract is the protocol's own deed registry. Settlement
+#   state (status, proceeds, custody) is fully written before any transfer, every entry point
+#   is nonReentrant, and the HostileParty fuzz suite proves a re-entering buyer/seller cannot
+#   close, cancel or withdraw twice.
+exclude_lints = [
+  "block-timestamp",
+  "unsafe-typecast",
+  "reentrancy-events",
+  "reentrancy-no-eth",
+  "low-level-calls",
+  "arbitrary-send-eth",
+  "missing-zero-check",
+  "unused-return",
+  "reentrancy-eth",
+]

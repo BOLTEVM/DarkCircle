@@ -15,6 +15,7 @@ import { detectInjectedWallet, subscribeProvider, type InjectedWallet } from '..
 import { resolveWebNetworkConfig } from '../config/network.js';
 
 const NETWORK_CONFIG = resolveWebNetworkConfig();
+const CHAIN_RECHECK_MS = 3000;
 
 async function readAccounts(wallet: InjectedWallet): Promise<string[]> {
   const method = wallet.isQuaiNative ? 'quai_accounts' : 'eth_accounts';
@@ -37,6 +38,8 @@ interface WalletContextValue {
   walletChainId: number | null;
   expectedChainId: number;
   isOnExpectedChain: boolean;
+  /** Reads the wallet's chain now and updates `walletChainId`; resolves to what it reported. */
+  refreshWalletChain: () => Promise<number | null>;
   error: string | null;
   connectEip1193: () => Promise<void>;
   disconnect: () => void;
@@ -98,6 +101,37 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       disconnect: onDisconnect,
     });
   }, [wallet]);
+
+  const refreshWalletChain = useCallback(async (): Promise<number | null> => {
+    const detected = detectInjectedWallet();
+    if (!detected) return null;
+    const chainId = await readWalletChainId(detected.provider);
+    setWalletChainId(chainId);
+    return chainId;
+  }, []);
+
+  // `chainChanged` is the only other source of walletChainId, and a wallet that switches
+  // networks without emitting it (or after the page connected) would leave a stale "wrong
+  // network" warning on screen. Re-read while connected: on focus, on becoming visible, and
+  // on a short timer. The write path re-checks the chain itself (ensureWriteReady), so this
+  // only keeps what is shown honest.
+  useEffect(() => {
+    if (!signer || !wallet) return;
+    const recheck = () => {
+      void refreshWalletChain();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') recheck();
+    };
+    const timer = setInterval(recheck, CHAIN_RECHECK_MS);
+    window.addEventListener('focus', recheck);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', recheck);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [signer, wallet, refreshWalletChain]);
 
   const connectEip1193 = useCallback(async () => {
     setIsConnecting(true);
@@ -207,6 +241,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         walletChainId,
         expectedChainId: NETWORK_CONFIG.chainId,
         isOnExpectedChain: walletChainId === NETWORK_CONFIG.chainId,
+        refreshWalletChain,
         error,
         connectEip1193,
         disconnect,

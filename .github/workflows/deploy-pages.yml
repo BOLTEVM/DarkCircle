@@ -104,6 +104,29 @@ jobs:
           pnpm integrity
           cd ..
 
+      # Same gate for the Grand Guild Halls: contract suites, core and web unit tests, and the
+      # integrity gate that keeps the local dev wallet out of the production bundle.
+      - name: Build, test and gate DarkOrder
+        run: |
+          cd d0
+          pnpm install --frozen-lockfile
+          pnpm build
+          pnpm test
+          pnpm integrity
+          cd ..
+
+      # The Foundry fuzz and invariant campaigns run against the Hardhat-compiled bytecode.
+      - name: Foundry toolchain
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+
+      - name: DarkOrder fuzz and invariant campaigns
+        working-directory: d0/packages/contracts
+        run: forge test
+
+      - name: Dark Questate fuzz and invariant campaigns
+        working-directory: b6/packages/contracts
+        run: forge test
+
       - name: Assemble Unified GitHub Pages Site
         run: bash tools/assemble_site.sh _site
 

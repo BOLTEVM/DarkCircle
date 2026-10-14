@@ -15,6 +15,7 @@ import { SendModal } from '../modals/SendModal.js';
 import { SwapModal } from '../modals/SwapModal.js';
 import { SignerModal } from '../modals/SignerModal.js';
 import { CreateVaultModal } from '../modals/CreateVaultModal.js';
+import { DeployProtocolModal } from '../modals/DeployProtocolModal.js';
 import { VaultSwitcherModal } from '../modals/VaultSwitcherModal.js';
 import { useSafe } from '../../context/SafeContext.js';
 
@@ -28,6 +29,7 @@ export const AppShell: React.FC = () => {
   const [isSwapOpen, setIsSwapOpen] = useState(false);
   const [isSignerOpen, setIsSignerOpen] = useState(false);
   const [isCreateVaultOpen, setIsCreateVaultOpen] = useState(false);
+  const [isDeployOpen, setIsDeployOpen] = useState(false);
   const [isVaultSwitcherOpen, setIsVaultSwitcherOpen] = useState(false);
   const [sendAsset, setSendAsset] = useState('QUAI');
 
@@ -40,14 +42,6 @@ export const AppShell: React.FC = () => {
 
   return (
     <div className="h-screen bg-[#0b0f17] text-slate-100 flex flex-col selection:bg-emerald-500/30 selection:text-emerald-300">
-      <div
-        className="bg-amber-950/60 border-b border-amber-800/50 text-amber-200 text-[11px] text-center px-4 py-1.5"
-        data-testid="beta-banner"
-      >
-        Beta: the DarkSafe vault contract has not had an independent security audit. Do not store funds you cannot
-        afford to lose.
-      </div>
-
       {/* Header */}
       <Header
         onOpenQrModal={() => setIsReceiveOpen(true)}
@@ -76,7 +70,16 @@ export const AppShell: React.FC = () => {
           )}
           {!hasVault && deploymentError && (
             <div className="max-w-md mx-auto mt-8 bg-amber-950/40 border border-amber-700/50 rounded-xl p-3 text-xs text-amber-200 text-center" data-testid="deployment-missing-banner">
-              {deploymentError}
+              <div>{deploymentError}</div>
+              {deploymentError.includes('is not deployed') && (
+                <button
+                  onClick={() => setIsDeployOpen(true)}
+                  className="mt-2 px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold"
+                  data-testid="open-deploy-modal"
+                >
+                  Deploy DarkSafe v2…
+                </button>
+              )}
             </div>
           )}
           {!hasVault ? (
@@ -141,6 +144,7 @@ export const AppShell: React.FC = () => {
       <TransactionReviewModal target={reviewTarget} onClose={() => setReviewTarget(null)} />
       <SwapModal isOpen={isSwapOpen} onClose={() => setIsSwapOpen(false)} />
       <SignerModal isOpen={isSignerOpen} onClose={() => setIsSignerOpen(false)} />
+      <DeployProtocolModal isOpen={isDeployOpen} onClose={() => setIsDeployOpen(false)} />
       <CreateVaultModal isOpen={isCreateVaultOpen} onClose={() => setIsCreateVaultOpen(false)} />
       <VaultSwitcherModal
         isOpen={isVaultSwitcherOpen}

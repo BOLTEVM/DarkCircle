@@ -9,6 +9,10 @@
  *
  *   --registrar 0x00...   owner of the deed registry (mints, services liens). Default: the deployer.
  *   --operator  0x00...   owner of the brokerage (brokers, pause). Default: the deployer.
+ *                         A mainnet broadcast requires both to be given explicitly, so the hot
+ *                         deployer key never becomes an owner by accident (pass its address to
+ *                         choose that on purpose).
+ *   --confirmations N     receipt depth to wait for; never below the network's default.
  *   --replace             overwrite an existing deployment record for this network.
  *
  * Key handling: the deployer key comes only from an encrypted JSON keystore (see keystore-new.mjs).
@@ -23,7 +27,9 @@
  *  - Receipts are polled over raw JSON-RPC and must reach N confirmations; a reorg restarts the count.
  *
  * A broadcast writes deployments/<network>.json and regenerates packages/core/src/deployments.ts,
- * which is how the site learns the addresses. Rebuild and redeploy the site afterwards.
+ * which is how the site learns the addresses. Rebuild and redeploy the site afterwards. Before it
+ * writes anything, both contracts' code on chain is compared with the build byte for byte (the
+ * brokerage's with its `deed` immutable filled in from the build-info's immutableReferences).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -66,6 +72,34 @@ function artifact(name) {
   const file = path.join(ROOT, 'artifacts/contracts', `${name}.sol`, `${name}.json`);
   if (!fs.existsSync(file)) fail(`missing ${file}; run \`pnpm build\` first`);
   return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
+/**
+ * Byte ranges of the runtime code that the constructor fills with immutables, from the Hardhat
+ * build-info the artifact was compiled in. Returns [{ start, length }] in bytes.
+ */
+function immutableRanges(name) {
+  const dbgFile = path.join(ROOT, 'artifacts/contracts', `${name}.sol`, `${name}.dbg.json`);
+  if (!fs.existsSync(dbgFile)) fail(`missing ${dbgFile}; run \`pnpm build\` first`);
+  const dbg = JSON.parse(fs.readFileSync(dbgFile, 'utf8'));
+  // Written on Windows the path uses backslashes; normalise so it resolves everywhere.
+  const infoFile = path.resolve(path.dirname(dbgFile), String(dbg.buildInfo).replace(/\\/g, '/'));
+  if (!fs.existsSync(infoFile)) fail(`missing build-info ${infoFile}; run \`pnpm build\` again`);
+  const info = JSON.parse(fs.readFileSync(infoFile, 'utf8'));
+  const out = info?.output?.contracts?.[`contracts/${name}.sol`]?.[name]?.evm?.deployedBytecode;
+  if (!out || typeof out.immutableReferences !== 'object') fail(`build-info for ${name} has no immutableReferences`);
+  return Object.values(out.immutableReferences).flat();
+}
+
+/** The runtime code a correct deployment holds: the build's runtime with each immutable filled in. */
+function expectedRuntime(art, ranges, wordHex) {
+  let hex = art.deployedBytecode.slice(2).toLowerCase();
+  for (const { start, length } of ranges) {
+    if (length !== 32) fail(`unexpected immutable of ${length} bytes in ${art.contractName}`);
+    if (hex.slice(start * 2, (start + length) * 2) !== '0'.repeat(64)) fail(`${art.contractName}: immutable slot at ${start} is not zeroed in the build`);
+    hex = hex.slice(0, start * 2) + wordHex + hex.slice((start + length) * 2);
+  }
+  return '0x' + hex;
 }
 
 async function rpc(url, method, params) {
@@ -174,7 +208,13 @@ async function main() {
   if (args.network === 'mainnet' && broadcast && !args.flags.has('i-understand-unaudited')) {
     fail('refusing a mainnet broadcast: these contracts have not had an independent audit. Pass --i-understand-unaudited to proceed anyway.');
   }
-  const confirmations = Number(args.confirmations ?? net.confirmations);
+  const confirmations = args.confirmations === undefined ? net.confirmations : Number(args.confirmations);
+  if (!Number.isInteger(confirmations) || confirmations < net.confirmations || confirmations > 1000) {
+    fail(`--confirmations must be a whole number from ${net.confirmations} (the ${args.network} minimum) to 1000`);
+  }
+  if (args.network === 'mainnet' && broadcast && (!args.registrar || !args.operator)) {
+    fail('a mainnet broadcast needs explicit --registrar and --operator (use a multisig or a cold key; pass the deployer address only if you mean it)');
+  }
   const recordPath = path.join(ROOT, 'deployments', `${args.network}.json`);
   if (broadcast && fs.existsSync(recordPath) && !args.flags.has('replace')) fail(`${recordPath} exists; pass --replace to deploy over it`);
 
@@ -198,6 +238,10 @@ async function main() {
 
   const deedArt = artifact('QuestateDeed');
   const deskArt = artifact('QuestateBrokerage');
+  const deedImmutables = immutableRanges('QuestateDeed');
+  const deskImmutables = immutableRanges('QuestateBrokerage');
+  if (deedImmutables.length !== 0) fail('QuestateDeed now has immutables; teach the code check about them before deploying');
+  if (deskImmutables.length === 0) fail('QuestateBrokerage has no immutable `deed` in this build; the code check expects one');
   const gasPrice = BigInt(await rpc(net.rpc, 'quai_gasPrice', []));
   const balance = BigInt(await rpc(net.rpc, 'quai_getBalance', [deployer, 'latest']));
   const nonce = parseInt(await rpc(net.rpc, 'quai_getTransactionCount', [deployer, 'pending']), 16);
@@ -257,6 +301,9 @@ async function main() {
   const [deedRes, deskRes] = results;
   const deedCode = await rpc(net.rpc, 'quai_getCode', [deedRes.address, 'latest']);
   if (keccak256(deedCode) !== keccak256(deedArt.deployedBytecode)) fail('QuestateDeed code on chain does not match the artifact');
+  const deskCode = await rpc(net.rpc, 'quai_getCode', [deskRes.address, 'latest']);
+  const deskWanted = expectedRuntime(deskArt, deskImmutables, coder.encode(['address'], [deedRes.address]).slice(2).toLowerCase());
+  if (keccak256(deskCode) !== keccak256(deskWanted)) fail('QuestateBrokerage code on chain does not match the artifact (with its registry filled in)');
   const read = async (art, to, fn) => {
     const iface = new Interface(art.abi);
     return iface.decodeFunctionResult(fn, await rpc(net.rpc, 'quai_call', [{ to, data: iface.encodeFunctionData(fn) }, 'latest']))[0];
@@ -264,7 +311,7 @@ async function main() {
   if (getAddress(await read(deskArt, deskRes.address, 'deed')) !== deedRes.address) fail('the brokerage points at another registry');
   if (getAddress(await read(deskArt, deskRes.address, 'owner')) !== operator) fail('the brokerage owner is not the operator');
   if (getAddress(await read(deedArt, deedRes.address, 'owner')) !== registrar) fail('the registry owner is not the registrar');
-  console.log('  verified: registry code hash, brokerage.deed(), both owners');
+  console.log('  verified: both code hashes, brokerage.deed(), both owners');
 
   const record = {
     network: args.network,
@@ -276,6 +323,7 @@ async function main() {
     deed: deedRes,
     brokerage: deskRes,
     deedCodeHash: keccak256(deedArt.deployedBytecode),
+    brokerageCodeHash: keccak256(deskCode),
   };
   fs.mkdirSync(path.dirname(recordPath), { recursive: true });
   fs.writeFileSync(recordPath, JSON.stringify(record, null, 2) + '\n');

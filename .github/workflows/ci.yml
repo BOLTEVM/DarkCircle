@@ -145,7 +145,78 @@ jobs:
       - name: Tests (Hardhat contract suites, SDK unit and end-to-end over JSON-RPC, web)
         run: pnpm test
 
+      # Foundry fuzz and invariant campaigns run against the Hardhat-compiled bytecode,
+      # i.e. the exact bytes deploy-quai.mjs ships.
+      - name: Foundry toolchain
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+
+      - name: Fuzz and invariant campaigns (1000-run fuzz, 128x150 invariants)
+        working-directory: b6/packages/contracts
+        run: forge test
+
+      - name: Contract lint (warnings denied)
+        working-directory: b6/packages/contracts
+        run: forge lint --deny warnings
+
       - name: Integrity gate (legacy b6 names, chain ids, no dev wallet in the production bundle)
+        run: pnpm integrity
+
+      - name: Audit runtime dependencies
+        run: pnpm audit --prod --audit-level high
+
+  darkorder:
+    name: "DarkOrder (d0): contracts, core SDK, web app"
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: d0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Install (lockfile only)
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (compiles the contracts, then the core SDK and the web app)
+        run: pnpm build
+
+      # The suites run package by package; the contract suites use Hardhat's in-process network
+      # and the core and web suites are unit tests, so nothing here binds a port.
+      - name: Tests (Hardhat contract suites, core units, web)
+        run: pnpm test
+
+      # Foundry fuzz and invariant campaigns run against the Hardhat-compiled bytecode,
+      # i.e. the exact bytes deploy-quai.mjs ships.
+      - name: Foundry toolchain
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+
+      - name: Fuzz and invariant campaigns (1000-run fuzz, 128x150 invariants)
+        working-directory: d0/packages/contracts
+        run: forge test
+
+      - name: Contract lint (warnings denied)
+        working-directory: d0/packages/contracts
+        run: forge lint --deny warnings
+
+      # foundry.toml sits next to hardhat.config.cjs, so the framework is named explicitly.
+      # Slither reads the Hardhat artifacts the build step produced (ignore-compile).
+      - name: Slither (fail on medium or higher)
+        uses: crytic/slither-action@b52cc1cbfee9ca3e8722dd5224299d16c9a6b80f # v0.4.2
+        with:
+          target: d0/packages/contracts
+          ignore-compile: true
+          fail-on: medium
+          slither-args: --compile-force-framework hardhat --filter-paths "node_modules|contracts/test|lib/|test/"
+
+      - name: Integrity gate (legacy d0 names, chain ids, no dev wallet in the production bundle)
         run: pnpm integrity
 
       - name: Audit runtime dependencies

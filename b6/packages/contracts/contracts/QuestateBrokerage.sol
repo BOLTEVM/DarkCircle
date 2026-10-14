@@ -27,7 +27,11 @@ import {IERC6065} from "./interfaces/IERC6065.sol";
  *
  * What the owner (the brokerage operator) can and cannot do: register and deactivate brokers,
  * pause new business, and cancel a listing, which returns the deed to its seller. The owner has
- * no path to any deposit, any credited proceeds, or any listed deed.
+ * no path to any deposit, any credited proceeds, or any listed deed. Ownership can be handed
+ * over (two steps) but never renounced: a renounced desk could never be unpaused.
+ *
+ * Every event is emitted before the external call of the function that emits it, so a
+ * contract called back mid-transaction never observes state that its logs contradict.
  */
 contract QuestateBrokerage is Ownable2Step, ReentrancyGuard {
     uint16 public constant BPS_DENOMINATOR = 10_000;
@@ -151,6 +155,7 @@ contract QuestateBrokerage is Ownable2Step, ReentrancyGuard {
     error NothingToWithdraw();
     error TransferFailed();
     error PageTooLarge(uint256 limit);
+    error RenounceDisabled();
 
     modifier whenNotPaused() {
         if (paused) revert Paused();
@@ -158,7 +163,7 @@ contract QuestateBrokerage is Ownable2Step, ReentrancyGuard {
     }
 
     constructor(address deedRegistry, address operator) Ownable(operator) {
-        bool ok;
+        bool ok = false;
         try IERC165(deedRegistry).supportsInterface(type(IERC721).interfaceId) returns (bool a) {
             ok = a;
         } catch {}
@@ -211,6 +216,13 @@ contract QuestateBrokerage is Ownable2Step, ReentrancyGuard {
         emit PausedSet(value);
     }
 
+    /// @notice Disabled. Without an owner the desk could not be unpaused, brokers could not be
+    ///         registered, and stuck listings could not be cancelled by the operator. Hand the
+    ///         desk over with transferOwnership + acceptOwnership instead.
+    function renounceOwnership() public pure override {
+        revert RenounceDisabled();
+    }
+
     /* ================================================================ sellers */
 
     /**
@@ -219,8 +231,8 @@ contract QuestateBrokerage is Ownable2Step, ReentrancyGuard {
      */
     function createListing(uint256 deedId, uint256 askPrice, address broker, string calldata details)
         external
-        whenNotPaused
         nonReentrant
+        whenNotPaused
         returns (uint256 listingId)
     {
         if (askPrice == 0) revert ZeroPrice();
@@ -245,9 +257,9 @@ contract QuestateBrokerage is Ownable2Step, ReentrancyGuard {
         l.details = details;
         activeListingOfDeed[deedId] = listingId;
         _listingsBySeller[msg.sender].push(listingId);
+        emit ListingCreated(listingId, deedId, msg.sender, broker, askPrice);
 
         deed.transferFrom(msg.sender, address(this), deedId);
-        emit ListingCreated(listingId, deedId, msg.sender, broker, askPrice);
     }
 
     /// @notice Changes the asking price and the listing details. Open offers are unaffected.
@@ -268,12 +280,12 @@ contract QuestateBrokerage is Ownable2Step, ReentrancyGuard {
         if (msg.sender != l.seller && msg.sender != owner()) revert NotSeller(listingId);
         l.status = ListingStatus.Cancelled;
         activeListingOfDeed[l.deedId] = 0;
-        deed.transferFrom(address(this), l.seller, l.deedId);
         emit ListingCancelled(listingId, msg.sender);
+        deed.transferFrom(address(this), l.seller, l.deedId);
     }
 
     /// @notice Closes a sale to an open, unexpired offer.
-    function acceptOffer(uint256 offerId) external whenNotPaused nonReentrant {
+    function acceptOffer(uint256 offerId) external nonReentrant whenNotPaused {
         Offer storage o = _offers[offerId];
         if (o.status != OfferStatus.Open) revert OfferNotOpen(offerId);
         if (block.timestamp > o.expiresAt) revert OfferExpired(offerId);
@@ -292,7 +304,7 @@ contract QuestateBrokerage is Ownable2Step, ReentrancyGuard {
      * @notice Buys at the asking price. `debtToken`/`maxDebt` is the largest lien you accept
      *         (pass maxDebt 0 to accept none).
      */
-    function buy(uint256 listingId, address debtToken, uint256 maxDebt) external payable whenNotPaused nonReentrant {
+    function buy(uint256 listingId, address debtToken, uint256 maxDebt) external payable nonReentrant whenNotPaused {
         Listing storage l = _activeListing(listingId);
         if (msg.sender == l.seller) revert SellerCannotBuy();
         if (msg.value != l.askPrice) revert WrongPayment(l.askPrice, msg.value);
@@ -305,8 +317,8 @@ contract QuestateBrokerage is Ownable2Step, ReentrancyGuard {
     function makeOffer(uint256 listingId, uint64 expiresAt, address debtToken, uint256 maxDebt)
         external
         payable
-        whenNotPaused
         nonReentrant
+        whenNotPaused
         returns (uint256 offerId)
     {
         Listing storage l = _activeListing(listingId);
@@ -338,8 +350,8 @@ contract QuestateBrokerage is Ownable2Step, ReentrancyGuard {
         uint256 amount = o.amount;
         o.status = OfferStatus.Withdrawn;
         totalOfferEscrow -= amount;
-        _pay(msg.sender, amount);
         emit OfferWithdrawn(offerId, msg.sender, amount);
+        _pay(msg.sender, amount);
     }
 
     /* ================================================================ payees */
@@ -349,8 +361,8 @@ contract QuestateBrokerage is Ownable2Step, ReentrancyGuard {
         if (amount == 0) revert NothingToWithdraw();
         proceeds[msg.sender] = 0;
         totalProceedsOwed -= amount;
-        _pay(msg.sender, amount);
         emit ProceedsWithdrawn(msg.sender, amount);
+        _pay(msg.sender, amount);
     }
 
     /* ================================================================ reads */
@@ -433,11 +445,11 @@ contract QuestateBrokerage is Ownable2Step, ReentrancyGuard {
         proceeds[l.seller] += sellerNet;
         if (commission > 0) proceeds[l.broker] += commission;
         totalProceedsOwed += price;
+        emit Sale(listingId, l.deedId, buyer, l.seller, l.broker, price, commission, offerId);
 
         // Last: hands control to the buyer only if it is a contract, and every entry point
         // that could be re-entered is nonReentrant.
         deed.safeTransferFrom(address(this), buyer, l.deedId);
-        emit Sale(listingId, l.deedId, buyer, l.seller, l.broker, price, commission, offerId);
     }
 
     function _pay(address to, uint256 amount) private {

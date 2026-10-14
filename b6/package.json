@@ -12,6 +12,8 @@
     "dev:local": "pnpm --filter @darkquestate/web exec vite --mode localchain",
     "local:market": "node scripts/local-market.mjs",
     "integrity": "node scripts/integrity.mjs",
+    "security": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/security-check.ps1",
+    "slither": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/security-check.ps1 -SlitherOnly",
     "clean": "turbo run clean"
   },
   "devDependencies": {

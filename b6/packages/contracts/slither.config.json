@@ -1,0 +1,10 @@
+{
+  "compile_force_framework": "hardhat",
+  "hardhat_ignore_compile": true,
+  "hardhat_artifacts_directory": "artifacts",
+  "filter_paths": "node_modules|contracts[/\\\\]test[/\\\\]|lib[/\\\\]forge-std",
+  "exclude_dependencies": true,
+  "exclude_informational": false,
+  "exclude_low": false,
+  "exclude_optimization": false
+}

@@ -1,0 +1,20 @@
+{
+  "name": "darkorder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DarkOrder Grand Guild Halls: guild governance on Quai Network (Cyprus-1). Found guilds, token voting, council multisig, x402 tribute and a voice agent.",
+  "packageManager": "pnpm@10.29.3",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "lint": "pnpm -r run lint",
+    "dev": "pnpm --filter @darkorder/web dev",
+    "dev:local": "pnpm --filter @darkorder/web exec vite --mode localchain",
+    "integrity": "node scripts/integrity.mjs",
+    "clean": "pnpm -r run clean"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.3"
+  }
+}

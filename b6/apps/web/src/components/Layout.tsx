@@ -1,3 +1,4 @@
+import { DeployModal } from './DeployModal.js';
 import React, { useState } from 'react';
 import { AlertTriangle, ChevronDown, Info, Menu, PauseCircle, Wallet, X } from 'lucide-react';
 import { sameAddress, shortAddress, type NetworkName } from '@darkquestate/core';
@@ -136,9 +137,10 @@ export const Header: React.FC<{ route: Route }> = ({ route }) => {
 
 /** Site-wide truths a visitor must not miss: showcase mode, a paused desk, a wallet on the wrong chain. */
 export const StatusBanner: React.FC = () => {
-  const { network, rpcError } = useNetwork();
+  const { network, rpcError, deployment, deploymentSource } = useNetwork();
   const { address, chainId, onExpectedChain, addressProblem, wallet } = useWallet();
   const market = useMarket();
+  const [deployOpen, setDeployOpen] = React.useState(false);
   const items: { tone: 'gold' | 'warn' | 'danger'; icon: React.ReactNode; text: React.ReactNode }[] = [];
 
   if (market.mode === 'showcase') {
@@ -148,7 +150,22 @@ export const StatusBanner: React.FC = () => {
       text: (
         <>
           <strong className="font-semibold">Showcase.</strong> Dark Questate's contracts are not deployed on {network.label} yet. The listings below are invented samples and
-          every transaction is switched off.
+          every transaction is switched off.{' '}
+          <button type="button" onClick={() => setDeployOpen(true)} className="font-semibold underline underline-offset-2 hover:text-gold-light" data-testid="open-deploy-modal">
+            Deploy it…
+          </button>
+        </>
+      ),
+    });
+  }
+  if (deploymentSource === 'browser' && deployment) {
+    items.push({
+      tone: 'warn',
+      icon: <AlertTriangle className="h-4 w-4" />,
+      text: (
+        <>
+          <strong className="font-semibold">Unrecorded deployment.</strong> This browser is using {network.label} contracts it saved itself (brokerage{' '}
+          <span className="font-mono">{shortAddress(deployment.brokerage)}</span>), not ones recorded in the site build. Other visitors still see the showcase.
         </>
       ),
     });
@@ -173,7 +190,7 @@ export const StatusBanner: React.FC = () => {
       text: `${wallet?.name ?? 'Your wallet'} is on chain ${chainId}; this page is set to ${network.label} (chain ${network.chainId}). Switch one of them before sending anything.`,
     });
   }
-  if (!items.length) return null;
+  if (!items.length) return <DeployModal open={deployOpen} onClose={() => setDeployOpen(false)} />;
   const tones = {
     gold: 'border-gold/25 bg-gold/[0.06] text-gold-pale',
     warn: 'border-amber-400/25 bg-amber-400/[0.07] text-amber-100',
@@ -181,6 +198,7 @@ export const StatusBanner: React.FC = () => {
   } as const;
   return (
     <div className="border-b border-line">
+      <DeployModal open={deployOpen} onClose={() => setDeployOpen(false)} />
       {items.map((it, i) => (
         <div key={i} className={cx('border-b px-4 py-2.5 text-sm last:border-b-0', tones[it.tone])} role={it.tone === 'danger' ? 'alert' : 'status'}>
           <div className="mx-auto flex max-w-7xl items-start gap-2.5 lg:px-4">

@@ -365,6 +365,16 @@ describe("QuestateBrokerage", function () {
       await desk.setPaused(false);
       expect(await desk.paused()).to.equal(false);
     });
+
+    it("cannot be made permanent by renouncing the desk", async function () {
+      const { desk, operator, stranger } = await deployDesk();
+      await desk.setPaused(true);
+      await expect(desk.renounceOwnership()).to.be.revertedWithCustomError(desk, "RenounceDisabled");
+      await expect(desk.connect(stranger).renounceOwnership()).to.be.revertedWithCustomError(desk, "RenounceDisabled");
+      expect(await desk.owner()).to.equal(operator.address);
+      await desk.setPaused(false);
+      expect(await desk.paused()).to.equal(false);
+    });
   });
 
   describe("hostile counterparties", function () {

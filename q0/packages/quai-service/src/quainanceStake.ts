@@ -4,17 +4,22 @@
 // staked in Quainance's gaugeV2 contract. So a wallet's BDELTA on Quainance is the BDELTA its liquidity tokens represent, the
 // ones in the wallet plus the ones staked in the gauge (the same definition the airdrop snapshot uses). This is a read: it
 // gates what the app shows, it does not and cannot gate what the farm contract accepts.
+//
+// This file reads the wallet's side of it. The page adds the liquidity tokens the wallet has deposited in this app's own farm
+// (withFarmLiquidity): they left the wallet when they were deposited, and the Farms page is where that deposit is known.
 
 import { TOKEN_REGISTRY } from './registries/tokens';
 import { keccak256Bytes } from './keccak';
 import type { BatchCall, BatchFn } from './pairs';
+import { BDELTA_STAKE_THRESHOLD, bdeltaOfLiquidity, withFarmLiquidity, type QuainanceStake } from './quainanceStakeMath';
+
+export { BDELTA_STAKE_THRESHOLD, bdeltaOfLiquidity, withFarmLiquidity };
+export type { QuainanceStake };
 
 /** Quainance's BDELTA/WQUAI pool (its QNCE-V2 liquidity token). */
 export const QUAINANCE_BDELTA_PAIR = '0x006524c3e3d2197dd61a64fef54f099260387209';
 /** Quainance's staking gauge (gaugeV2), which holds the pool's staked liquidity tokens. */
 export const QUAINANCE_GAUGE_V2 = '0x004a1fe8b99aebf9077f68884de6edaa036c6df6';
-/** BDELTA a wallet must have on Quainance to use the single-token pools and to take part in the airdrop. */
-export const BDELTA_STAKE_THRESHOLD = 1_000n * 10n ** 18n;
 
 const selector = (signature: string): string => keccak256Bytes(new TextEncoder().encode(signature)).slice(0, 10);
 const SEL_GET_POOL_ID = selector('getPoolId(address)');
@@ -23,18 +28,7 @@ const word = (n: bigint | string): string => (typeof n === 'bigint' ? n.toString
 const isWord = (v: unknown): v is string => typeof v === 'string' && /^0x[0-9a-fA-F]{64}$/.test(v);
 const call = (to: string, data: string): BatchCall => ({ method: 'quai_call', params: [{ to, data }, 'latest'] });
 
-export interface QuainanceStake {
-    /** BDELTA the wallet's liquidity tokens represent (wallet plus gauge), in base units. */
-    bdelta: bigint;
-    lpHeld: bigint;
-    lpStaked: bigint;
-    meetsThreshold: boolean;
-}
-
-/** BDELTA a number of the pool's liquidity tokens represent. Floors. */
-export const bdeltaOfLiquidity = (lp: bigint, bdeltaReserve: bigint, totalSupply: bigint): bigint => (totalSupply === 0n ? 0n : (lp * bdeltaReserve) / totalSupply);
-
-/** Read a wallet's BDELTA on Quainance. Throws when the node cannot answer: "no stake" is never a guess. */
+/** Read a wallet's BDELTA on Quainance (wallet + gauge; add the farm's share with withFarmLiquidity). Throws when the node cannot answer: "no stake" is never a guess. */
 export async function readQuainanceBdeltaStake(batch: BatchFn, wallet: string): Promise<QuainanceStake> {
     if (!/^0x[0-9a-fA-F]{40}$/.test(wallet)) throw new Error('Not a wallet address.');
     const pair = QUAINANCE_BDELTA_PAIR;
@@ -64,5 +58,5 @@ export async function readQuainanceBdeltaStake(batch: BatchFn, wallet: string): 
     }
 
     const bdelta = bdeltaOfLiquidity(lpHeld + lpStaked, reserve, totalSupply);
-    return { bdelta, lpHeld, lpStaked, meetsThreshold: bdelta >= BDELTA_STAKE_THRESHOLD };
+    return { bdelta, lpHeld, lpStaked, lpFarm: 0n, bdeltaReserve: reserve, lpTotalSupply: totalSupply, meetsThreshold: bdelta >= BDELTA_STAKE_THRESHOLD };
 }

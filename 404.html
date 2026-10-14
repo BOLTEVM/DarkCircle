@@ -17,7 +17,7 @@
       if (/\.github\.io$/.test(host)) {
         var first = path.split('/')[1];
         // app folders are lowercase; the repo folder ("DarkCircle") is not, so match case-sensitively
-        if (first && !/^(q0|circleswap|multisigows|darksafe|x402tumbler|darkcircle|darkquestate|questate)$/.test(first)) {
+        if (first && !/^(q0|circleswap|multisigows|darksafe|x402tumbler|darkcircle|darkquestate|questate|darkorder|guildhalls)$/.test(first)) {
           base = '/' + first + '/';
         }
       }
@@ -33,6 +33,10 @@
       }
       if (host.startsWith('tumbler.') || host.startsWith('privacy.') || host.startsWith('x402.') || host.includes('tumbler-')) {
         window.location.replace(base + 'x402tumbler/' + search + hash);
+        return;
+      }
+      if (host.startsWith('darkorder.') || host.startsWith('guild.') || host.startsWith('halls.') || host.includes('darkorder-')) {
+        window.location.replace(base + 'darkorder/' + search + hash);
         return;
       }
       if (host.startsWith('questate.') || host.startsWith('darkquestate.') || host.startsWith('realestate.') || host.includes('questate-')) {
@@ -56,6 +60,10 @@
       }
       if (/^\/(darkquestate|questate)(\/|$)/i.test(rest)) {
         window.location.replace(base + 'darkquestate/' + search + hash);
+        return;
+      }
+      if (/^\/(darkorder|guildhalls)(\/|$)/i.test(rest)) {
+        window.location.replace(base + 'darkorder/' + search + hash);
         return;
       }
 

@@ -20,7 +20,7 @@
 
 | | |
 |---|---|
-| **Contracts** | `QuestateDeed` (EIP-6065 registry) and `QuestateBrokerage` (listings, offers, escrow, commissions). 36 Hardhat tests. **Not deployed** on Orchard or mainnet. **No independent audit.** |
+| **Contracts** | `QuestateDeed` (EIP-6065 registry) and `QuestateBrokerage` (listings, offers, escrow, commissions). 38 Hardhat tests. **Not deployed** on Orchard or mainnet. **No independent audit.** |
 | **Site** | Reads Cyprus-1 directly and signs only through the visitor's own Pelagus or Blip wallet. With no deployment on the selected network it runs as a **showcase**: invented sample listings, labelled as such on every card and page, with every transaction switched off. |
 | **Verified end to end** | On a local Hardhat chain, through the real UI: offer → accept → withdraw proceeds → relist (approve + list) → registrar mint from an intake file → duplicate mint refused before sending. Same paths are covered by an automated end-to-end test over JSON-RPC. |
 
@@ -87,10 +87,30 @@ Node 22+ and pnpm 10.
 ```bash
 pnpm install
 pnpm build          # contracts, core, ui, web (turbo)
-pnpm test           # 36 contract + 66 core (incl. live-chain e2e) + 10 web tests
+pnpm test           # 38 contract + 72 core (incl. live-chain e2e) + 10 web tests
 pnpm integrity
 pnpm dev            # http://localhost:5290 (showcase unless deployments.ts has an entry)
 ```
+
+**Foundry (fuzz, invariants, lint, live-node smoke).** The contracts are also hardened with the Foundry toolchain against the exact bytecode the deploy script ships:
+
+```bash
+cd packages/contracts
+pnpm test:forge         # 29 fuzz tests (1000 runs each) + 2 invariant campaigns (128 x 150 calls)
+pnpm test:forge:deep    # longer campaigns: 20000 fuzz runs, 1000 x 400 invariants
+pnpm lint:forge         # forge lint, warnings denied
+```
+
+The invariant campaigns pin the money identity (`desk.balance == totalProceedsOwed + totalOfferEscrow`), deed custody (a listed deed sits in the desk, nowhere else), parcel uniqueness, foreclosure monotonicity and the manager ledger across random call sequences with pauses, time warps and hostile payees. `script/AnvilSmoke.s.sol` is the live-node dry run of a full closing (deploy, register a broker, mint, list, buy at the ask, verify the split); `anvil` on port 8545 plus one `forge script --broadcast` runs it end to end.
+
+**Security checks (Slither and everything else).** One command on Windows installs [Slither](https://github.com/crytic/slither) into a private virtual environment (`.venv-slither`, git-ignored), recompiles the contracts from scratch, runs Slither, then the builds, every test suite, `forge test`/`forge lint` when Foundry is installed, the integrity gate and `pnpm audit`:
+
+```powershell
+scripts\security-check.cmd                 # or: pnpm security
+scripts\security-check.cmd -SlitherOnly    # or: pnpm slither
+```
+
+Everything lands in `reports\` (git-ignored): `summary.txt` (PASS/FAIL per step), `slither.md` (checklist), `slither.json`, `slither.sarif` (open with VS Code's SARIF viewer), `slither.txt`, and one log per step. Slither fails the run only on High findings. For CI, `.github/workflows/security.yml` (GitHub Actions) runs the same checks and uploads Slither's findings to the repository's Security tab. Slither's settings are in `packages/contracts/slither.config.json`; it reads the Hardhat build, which is the bytecode that ships.
 
 **Against a real chain locally.** `pnpm local:market` starts a Hardhat node on port 8645, deploys both contracts, seeds six listings (one sold, one with a lien, open offers on two) and writes `apps/web/.env.localchain.local`. Then `pnpm dev:local` serves the site against it with a dev wallet: pick any of the node's accounts in the header to act as registrar (#0), broker (#1–2), seller (#3–8) or buyer (#9–11). The dev wallet exists only in that mode; `pnpm integrity` checks it is absent from production builds.
 
@@ -98,7 +118,7 @@ pnpm dev            # http://localhost:5290 (showcase unless deployments.ts has 
 
 ## Deploying to Quai
 
-The deploy script never takes a raw private key. It signs from an encrypted keystore, grinds both contracts into Cyprus-1, simulates each creation, sizes gas from runtime bytes (not from `quai_estimateGas`), waits for confirmations, verifies the registry's code hash and both owners on chain, then records the addresses in `packages/core/src/deployments.ts`.
+The deploy script never takes a raw private key. It signs from an encrypted keystore, grinds both contracts into Cyprus-1, simulates each creation, sizes gas from runtime bytes (not from `quai_estimateGas`), waits for confirmations, verifies both contracts' code on chain against the build (the brokerage's with its `deed` immutable filled in) and both owners, then records the addresses in `packages/core/src/deployments.ts`.
 
 ```bash
 cd packages/contracts
@@ -107,13 +127,15 @@ node scripts/keystore-new.mjs keystores/deployer.keystore.json               # f
 node scripts/deploy-quai.mjs --network orchard --keystore keystores/deployer.keystore.json --broadcast
 ```
 
-Optional `--registrar` and `--operator` hand the two roles to other Cyprus-1 addresses. A mainnet broadcast also requires `--i-understand-unaudited`. Simulated on 2026-10-13: worst case ~0.03 QUAI on Orchard and ~1,283 QUAI on mainnet at that day's gas price (limits are generous; unused gas is refunded). After deploying, register at least one broker in the Registrar console, then rebuild and redeploy the site.
+Optional `--registrar` and `--operator` hand the two roles to other Cyprus-1 addresses. A mainnet broadcast requires both of them explicitly (use a multisig or a cold key; the deployer key is a hot key) and `--i-understand-unaudited`; `--confirmations` can only raise the network's default. Neither role can be renounced on chain, only handed over in two steps. Keep `QUESTATE_KEYSTORE_PASSWORD_FILE`, if you use it, inside `keystores/` so it stays git-ignored. Simulated on 2026-10-13: worst case ~0.03 QUAI on Orchard and ~1,283 QUAI on mainnet at that day's gas price (limits are generous; unused gas is refunded). After deploying, register at least one broker in the Registrar console, then rebuild and redeploy the site.
+
+Deploying from the site's own "Deploy it…" button works on Orchard only for that browser: the addresses are kept in its local storage and a banner says so. On mainnet the site never takes contract addresses from browser storage (any page on the same origin could plant them); record them in `deployments.ts` and rebuild. The production build carries a Content-Security-Policy (scripts from the site only; network access to the two Quai RPCs and CoinGecko) and a `_headers` file with the headers a `<meta>` tag cannot set (`frame-ancestors`, `X-Frame-Options`, `nosniff`). On a host that ignores `_headers`, such as GitHub Pages, set those at the CDN if you can.
 
 ---
 
 ## Known limitations
 
-- **No audit.** The contracts have unit, adversarial and end-to-end tests. That is not an independent audit.
+- **No audit.** The contracts have unit, adversarial, fuzz and invariant tests (38 Hardhat suites plus 31 Foundry campaigns against the shipped bytecode). That is not an independent audit.
 - **Not wired into the DarkCircle portal or Pages deploy.** The site builds with a relative base and hash routes, so it can be served from any sub-path, but `tools/assemble_site.sh` and the workflow do not include it yet.
 - **Metadata hosting.** The site computes each deed's metadata CID; publishing the document (IPFS or Arweave) so the CID resolves is the registrar's step.
 - **Listing reads are unindexed.** The site reads the newest 60 listings by id. A larger desk will want an indexer.

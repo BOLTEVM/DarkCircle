@@ -47,9 +47,7 @@ const NETWORK_CONFIG = resolveWebNetworkConfig();
 const REFRESH_INTERVAL_MS = 30_000;
 const RECENT_TRANSACTIONS = 25;
 
-export const MAINNET_GATE_MESSAGE =
-  'DarkSafe vaults are not yet enabled on Quai mainnet: the vault contract has not had an independent security audit. ' +
-  'Use Orchard testnet, or set VITE_ALLOW_MAINNET_VAULTS=true in a build you control and accept that risk.';
+export const MAINNET_GATE_MESSAGE = 'Vault creation is switched off in this build of DarkSafe.';
 
 // v2 uses new keys: v1 vault entries are never shown as v2 vaults.
 const KNOWN_VAULTS_STORAGE_KEY = 'darksafe.vaults.v2';
@@ -145,6 +143,8 @@ interface SafeContextValue {
   knownVaults: KnownVault[];
   deployment: VaultDeployment | null;
   deploymentError: string | null;
+  /** Re-resolves and re-verifies the factory (after one was deployed from this app). */
+  reloadDeployment: () => void;
   transactions: VaultTransaction[];
   clock: ChainClock | null;
   rpcClient: QuaiRpcClient;
@@ -198,6 +198,11 @@ export const SafeProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [deployment, setDeployment] = useState<VaultDeployment | null>(null);
   const [deploymentError, setDeploymentError] = useState<string | null>(null);
+  const [deploymentNonce, setDeploymentNonce] = useState(0);
+  const reloadDeployment = useCallback(() => {
+    setDeploymentError(null);
+    setDeploymentNonce((n) => n + 1);
+  }, []);
   const [knownVaults, setKnownVaults] = useState<KnownVault[]>(() => loadJsonArray(KNOWN_VAULTS_STORAGE_KEY, isKnownVault));
   const knownVaultsRef = useRef(knownVaults);
   knownVaultsRef.current = knownVaults;
@@ -216,9 +221,12 @@ export const SafeProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // The factory is verified on chain before anything relies on it.
   useEffect(() => {
     let cancelled = false;
-    resolveDeployment(rpcClient, NETWORK_CONFIG.chainId, factoryOverride())
+    resolveDeployment(rpcClient, NETWORK_CONFIG.chainId, factoryOverride(NETWORK_CONFIG.chainId))
       .then((d) => {
-        if (!cancelled) setDeployment(d);
+        if (!cancelled) {
+          setDeployment(d);
+          setDeploymentError(null);
+        }
       })
       .catch((err) => {
         if (cancelled) return;
@@ -231,7 +239,7 @@ export const SafeProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       cancelled = true;
     };
-  }, [rpcClient]);
+  }, [rpcClient, deploymentNonce]);
 
   // Pick the most recent vault for this network; it is verified on chain before it is shown as live.
   useEffect(() => {
@@ -513,6 +521,7 @@ export const SafeProvider: React.FC<{ children: React.ReactNode }> = ({ children
         knownVaults,
         deployment,
         deploymentError,
+        reloadDeployment,
         transactions,
         clock,
         rpcClient,

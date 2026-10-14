@@ -121,4 +121,25 @@ describe('wallet connection', () => {
     const badge = await screen.findByTestId('network-badge');
     expect(badge.textContent).toMatch(/Wrong network \(wallet: 9\)/);
   });
+
+  it('clears the wrong-network flag when the wallet moves to Orchard without emitting chainChanged', async () => {
+    let chainId = '0x9';
+    (window as any).pelagus = {
+      request: async ({ method }: { method: string }) => {
+        if (method === 'quai_requestAccounts') return ['0x00233CAb6b0aAF8757f4AD2Ab4F4C5d8697F6170'];
+        if (method === 'quai_chainId') return chainId;
+        return null;
+      },
+    };
+    const { App } = await import('../src/App.js');
+    render(<App />);
+    fireEvent.click(screen.getByText('Connect Signer'));
+    fireEvent.click(screen.getByText('Connect Extension'));
+    expect((await screen.findByTestId('network-badge')).textContent).toMatch(/Wrong network \(wallet: 9\)/);
+
+    // the user switches to Orchard in the wallet; the page is told nothing
+    chainId = '0x3a98';
+    fireEvent.focus(window);
+    await waitFor(() => expect(screen.getByTestId('network-badge').textContent).toBe('Orchard Testnet'));
+  });
 });

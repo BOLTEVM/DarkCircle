@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { DEPLOYMENTS, NETWORKS, RpcClient, type Deployment, type NetworkConfig, type NetworkName } from '@darkquestate/core';
-import { LOCAL_ENABLED, localDeployment, localNetwork, readStored, writeStored } from '../lib/env.js';
+import { LOCAL_ENABLED, localDeployment, localNetwork, readStored, savedDeployment, writeStored } from '../lib/env.js';
 
 interface NetworkState {
   network: NetworkConfig;
@@ -9,6 +9,11 @@ interface NetworkState {
   rpc: RpcClient;
   /** null: the contracts are not deployed on this network, so the site is a showcase. */
   deployment: Deployment | null;
+  /**
+   * Where `deployment` came from: the site build (deployments.ts), this browser's own deploy
+   * (testnets only, see savedDeployment), or the local dev chain.
+   */
+  deploymentSource: 'build' | 'browser' | 'local' | null;
   blockNumber: bigint | null;
   rpcError: string | null;
 }
@@ -31,7 +36,16 @@ export const NetworkProvider: React.FC<{ children: React.ReactNode; rpcFactory?:
   const [name, setName] = useState<NetworkName>(initialNetwork);
   const network = useMemo(() => (name === 'local' ? localNetwork() : NETWORKS[name]), [name]);
   const rpc = useMemo(() => (rpcFactory ? rpcFactory(network) : new RpcClient(network)), [network, rpcFactory]);
-  const deployment = useMemo(() => (name === 'local' ? localDeployment() : DEPLOYMENTS[name]), [name]);
+  const [deployment, deploymentSource] = useMemo((): [Deployment | null, NetworkState['deploymentSource']] => {
+    if (name === 'local') {
+      const d = localDeployment();
+      return [d, d ? 'local' : null];
+    }
+    const recorded = DEPLOYMENTS[name];
+    if (recorded) return [recorded, 'build'];
+    const saved = savedDeployment(name);
+    return [saved, saved ? 'browser' : null];
+  }, [name]);
   const [blockNumber, setBlockNumber] = useState<bigint | null>(null);
   const [rpcError, setRpcError] = useState<string | null>(null);
 
@@ -68,10 +82,11 @@ export const NetworkProvider: React.FC<{ children: React.ReactNode; rpcFactory?:
       },
       rpc,
       deployment,
+      deploymentSource,
       blockNumber,
       rpcError,
     }),
-    [network, rpc, deployment, blockNumber, rpcError]
+    [network, rpc, deployment, deploymentSource, blockNumber, rpcError]
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 };

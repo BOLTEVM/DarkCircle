@@ -2,6 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactNo
 import { AlertTriangle, Coins, Droplets, ExternalLink, Gift, Layers, RefreshCw, Search, Settings2, Sprout, Zap } from 'lucide-react';
 import {
   DEPLOYED,
+  QUAINANCE_BDELTA_PAIR,
   SECONDS_PER_DAY,
   SINGLE_STAKE_POOLS,
   TOKEN_REGISTRY,
@@ -71,8 +72,19 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
   const farmAddress = DEPLOYED.MASTERCHEF;
   const { farm, pairs, positions, balances, status, error, updatedAt, refreshing, refresh } = useFarm(farmAddress, walletAddress, SINGLE_TOKENS);
   const board = useYieldBoard(farm);
+  // Quainance's BDELTA/WQUAI liquidity tokens this wallet has already deposited in this farm. Depositing moved them out of the
+  // wallet, so the Quainance read alone cannot see them: without this, a wallet with a position here is told it has no BDELTA
+  // and both single-token Deposit buttons lock. null = not known yet (the gate waits instead of answering on half the facts).
+  const quainanceLpInFarm = useMemo<bigint | null>(() => {
+    if (!farm || !walletAddress) return null;
+    const pair = QUAINANCE_BDELTA_PAIR.toLowerCase();
+    const pool = farm.pools.find(p => p.lpToken.toLowerCase() === pair);
+    if (!pool) return 0n;
+    const mine = positions?.find(p => p.pid === pool.pid);
+    return mine ? mine.staked : null;
+  }, [farm, positions, walletAddress]);
   // The single-token pools are offered to wallets with 1,000 BDELTA staked on Quainance. A rule of this page, not of the contract.
-  const gate = useQuainanceStake(walletAddress);
+  const gate = useQuainanceStake(walletAddress, quainanceLpInFarm);
   const [quaiUsd, setQuaiUsd] = useState<number | null>(null);
   const [tab, setTab] = useState<'POOLS' | 'ADMIN'>('POOLS');
   // The pool the person asked to add (its LP or token address): the admin tab opens with it ticked and in view.
@@ -467,7 +479,7 @@ export default function FarmsPage({ walletAddress, onConnect, onOpenLiquidity, b
                   <div className="farm-subhead" role="row">
                     <strong>Single-token pools</strong> &middot; deposit {plannedVisible.map(p => p.symbol).join(' or ')} itself and earn {rewards.a.symbol} + {rewards.b.symbol}.
                     The farm owner has not added {plannedVisible.length === 1 ? 'this pool' : 'these pools'} yet, so there is nothing to deposit into; the numbers are estimates until then.
-                    {' '}Single-token pools are for wallets with at least 1,000 BDELTA staked on Quainance{gate.status === 'eligible' ? ': yours qualifies.' : gate.bdelta !== null ? `; yours has ${compactNumber(Number(formatUnits(gate.bdelta, 18, 2)), 2)}.` : '.'}
+                    {' '}Single-token pools are for wallets with at least 1,000 BDELTA staked on Quainance (Quainance liquidity you deposited in this farm counts too){gate.status === 'eligible' ? ': yours qualifies.' : gate.bdelta !== null ? `; yours has ${compactNumber(Number(formatUnits(gate.bdelta, 18, 2)), 2)}.` : '.'}
                   </div>
                   {plannedVisible.map(p => (
                     <SingleStakeRow
@@ -669,7 +681,7 @@ function FarmDetails({ farm, rewards, runA, runB, updatedAt }: { farm: NonNullab
         <li>The farm&apos;s code can never be changed.</li>
         <li>The owner can add pools, change how rewards are split and pause deposits. The owner cannot take your tokens.</li>
         <li>Withdrawing is never paused, and rewards come only from the farm&apos;s own reward balance, never from your deposit.</li>
-        <li>This page offers the single-token pools only to wallets with 1,000 BDELTA staked on Quainance. That is a rule of this page: the farm contract itself accepts deposits from any wallet.</li>
+        <li>This page offers the single-token pools only to wallets with 1,000 BDELTA staked on Quainance, counting Quainance liquidity deposited in this farm. That is a rule of this page: the farm contract itself accepts deposits from any wallet.</li>
       </ul>
     </details>
   );

@@ -5,6 +5,16 @@ import { getAddress } from 'ethers';
 import { adminCalls, vaultCalls, vaultInterface } from '@darksafe/core';
 import { fakeQuaiNode, fakePelagus, FakeVault } from './fakeQuaiNode.js';
 
+// Both networks now have recorded deployments; one test needs "nothing deployed" to exercise the missing-deployment UI.
+vi.mock('@darksafe/core', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@darksafe/core')>();
+  return {
+    ...real,
+    resolveDeployment: (...args: Parameters<typeof real.resolveDeployment>) =>
+      (globalThis as any).__noDeployment ? Promise.reject(new real.NoDeploymentError(args[1])) : real.resolveDeployment(...args),
+  };
+});
+
 const FACTORY = getAddress('0x0011111111111111111111111111111111111111');
 const IMPL = getAddress('0x0022222222222222222222222222222222222222');
 const VAULT = getAddress('0x0033333333333333333333333333333333333333');
@@ -49,6 +59,7 @@ async function connectWallet() {
 }
 
 afterEach(() => {
+  delete (globalThis as any).__noDeployment;
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.resetModules();
@@ -94,6 +105,7 @@ describe('opening a vault', () => {
   });
 
   it('explains that vaults cannot be created where DarkSafe v2 is not deployed', async () => {
+    (globalThis as any).__noDeployment = true;
     const node = fakeQuaiNode({ chainId: CHAIN, factory: FACTORY, implementation: IMPL, vaults: [], timestamp: TS });
     vi.stubGlobal('fetch', node.fetch);
     await renderApp();

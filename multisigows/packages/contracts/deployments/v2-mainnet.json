@@ -1,0 +1,23 @@
+{
+  "network": "mainnet",
+  "chainId": 9,
+  "deployedAt": null,
+  "deployer": "0x005c0faa361AE7c4A473343EF24bAe4d1379E638",
+  "implementation": {
+    "address": "0x003b7EEf3BA4144b69060AC85356452592baf32f",
+    "txHash": "0x004e002cde76aec442118e7f51e770f415d8191b1a759f0c5f44490261b90946",
+    "blockNumber": 10601762,
+    "gasUsed": "2578723"
+  },
+  "factory": {
+    "address": "0x0047Fc97C447dd2C30410eA5Ca3ef0d645a396E6",
+    "txHash": "0x002b00213489b25b788fcea8fc423924a0a8d64fc34f36f2487e3d73cc8fb580",
+    "blockNumber": 10601778,
+    "gasUsed": "750542"
+  },
+  "implementationCodeHash": "0x831934fa457112bd899ef9e58f54aa22c8e69a404e65d324c9da3211267a149e",
+  "proxyCodeHash": "0xc41377ee4f92ba69708ea43ef0ca45187b2bc816d1322ad18a78af817f89410f",
+  "gitCommit": null,
+  "auditedTag": null,
+  "note": "Recorded after the fact from chain data (deployed through the in-app deploy modal); verified by code hash against the pinned build."
+}

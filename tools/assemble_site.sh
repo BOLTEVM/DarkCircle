@@ -47,6 +47,11 @@ cp -r multisigows/apps/web/dist/. "$OUT/darksafe/"
 mkdir -p "$OUT/darkquestate"
 cp -r b6/apps/web/dist/. "$OUT/darkquestate/"
 
+# DarkOrder Grand Guild Halls (vite build, base './', hash routes). One copy only: 404.html sends
+# the guildhalls/ alias here, so the folder name d0/ is never published.
+mkdir -p "$OUT/darkorder"
+cp -r d0/apps/web/dist/. "$OUT/darkorder/"
+
 # integrity: everything the portal links to or loads must exist in the bundle
 missing=0
 for f in index.html 404.html 0.png Boltfont.png \
@@ -56,9 +61,9 @@ for f in index.html 404.html 0.png Boltfont.png \
          assets/3d/vendor/three/addons/postprocessing/EffectComposer.js \
          assets/3d/vendor/three/addons/postprocessing/OutputPass.js \
          q0/0logov3.png q0/Boltfont.png x402tumbler/Boltfont.png multisigows/Boltfont.png \
-         darkquestate/0.png darkquestate/Boltfont.png \
+         darkquestate/0.png darkquestate/Boltfont.png darkorder/0.png darkorder/Boltfont.png \
          x402tumbler/index.html q0/index.html multisigows/index.html darkquestate/index.html \
-         darkcircle/index.html circleswap/index.html darksafe/index.html; do
+         darkcircle/index.html circleswap/index.html darksafe/index.html darkorder/index.html; do
   if [ ! -f "$OUT/$f" ]; then
     echo "MISSING in bundle: $f" >&2
     missing=1

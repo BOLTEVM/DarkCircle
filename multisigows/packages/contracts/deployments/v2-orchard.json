@@ -1,0 +1,23 @@
+{
+  "network": "orchard",
+  "chainId": 15000,
+  "deployedAt": null,
+  "deployer": "0x001598Ce5966385c9290B1b87079f1bE620CF2A2",
+  "implementation": {
+    "address": "0x004D881E8fD09D00F9f4F896a2F15D81c8C219Cb",
+    "txHash": "0x00450015cf8c8af1e8c543eacbbe4c39c846dc66cc7e88991b56c93b8922f5f3",
+    "blockNumber": 8004042,
+    "gasUsed": "2573367"
+  },
+  "factory": {
+    "address": "0x004aB9E83Ed1B93bE7ded9f4672b317699C890Ca",
+    "txHash": "0x003b006f566b1fd2d254388fc69da49536aaec3b4c19f9b66e227a08d3921867",
+    "blockNumber": 8004050,
+    "gasUsed": "748458"
+  },
+  "implementationCodeHash": "0x831934fa457112bd899ef9e58f54aa22c8e69a404e65d324c9da3211267a149e",
+  "proxyCodeHash": "0xc41377ee4f92ba69708ea43ef0ca45187b2bc816d1322ad18a78af817f89410f",
+  "gitCommit": null,
+  "auditedTag": null,
+  "note": "Recorded after the fact from chain data (deployed through the in-app deploy modal); verified by code hash against the pinned build."
+}

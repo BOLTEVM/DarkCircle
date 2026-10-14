@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>DarkCircle Suite &mdash; Quai Network 3D Ecosystem Experience</title>
-  <meta name="description" content="Interactive 3D navigation experience for the DarkCircle decentralized suite on Quai Network: DarkCircle x402 Privacy, Circleswap AMM DEX, DarkSafe Multi-Sig, and the Dark Questate real estate brokerage.">
+  <meta name="description" content="Interactive 3D navigation experience for the DarkCircle decentralized suite on Quai Network: DarkCircle x402 Privacy, Circleswap AMM DEX, DarkSafe Multi-Sig, the Dark Questate real estate brokerage, and the DarkOrder Grand Guild Halls.">
   <meta name="theme-color" content="#05070a">
   <link rel="icon" type="image/png" href="./0.png">
 
@@ -27,6 +27,10 @@
         }
         if (host.startsWith('tumbler.') || host.startsWith('privacy.') || host.startsWith('x402.') || host.includes('tumbler-')) {
           window.location.replace('./x402tumbler/' + search + hash);
+          return;
+        }
+        if (host.startsWith('darkorder.') || host.startsWith('guild.') || host.startsWith('halls.') || host.includes('darkorder-')) {
+          window.location.replace('./darkorder/' + search + hash);
           return;
         }
         if (host.startsWith('questate.') || host.startsWith('darkquestate.') || host.startsWith('realestate.') || host.includes('questate-')) {
@@ -263,6 +267,7 @@
     .station-circleswap:hover::before, .station-circleswap:focus-visible::before, .station-circleswap.targeted::before { background: linear-gradient(90deg, #06b6d4, #ff3b30); }
     .station-darksafe:hover::before, .station-darksafe:focus-visible::before, .station-darksafe.targeted::before { background: linear-gradient(90deg, #a855f7, #10b981); }
     .station-darkquestate:hover::before, .station-darkquestate:focus-visible::before, .station-darkquestate.targeted::before { background: linear-gradient(90deg, #f59e0b, #a855f7); }
+    .station-darkorder:hover::before, .station-darkorder:focus-visible::before, .station-darkorder.targeted::before { background: linear-gradient(90deg, #ef4444, #f59e0b); }
 
     .station-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.3rem 0.5rem; margin-bottom: 0.4rem; }
     .station-title { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 0.4rem; white-space: nowrap; }
@@ -279,6 +284,7 @@
     .badge-cyan { background: rgba(6, 182, 212, 0.15); color: #38bdf8; border: 1px solid rgba(6, 182, 212, 0.3); }
     .badge-purple { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
     .badge-amber { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-red { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
 
     .station-desc { font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 0.7rem; }
     .station-footer {
@@ -420,6 +426,7 @@
         <a class="app-pill" data-app="circleswap" href="./q0/">&#x26A1; Circleswap</a>
         <a class="app-pill" data-app="darksafe" href="./multisigows/">&#x1F510; DarkSafe</a>
         <a class="app-pill" data-app="darkquestate" href="./darkquestate/">&#x1F3E0; Dark Questate</a>
+        <a class="app-pill" data-app="darkorder" href="./darkorder/">&#x2694;&#xFE0F; DarkOrder</a>
       </nav>
 
       <div class="top-controls">
@@ -437,7 +444,7 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
     </button>
 
-    <div class="telemetry" id="telemetry" role="status" aria-live="polite">Drag to orbit &middot; arrows spin the carousel &middot; click the front node or press 1-4 to warp</div>
+    <div class="telemetry" id="telemetry" role="status" aria-live="polite">Drag to orbit &middot; arrows spin the carousel &middot; click the front node or press 1-5 to warp</div>
 
     <div class="portal-stations">
       <a href="./x402tumbler/" class="station-card station-darkcircle" data-app="darkcircle">
@@ -487,10 +494,22 @@
           <span class="station-warp-hint">VIEW LISTINGS &rarr;</span>
         </div>
       </a>
+
+      <a href="./darkorder/" class="station-card station-darkorder" data-app="darkorder">
+        <div class="station-header">
+          <div class="station-title">&#x2694;&#xFE0F; DarkOrder</div>
+          <span class="station-badge badge-red">GUILD HALLS</span>
+        </div>
+        <p class="station-desc">Grand Guild Halls on Quai: found guilds with their own token stack, govern by QNS names, pay dues over x402, and speak to a voice seneschal.</p>
+        <div class="station-footer">
+          <span>PORTAL [5]</span>
+          <span class="station-warp-hint">ENTER HALL &rarr;</span>
+        </div>
+      </a>
     </div>
 
     <footer class="bottom-bar">
-      <div class="keys">ORBIT: drag &middot; SPIN: &larr; &rarr; &middot; WARP: front node, Enter or [1]-[4]</div>
+      <div class="keys">ORBIT: drag &middot; SPIN: &larr; &rarr; &middot; WARP: front node, Enter or [1]-[5]</div>
       <div class="net-status" id="net-status" title="The portal makes no network request to a Quai RPC until you first target a node.">RPC idle</div>
       <a class="powered-by" href="https://boltevm.com" target="_blank" rel="noopener noreferrer"><span>Powered by</span><img src="./Boltfont.png" alt="BOLT" width="63" height="18"></a>
       <div><a href="https://github.com/BOLTEVM/DarkCircle" target="_blank" rel="noopener">BOLTEVM/DarkCircle</a></div>
@@ -514,6 +533,8 @@
         url: './multisigows/', color: 0xa855f7 },
       { id: 'darkquestate', key: '4', title: 'Dark Questate', sub: 'real estate deeds', hint: 'VIEW LISTINGS',
         url: './darkquestate/', color: 0xf59e0b },
+      { id: 'darkorder', key: '5', title: 'DarkOrder', sub: 'grand guild halls', hint: 'ENTER HALL',
+        url: './darkorder/', color: 0xef4444 },
     ];
     const byId = Object.fromEntries(NODES.map((n) => [n.id, n]));
     const params = new URLSearchParams(location.search);
@@ -1198,10 +1219,10 @@
     start3D().then((api) => { scene3d = api; }).catch((err) => {
       console.warn('3D experience unavailable; showing the 2D portal:', err && err.message ? err.message : err);
       document.documentElement.classList.add('no-webgl');
-      IDLE_TEXT = 'Click a card or press 1-4 to enter \u00B7 arrows pick an app, Enter opens it';
+      IDLE_TEXT = 'Click a card or press 1-5 to enter \u00B7 arrows pick an app, Enter opens it';
       if (!current) telemetryEl.textContent = IDLE_TEXT;
       const keys = document.querySelector('.bottom-bar .keys');
-      if (keys) keys.textContent = 'PICK: \u2190 \u2192 \u00B7 WARP: click a card, Enter or [1]-[4]';
+      if (keys) keys.textContent = 'PICK: \u2190 \u2192 \u00B7 WARP: click a card, Enter or [1]-[5]';
     });
   </script>
 </body>

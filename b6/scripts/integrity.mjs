@@ -35,7 +35,7 @@ for (const f of REQUIRED) check(fs.existsSync(path.join(ROOT, f)), `exists: ${f}
 
 function* sources(dir) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (['node_modules', 'dist', 'artifacts', 'cache', '.turbo', 'typechain-types'].includes(e.name)) continue;
+    if (['node_modules', 'dist', 'artifacts', 'cache', '.turbo', 'typechain-types', '.venv-slither', 'reports'].includes(e.name)) continue;
     const p = path.join(dir, e.name);
     if (e.isDirectory()) yield* sources(p);
     else if (/\.(ts|tsx|mjs|js|cjs|sol|html|json|md)$/.test(e.name) && e.name !== 'pnpm-lock.yaml') yield p;
@@ -74,10 +74,18 @@ check(orchard?.[1] === '15000', `Orchard chain id is 15000 (found ${orchard?.[1]
 const html = fs.readFileSync(path.join(ROOT, 'apps/web/index.html'), 'utf8');
 check(html.includes('href="./0.png"') && html.includes('<title>Dark Questate</title>'), 'index.html: Dark Questate title and 0.png favicon');
 
+const env = fs.readFileSync(path.join(ROOT, 'apps/web/src/lib/env.ts'), 'utf8');
+const browserNets = env.match(/BROWSER_DEPLOYMENT_NETWORKS[^=]*=\s*\[([^\]]*)\]/);
+check(Boolean(browserNets) && !/mainnet/.test(browserNets[1]), 'mainnet addresses never come from browser storage');
+
 const dist = path.join(ROOT, 'apps/web/dist');
 if (fs.existsSync(dist)) {
   const bundle = [...sources(dist)].filter((f) => f.endsWith('.js')).map((f) => fs.readFileSync(f, 'utf8')).join('\n');
   check(!bundle.includes('Dev wallet (local Hardhat)') && !bundle.includes('hardhat_setBalance'), 'production bundle has no local dev wallet');
+  const builtHtml = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
+  const csp = builtHtml.match(/http-equiv="Content-Security-Policy"\s+content="([^"]*)"/)?.[1] ?? '';
+  check(/script-src 'self'(;|$)/.test(csp) && /object-src 'none'/.test(csp), "production index.html carries the CSP (script-src 'self', object-src 'none')");
+  check(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(builtHtml), 'production index.html has no inline scripts');
 } else {
   console.log('  SKIP  production bundle check (apps/web/dist not built)');
 }

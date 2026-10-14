@@ -50,4 +50,20 @@ export interface VaultDeploymentRecord {
 
 /** v2 deployments recorded by scripts/deploy-v2.mjs (packages/contracts/deployments). */
 export const V2_DEPLOYMENTS: ReadonlyArray<VaultDeploymentRecord> = [
+  {
+    chainId: 9,
+    network: 'mainnet',
+    factory: '0x0047Fc97C447dd2C30410eA5Ca3ef0d645a396E6',
+    implementation: '0x003b7EEf3BA4144b69060AC85356452592baf32f',
+    factoryBlock: 10601778,
+    factoryTx: '0x002b00213489b25b788fcea8fc423924a0a8d64fc34f36f2487e3d73cc8fb580',
+  },
+  {
+    chainId: 15000,
+    network: 'orchard',
+    factory: '0x004aB9E83Ed1B93bE7ded9f4672b317699C890Ca',
+    implementation: '0x004D881E8fD09D00F9f4F896a2F15D81c8C219Cb',
+    factoryBlock: 8004050,
+    factoryTx: '0x003b006f566b1fd2d254388fc69da49536aaec3b4c19f9b66e227a08d3921867',
+  },
 ];

@@ -19,6 +19,8 @@ import {IERC6065} from "./interfaces/IERC6065.sol";
  *    record: if it did, a holder could appoint themselves and erase their own lien.
  *  - An appointment ends when the deed changes hands, so a buyer never inherits the seller's
  *    manager. While no manager is appointed, `managerOf` reports the holder.
+ *  - The registrar role can be handed over (two steps) but never renounced: liens and
+ *    foreclosures must stay serviceable for as long as deeds exist.
  */
 contract QuestateDeed is ERC721Enumerable, Ownable2Step, IERC6065 {
     struct DeedRecord {
@@ -65,8 +67,16 @@ contract QuestateDeed is ERC721Enumerable, Ownable2Step, IERC6065 {
     error ParcelAlreadyRegistered(string parcelId, uint256 existingId);
     error AlreadyForeclosed(uint256 id);
     error NotHolder(uint256 id, address caller);
+    error RenounceDisabled();
 
     constructor(address registrar) ERC721("Dark Questate Deed", "DQDEED") Ownable(registrar) {}
+
+    /// @notice Disabled. A registry without a registrar could never record a new lien or a
+    ///         foreclosure, so every deed's debt record would silently go stale. Hand the role
+    ///         over with transferOwnership + acceptOwnership instead.
+    function renounceOwnership() public pure override {
+        revert RenounceDisabled();
+    }
 
     /* ---------------------------------------------------------------- registrar */
 
@@ -93,11 +103,11 @@ contract QuestateDeed is ERC721Enumerable, Ownable2Step, IERC6065 {
             operatingAgreementHash: p.operatingAgreementHash
         });
         _tokenURIs[id] = p.metadataUri;
+        emit DeedMinted(id, p.parcelId, p.recipient, p.metadataUri);
 
         // _safeMint: a contract recipient that cannot hold ERC-721s is refused instead of
-        // swallowing the deed.
+        // swallowing the deed. It is the last step because it calls into the recipient.
         _safeMint(p.recipient, id);
-        emit DeedMinted(id, p.parcelId, p.recipient, p.metadataUri);
     }
 
     /// @notice Records a lien (positive) or a credit (negative) against the property.
@@ -124,7 +134,12 @@ contract QuestateDeed is ERC721Enumerable, Ownable2Step, IERC6065 {
     /// @notice Appoints (or, with address(0), removes) the property manager.
     function setManager(uint256 id, address manager) external {
         address holder = _requireOwned(id);
-        if (msg.sender != holder && !isApprovedForAll(holder, msg.sender) && getApproved(id) != msg.sender) {
+        // The zero sender is impossible on-chain, but without the explicit check the
+        // getApproved comparison below would treat it as approved whenever no approval
+        // exists (getApproved returns address(0) for "none").
+        bool approved = msg.sender != address(0)
+            && (isApprovedForAll(holder, msg.sender) || getApproved(id) == msg.sender);
+        if (msg.sender != holder && !approved) {
             revert NotHolder(id, msg.sender);
         }
         address previous = _managers[id];
