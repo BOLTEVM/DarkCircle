@@ -47,7 +47,9 @@ const NETWORK_CONFIG = resolveWebNetworkConfig();
 const REFRESH_INTERVAL_MS = 30_000;
 const RECENT_TRANSACTIONS = 25;
 
-export const MAINNET_GATE_MESSAGE = 'Vault creation is switched off in this build of DarkSafe.';
+export const MAINNET_GATE_MESSAGE =
+  'DarkSafe vaults are not yet enabled on Quai mainnet: the vault contract has not had an independent security audit. ' +
+  'Use Orchard testnet, or set VITE_ALLOW_MAINNET_VAULTS=true in a build you control and accept that risk.';
 
 // v2 uses new keys: v1 vault entries are never shown as v2 vaults.
 const KNOWN_VAULTS_STORAGE_KEY = 'darksafe.vaults.v2';

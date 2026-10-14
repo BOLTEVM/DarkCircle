@@ -42,6 +42,7 @@ export const DEED_ABI = [
   'error ERC721InvalidReceiver(address receiver)',
   // raised by the registry when the brokerage moves a deed it was not approved for
   'error ERC721InsufficientApproval(address operator, uint256 tokenId)',
+  'error RenounceDisabled()',
 ] as const;
 
 const BROKER = 'tuple(string name, string licenseId, uint16 commissionBps, bool active, bool registered)';
@@ -115,6 +116,7 @@ export const BROKERAGE_ABI = [
   'error NotADeedRegistry(address registry)',
   'error OwnableInvalidOwner(address owner)',
   'error ReentrancyGuardReentrantCall()',
+  'error RenounceDisabled()',
 ] as const;
 
 export const deedInterface = new Interface(DEED_ABI as unknown as string[]);
@@ -146,6 +148,7 @@ const ERROR_WORDS: Record<string, (args: readonly unknown[]) => string> = {
   NotADeedRegistry: () => 'That address is not an ERC-721 + EIP-6065 deed registry.',
   OwnableInvalidOwner: () => 'That is not a valid new owner address.',
   ReentrancyGuardReentrantCall: () => 'A contract tried to call back into the brokerage mid-transaction; refused.',
+  RenounceDisabled: () => 'Ownership cannot be renounced; transfer it to another account instead.',
   PageTooLarge: () => 'Pages are limited to 100 records.',
   ParcelAlreadyRegistered: (a) => `Parcel ${String(a[0])} already has a deed (#${String(a[1])}).`,
   AlreadyForeclosed: () => 'This deed is already foreclosed.',

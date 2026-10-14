@@ -214,7 +214,7 @@ jobs:
           target: d0/packages/contracts
           ignore-compile: true
           fail-on: medium
-          slither-args: --compile-force-framework hardhat --filter-paths "node_modules|contracts/test|lib/|test/"
+          slither-args: --config-file d0/packages/contracts/slither.config.json --compile-force-framework hardhat --filter-paths "node_modules|contracts/test|lib/|test/"
 
       - name: Integrity gate (legacy d0 names, chain ids, no dev wallet in the production bundle)
         run: pnpm integrity
