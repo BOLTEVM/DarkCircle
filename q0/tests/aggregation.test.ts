@@ -621,7 +621,7 @@ describe('DEX code integrity', () => {
     const checks = (dex: 'QUAISWAP') => [checksumAddress(DEXES[dex].factory!), checksumAddress(DEXES[dex].router!)] as const;
 
     test('the pinned hashes are present for every live external DEX and look like hashes', () => {
-        for (const id of ['QUAISWAP', 'QUAINANCE', 'QUAINANCE_CURVE', 'QUAINANCE_CURVE_V2'] as const) {
+        for (const id of ['QUAISWAP', 'QUAINANCE', 'QUAINANCE_CURVE', 'QUAINANCE_CURVE_V2', 'HARTIISWAP'] as const) {
             expect(DEXES[id].codeHash!.factory).toMatch(/^0x[0-9a-f]{64}$/);
             expect(DEXES[id].codeHash!.router).toMatch(/^0x[0-9a-f]{64}$/);
         }
@@ -633,6 +633,11 @@ describe('DEX code integrity', () => {
         expect(DEXES.QUAINANCE_CURVE_V2.codeHash).toEqual({
             factory: '0x5921f7e274335dc1d0a6076079acf41461927b341702efa8271f0e58bc8c78f1',
             router: '0x6150c2a53eeccb818146583059319fa94b77c2399705374359eaeeee86ea38c1'
+        });
+        // HartiiSwap factory and router on Cyprus-1
+        expect(DEXES.HARTIISWAP.codeHash).toEqual({
+            factory: '0x1ee44e3fa21f4dcb2359f590dc3572b7888a1daef24a140d2d63fa9e02c44359',
+            router: '0x1f8c8af809c0e1bee7afe8ac51260160d16837940ad218331c4cfbfc3772c057'
         });
     });
 

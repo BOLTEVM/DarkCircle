@@ -17,7 +17,7 @@ import { ZERO_ADDRESS } from './liquidity';
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
 const defaultFetch: Fetcher = (input, init) => fetch(input, init);
 
-export const DEX_IDS: DexId[] = ['CIRCLESWAP', 'QUAISWAP', 'QUAINANCE', 'QUAINANCE_CURVE', 'QUAINANCE_CURVE_V2'];
+export const DEX_IDS: DexId[] = ['CIRCLESWAP', 'QUAISWAP', 'QUAINANCE', 'QUAINANCE_CURVE', 'QUAINANCE_CURVE_V2', 'HARTIISWAP'];
 
 /** Below these (in QUAI of value locked) a pool is too thin to trade more than a token amount through. */
 export const TINY_TVL_QUAI = 25;

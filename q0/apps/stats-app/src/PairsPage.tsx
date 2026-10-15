@@ -27,7 +27,7 @@ const SCAN_LOOKBACK_BLOCKS = 150_000;
 const PAGE = 60;
 const REFRESH_MS = 90_000;
 
-const DEX_COLOR: Record<DexId, string> = { CIRCLESWAP: 'var(--accent-plasma)', QUAISWAP: 'var(--accent-neon)', QUAINANCE: 'var(--accent-gold)', QUAINANCE_CURVE: 'var(--accent-gold)', QUAINANCE_CURVE_V2: 'var(--accent-gold)' };
+const DEX_COLOR: Record<DexId, string> = { CIRCLESWAP: 'var(--accent-plasma)', QUAISWAP: 'var(--accent-neon)', QUAINANCE: 'var(--accent-gold)', QUAINANCE_CURVE: 'var(--accent-gold)', QUAINANCE_CURVE_V2: 'var(--accent-gold)', HARTIISWAP: 'var(--accent-cyan, #06b6d4)' };
 
 const sym = (t: PairToken) => t.symbol || `${t.address.slice(0, 6)}…`;
 

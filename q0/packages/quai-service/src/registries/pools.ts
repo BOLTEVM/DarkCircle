@@ -27,7 +27,7 @@
 import { TOKEN_REGISTRY } from './tokens';
 import { DEPLOYED } from './deployed';
 
-export type DexId = 'QUAISWAP' | 'QUAINANCE' | 'QUAINANCE_CURVE' | 'QUAINANCE_CURVE_V2' | 'CIRCLESWAP';
+export type DexId = 'QUAISWAP' | 'QUAINANCE' | 'QUAINANCE_CURVE' | 'QUAINANCE_CURVE_V2' | 'HARTIISWAP' | 'CIRCLESWAP';
 
 export interface DexInfo {
     id: DexId;
@@ -49,7 +49,14 @@ export interface LiveDex extends DexInfo {
     router: string;
 }
 
-export const DEXES: { QUAISWAP: LiveDex; QUAINANCE: LiveDex; QUAINANCE_CURVE: LiveDex; QUAINANCE_CURVE_V2: LiveDex; CIRCLESWAP: DexInfo } = {
+export const DEXES: {
+    QUAISWAP: LiveDex;
+    QUAINANCE: LiveDex;
+    QUAINANCE_CURVE: LiveDex;
+    QUAINANCE_CURVE_V2: LiveDex;
+    HARTIISWAP: LiveDex;
+    CIRCLESWAP: DexInfo;
+} = {
     QUAISWAP: {
         id: 'QUAISWAP',
         label: 'Quaiswap',
@@ -90,6 +97,16 @@ export const DEXES: { QUAISWAP: LiveDex; QUAINANCE: LiveDex; QUAINANCE_CURVE: Li
             router: '0x6150c2a53eeccb818146583059319fa94b77c2399705374359eaeeee86ea38c1'
         }
     },
+    HARTIISWAP: {
+        id: 'HARTIISWAP',
+        label: 'HartiiSwap',
+        factory: '0x002e75653c6189087eb9e512ce7319ec21140956',
+        router: '0x006B3450cca780066A3A8aA8b508103d25315Ea4',
+        codeHash: {
+            factory: '0x1ee44e3fa21f4dcb2359f590dc3572b7888a1daef24a140d2d63fa9e02c44359',
+            router: '0x1f8c8af809c0e1bee7afe8ac51260160d16837940ad218331c4cfbfc3772c057'
+        }
+    },
     CIRCLESWAP: {
         id: 'CIRCLESWAP',
         label: 'Circleswap',
@@ -99,7 +116,7 @@ export const DEXES: { QUAISWAP: LiveDex; QUAINANCE: LiveDex; QUAINANCE_CURVE: Li
 };
 
 /** Every constant-product DEX the app can route through, in the order they are listed. */
-export const AMM_DEX_IDS: DexId[] = ['QUAISWAP', 'QUAINANCE', 'QUAINANCE_CURVE', 'QUAINANCE_CURVE_V2', 'CIRCLESWAP'];
+export const AMM_DEX_IDS: DexId[] = ['QUAISWAP', 'QUAINANCE', 'QUAINANCE_CURVE', 'QUAINANCE_CURVE_V2', 'HARTIISWAP', 'CIRCLESWAP'];
 
 /** The DEXes Quainance itself runs (its main AMM and the two launch AMMs): the Quainance side of the aggregate. */
 export const QUAINANCE_DEX_IDS: DexId[] = ['QUAINANCE', 'QUAINANCE_CURVE', 'QUAINANCE_CURVE_V2'];
@@ -128,7 +145,9 @@ export const POOL_REGISTRY: PoolInfo[] = [
     { pair: '0x0036c1A5e62597438cC204F8613c15211D4b7787', dex: 'QUAISWAP', tokens: ['Q0', 'BOSS'] },
     { pair: '0x005935A658E99391786A3Dc6dAA9E8DC7eDDc6c9', dex: 'QUAINANCE', tokens: ['LAPTOP', 'WQUAI'] },
     { pair: '0x0024cA5876d565097C2f6c48739B0D530BEcbec3', dex: 'QUAINANCE', tokens: ['LAPTOP', 'QGIRL'] },
-    { pair: '0x006524c3e3d2197dd61a64fef54f099260387209', dex: 'QUAINANCE', tokens: ['BDELTA', 'WQUAI'] }
+    { pair: '0x006524c3e3d2197dd61a64fef54f099260387209', dex: 'QUAINANCE', tokens: ['BDELTA', 'WQUAI'] },
+    { pair: '0x00052a890c39ff5592ca88a89924d6083e4e3179', dex: 'HARTIISWAP', tokens: ['QAXE', 'WQUAI'] },
+    { pair: '0x005592ec74fb9690b7361b834bf38dc03537356f', dex: 'QUAINANCE_CURVE_V2', tokens: ['QAXE', 'WQUAI'] }
 ];
 
 /**
@@ -288,6 +307,8 @@ export const SWAP_ROUTES: SwapRoute[] = [
     { id: 'LAPTOP_WQUAI', label: 'LAPTOP / WQUAI', dex: 'QUAINANCE', path: ['LAPTOP', 'WQUAI'] },
     { id: 'LAPTOP_QGIRL', label: 'LAPTOP / QGIRL', dex: 'QUAINANCE', path: ['LAPTOP', 'QGIRL'] },
     { id: 'BDELTA_WQUAI', label: 'BDELTA / WQUAI', dex: 'QUAINANCE', path: ['BDELTA', 'WQUAI'] },
+    { id: 'QAXE_WQUAI_HARTII', label: 'QAXE / WQUAI (HartiiSwap)', dex: 'HARTIISWAP', path: ['QAXE', 'WQUAI'] },
+    { id: 'QAXE_WQUAI_QUAINANCE', label: 'QAXE / WQUAI (Quainance)', dex: 'QUAINANCE_CURVE_V2', path: ['QAXE', 'WQUAI'] },
     { id: 'BDELTA_Q0_QUAISWAP', label: 'BDELTA / Q0 (Quaiswap)', dex: 'QUAISWAP', path: ['BDELTA', 'Q0'], optional: true },
     { id: 'BDELTA_Q0_QUAINANCE', label: 'BDELTA / Q0 (Quainance)', dex: 'QUAINANCE', path: ['BDELTA', 'Q0'], optional: true },
     { id: 'BDELTA_WQUAI_QUAISWAP', label: 'BDELTA / WQUAI (Quaiswap)', dex: 'QUAISWAP', path: ['BDELTA', 'WQUAI'], optional: true }

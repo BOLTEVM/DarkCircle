@@ -321,7 +321,7 @@ export function listRoutes(search: RouteSearch): RouteCandidate[] {
         const legs = legsOfRoute(route);
         const gasUnits = gasForLegs(legs, nativeIn);
         const feeWei = gasPrice !== null ? gasUnits * gasPrice : null;
-        const feeOut = feeWei !== null && perQuai !== null ? (feeWei * perQuai) / 10n ** 18n : null;
+        const feeOut = feeWei !== null && perQuai !== null ? (feeWei * perQuai + 10n ** 18n - 1n) / 10n ** 18n : null;
         candidates.push({
             id: route.id,
             label: route.label,
@@ -390,3 +390,186 @@ export function requoteCandidate(
         ? quoteCrossDexRoute(route, false, amountIn, reserves, slippagePct, pools)
         : quoteRoute(route, false, amountIn, reserves, slippagePct, pools);
 }
+
+// --------------------------------------------------------------------------------------------------- split routing
+
+export interface SplitEvaluation {
+    amountA: bigint;
+    amountB: bigint;
+    outA: bigint;
+    outB: bigint;
+    total: bigint;
+    bestSingle: bigint;
+    bestSingleVenue: 'A' | 'B';
+    gain: bigint;
+}
+
+export type QuoteFn = (amountIn: bigint) => bigint | { amountOut: bigint };
+
+/**
+ * Grid-search a two-venue split of amountIn across parallel pools.
+ * quoteFnA / quoteFnB: (amountIn: bigint) => bigint | { amountOut: bigint }.
+ * extraGas: extra cost of using two venues instead of one, ALREADY in output-token units.
+ * Bounds steps to [2, 50] to guard against unbounded iteration and denial of service.
+ * Returns null unless splitting beats the best single venue by strictly more than extraGas.
+ */
+export function evaluateSplit(
+    quoteFnA: QuoteFn,
+    quoteFnB: QuoteFn,
+    amountIn: bigint,
+    steps: number = 10,
+    extraGas: bigint = 0n
+): SplitEvaluation | null {
+    const total = amountIn > 0n ? amountIn : 0n;
+    if (total <= 0n) return null;
+    const n = BigInt(Math.max(2, Math.min(50, Math.floor(steps))));
+    const extra = extraGas > 0n ? extraGas : 0n;
+
+    const outOf = (q: bigint | { amountOut: bigint } | null | undefined): bigint => {
+        if (q === null || q === undefined) return 0n;
+        const v = typeof q === 'bigint' ? q : q.amountOut;
+        return typeof v === 'bigint' && v > 0n ? v : 0n;
+    };
+
+    const allA = outOf(quoteFnA(total));
+    const allB = outOf(quoteFnB(total));
+    if (allA <= 0n && allB <= 0n) return null;
+
+    const bestSingle = allA >= allB ? allA : allB;
+    const bestSingleVenue: 'A' | 'B' = allA >= allB ? 'A' : 'B';
+
+    let best: { amountA: bigint; amountB: bigint; outA: bigint; outB: bigint; total: bigint } | null = null;
+    for (let i = 1n; i < n; i++) {
+        const amountA = (total * i) / n;
+        const amountB = total - amountA;
+        if (amountA <= 0n || amountB <= 0n) continue;
+        const outA = outOf(quoteFnA(amountA));
+        const outB = outOf(quoteFnB(amountB));
+        const sum = outA + outB;
+        if (!best || sum > best.total) {
+            best = { amountA, amountB, outA, outB, total: sum };
+        }
+    }
+
+    if (!best) return null;
+    const gain = best.total - bestSingle - extra;
+    if (gain <= 0n) return null;
+
+    return {
+        ...best,
+        bestSingle,
+        bestSingleVenue,
+        gain
+    };
+}
+
+export interface SplitRouteCandidate {
+    kind: 'SPLIT';
+    id: string;
+    label: string;
+    from: string;
+    to: string;
+    venueA: DexId;
+    venueB: DexId;
+    poolA: PoolInfo;
+    poolB: PoolInfo;
+    amountA: bigint;
+    amountB: bigint;
+    outA: bigint;
+    outB: bigint;
+    totalOut: bigint;
+    bestSingleOut: bigint;
+    bestSingleVenue: DexId;
+    gain: bigint;
+    gainPct: number;
+    extraGasUnits: bigint;
+}
+
+/**
+ * Searches for parallel direct pools connecting two tokens across different DEXes (e.g. QAXE <-> WQUAI on HartiiSwap and Quainance Launch 2)
+ * and determines if splitting amountIn between both pools yields a higher net return than any single venue.
+ */
+export function findSplitRoute(
+    search: RouteSearch,
+    steps: number = 20
+): SplitRouteCandidate | null {
+    const { from, to, amountIn, reserves, slippagePct } = search;
+    if (amountIn <= 0n || from === to || !TOKEN_REGISTRY[from] || !TOKEN_REGISTRY[to]) return null;
+
+    const availablePools = tradablePools(search.pools, reserves).filter(p => {
+        const [a, b] = p.tokens;
+        return (a === from && b === to) || (a === to && b === from);
+    });
+
+    if (availablePools.length < 2) return null;
+
+    // Pick top two pools by reserve depth
+    const poolDepth = (p: PoolInfo): bigint => {
+        const r = reserveOf(reserves[p.pair.toLowerCase()]);
+        return r ? r[0] : 0n;
+    };
+    const sorted = [...availablePools].sort((x, y) => (poolDepth(y) > poolDepth(x) ? 1 : -1));
+    const poolA = sorted[0];
+    const poolB = sorted[1];
+    if (poolA.dex === poolB.dex) return null;
+
+    const quoteA = (amt: bigint): bigint => {
+        const single: SwapRoute = { id: `SPLIT_A`, label: '', dex: poolA.dex, path: [from, to] };
+        const q = quoteRoute(single, false, amt, reserves, slippagePct, [poolA]);
+        return q ? q.amountOut : 0n;
+    };
+    const quoteB = (amt: bigint): bigint => {
+        const single: SwapRoute = { id: `SPLIT_B`, label: '', dex: poolB.dex, path: [from, to] };
+        const q = quoteRoute(single, false, amt, reserves, slippagePct, [poolB]);
+        return q ? q.amountOut : 0n;
+    };
+
+    // Extra gas for second transaction (swap call + pool hop)
+    const extraGasUnits = GAS_PER_SWAP_CALL + GAS_PER_POOL;
+    const gasPrice = search.gas?.gasPriceWei ?? null;
+    let extraFeeOut = 0n;
+    if (gasPrice !== null && gasPrice > 0n) {
+        const perQuai = outPerQuai(to, search.pools, reserves);
+        if (perQuai !== null) {
+            const extraFeeWei = extraGasUnits * gasPrice;
+            extraFeeOut = (extraFeeWei * perQuai + 10n ** 18n - 1n) / (10n ** 18n);
+        }
+    }
+
+    const split = evaluateSplit(quoteA, quoteB, amountIn, steps, extraFeeOut);
+    if (!split) return null;
+
+    const bestVenue = split.bestSingleVenue === 'A' ? poolA.dex : poolB.dex;
+    const gainPct = split.bestSingle > 0n ? (Number(split.gain) / Number(split.bestSingle)) * 100 : 0;
+
+    return {
+        kind: 'SPLIT',
+        id: `SPLIT_${from}_${to}_${poolA.dex}_${poolB.dex}`,
+        label: `Split: ${TOKEN_REGISTRY[from]?.symbol ?? from} → ${TOKEN_REGISTRY[to]?.symbol ?? to} (${DEXES[poolA.dex].label} + ${DEXES[poolB.dex].label})`,
+        from,
+        to,
+        venueA: poolA.dex,
+        venueB: poolB.dex,
+        poolA,
+        poolB,
+        amountA: split.amountA,
+        amountB: split.amountB,
+        outA: split.outA,
+        outB: split.outB,
+        totalOut: split.total,
+        bestSingleOut: split.bestSingle,
+        bestSingleVenue: bestVenue,
+        gain: split.gain,
+        gainPct,
+        extraGasUnits
+    };
+}
+
+/** Minimum acceptable output: floor(amountOut * (10000 - slippageBps) / 10000). */
+export function minOut(amountOut: bigint, slippageBps: number | bigint): bigint {
+    const out = amountOut > 0n ? amountOut : 0n;
+    const b = BigInt(slippageBps);
+    if (b < 0n || b > 10000n) throw new RangeError('slippageBps must be an integer between 0 and 10000');
+    return (out * (10000n - b)) / 10000n;
+}
+

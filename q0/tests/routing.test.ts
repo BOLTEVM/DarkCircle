@@ -29,6 +29,9 @@ import {
     DEXES,
     POOL_REGISTRY,
     SWAP_ROUTES,
+    evaluateSplit,
+    findSplitRoute,
+    minOut,
     type LPReserves
 } from '../packages/quai-service/src/index';
 
@@ -93,6 +96,12 @@ describe('registry integrity', () => {
         expect(getSwapRoute('LAPTOP_QGIRL')!.dex).toBe('QUAINANCE');
         expect(getSwapRoute('BDELTA_WQUAI')!.dex).toBe('QUAINANCE');
         expect(DEXES.QUAISWAP.router.toLowerCase()).not.toBe(DEXES.QUAINANCE.router.toLowerCase());
+    });
+
+    test('QAXE routes use their respective DEX routers (HartiiSwap and Quainance Launch 2)', () => {
+        expect(getSwapRoute('QAXE_WQUAI_HARTII')!.dex).toBe('HARTIISWAP');
+        expect(getSwapRoute('QAXE_WQUAI_QUAINANCE')!.dex).toBe('QUAINANCE_CURVE_V2');
+        expect(DEXES.HARTIISWAP.router.toLowerCase()).not.toBe(DEXES.QUAINANCE_CURVE_V2.router.toLowerCase());
     });
 
     test('BDELTA/Q0 is only ever a single-DEX pair route, and only once its pool exists', () => {
@@ -433,5 +442,121 @@ describe('boost constants and formatters', () => {
     test('meetsQrbBoostThreshold is only the balance half of the rule', () => {
         expect(meetsQrbBoostThreshold(QRB_BOOST_THRESHOLD_WEI - 1n)).toBe(false);
         expect(meetsQrbBoostThreshold(QRB_BOOST_THRESHOLD_WEI)).toBe(true);
+    });
+});
+
+describe('split routing & evaluateSplit (IboTheSecond QAxe pool aggregation)', () => {
+    // Constant-product quote simulation helper:
+    // amountOut = (amountIn * 997 * reserveOut) / (reserveIn * 1000 + amountIn * 997)
+    const quoteSim = (rIn: bigint, rOut: bigint) => (amt: bigint) =>
+        (amt * 997n * rOut) / (rIn * 1000n + amt * 997n);
+
+    test('evaluateSplit returns a split when two similar pools make a trade cheaper to split', () => {
+        const poolA = quoteSim(100_000n * E18, 100_000n * E18);
+        const poolB = quoteSim(100_000n * E18, 100_000n * E18);
+        const trade = 50_000n * E18;
+        const res = evaluateSplit(poolA, poolB, trade, 10, 100n * E18);
+        expect(res).not.toBeNull();
+        expect(res!.amountA + res!.amountB).toBe(trade);
+        expect(res!.total).toBeGreaterThan(res!.bestSingle);
+        expect(res!.gain).toBe(res!.total - res!.bestSingle - 100n * E18);
+        // Equal pools split equally:
+        expect(res!.amountA).toBe(trade / 2n);
+        expect(res!.amountB).toBe(trade / 2n);
+    });
+
+    test('evaluateSplit returns null when the gain does not cover extra gas', () => {
+        const poolA = quoteSim(100_000n * E18, 100_000n * E18);
+        const poolB = quoteSim(100_000n * E18, 100_000n * E18);
+        // Huge gas cost that exceeds split gain
+        const res = evaluateSplit(poolA, poolB, 10_000n * E18, 10, 50_000n * E18);
+        expect(res).toBeNull();
+    });
+
+    test('evaluateSplit returns null for tiny trades where integer gain is zero', () => {
+        const poolA = quoteSim(1_000_000n, 1_000_000n);
+        const poolB = quoteSim(1_000_000n, 1_000_000n);
+        const res = evaluateSplit(poolA, poolB, 1_000n, 10, 0n);
+        expect(res).toBeNull();
+    });
+
+    test('evaluateSplit allocates more to the deeper pool', () => {
+        const deep = quoteSim(500_000n * E18, 500_000n * E18);
+        const shallow = quoteSim(100_000n * E18, 100_000n * E18);
+        const trade = 100_000n * E18;
+        const res = evaluateSplit(deep, shallow, trade, 20, 0n);
+        expect(res).not.toBeNull();
+        expect(res!.amountA).toBeGreaterThan(res!.amountB);
+        expect(res!.amountA + res!.amountB).toBe(trade);
+    });
+
+    test('evaluateSplit maintains exact sum when amountIn is not divisible by steps', () => {
+        const poolA = quoteSim(100_000n * E18, 100_000n * E18);
+        const poolB = quoteSim(100_000n * E18, 100_000n * E18);
+        const trade = 50_001n * E18 + 7n;
+        const res = evaluateSplit(poolA, poolB, trade, 10, 0n);
+        expect(res).not.toBeNull();
+        expect(res!.amountA + res!.amountB).toBe(trade);
+    });
+
+    test('evaluateSplit accepts quote functions returning { amountOut } objects', () => {
+        const poolA = (amt: bigint) => ({ amountOut: quoteSim(100_000n * E18, 100_000n * E18)(amt) });
+        const poolB = (amt: bigint) => ({ amountOut: quoteSim(100_000n * E18, 100_000n * E18)(amt) });
+        const trade = 50_000n * E18;
+        const res = evaluateSplit(poolA, poolB, trade, 10, 0n);
+        expect(res).not.toBeNull();
+        expect(res!.amountA + res!.amountB).toBe(trade);
+    });
+
+    test('evaluateSplit returns null for zero or negative amountIn', () => {
+        const poolA = quoteSim(100_000n * E18, 100_000n * E18);
+        const poolB = quoteSim(100_000n * E18, 100_000n * E18);
+        expect(evaluateSplit(poolA, poolB, 0n)).toBeNull();
+        expect(evaluateSplit(poolA, poolB, -100n)).toBeNull();
+    });
+
+    test('findSplitRoute aggregates parallel QAXE pools (HartiiSwap + Quainance Launch 2)', () => {
+        // Live-proportional reserves:
+        // Hartii: ~473k QAXE : ~1984 WQUAI
+        // Quainance: ~171k QAXE : ~711 WQUAI
+        const hartiiPool = POOL_REGISTRY.find(p => p.dex === 'HARTIISWAP' && p.tokens.includes('QAXE'))!;
+        const quainancePool = POOL_REGISTRY.find(p => p.dex === 'QUAINANCE_CURVE_V2' && p.tokens.includes('QAXE'))!;
+
+        expect(hartiiPool).toBeDefined();
+        expect(quainancePool).toBeDefined();
+
+        const testReserves: Record<string, LPReserves> = {
+            [hartiiPool.pair.toLowerCase()]: reserves(['QAXE', 'WQUAI'], 473_000n * E18, 1984n * E18),
+            [quainancePool.pair.toLowerCase()]: reserves(['QAXE', 'WQUAI'], 171_000n * E18, 711n * E18)
+        };
+
+        // Trade 500 WQUAI for QAXE (about 18.5% of total WQUAI liquidity across Cyprus-1)
+        const split = findSplitRoute({
+            from: 'WQUAI',
+            to: 'QAXE',
+            amountIn: 500n * E18,
+            pools: POOL_REGISTRY,
+            reserves: testReserves,
+            slippagePct: 1,
+            gas: null
+        });
+
+        expect(split).not.toBeNull();
+        expect(split!.kind).toBe('SPLIT');
+        expect(split!.amountA + split!.amountB).toBe(500n * E18);
+        expect(split!.amountA).toBeGreaterThan(0n);
+        expect(split!.amountB).toBeGreaterThan(0n);
+        // Deep pool (HartiiSwap) receives more volume than Quainance:
+        expect(split!.amountA).toBeGreaterThan(split!.amountB);
+        expect(split!.totalOut).toBeGreaterThan(split!.bestSingleOut);
+        expect(split!.gain).toBeGreaterThan(0n);
+    });
+
+    test('minOut clamps slippage and computes floor output accurately', () => {
+        expect(minOut(1000n * E18, 100)).toBe(990n * E18); // 1% slippage = 99%
+        expect(minOut(1000n * E18, 50)).toBe(995n * E18);  // 0.5% slippage = 99.5%
+        expect(minOut(1000n * E18, 0)).toBe(1000n * E18);  // 0% slippage
+        expect(() => minOut(1000n * E18, -1)).toThrow();
+        expect(() => minOut(1000n * E18, 10001)).toThrow();
     });
 });
