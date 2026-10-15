@@ -27,7 +27,7 @@ import { poseidon2, poseidon4 } from "../../crypto/poseidon.ts";
 import { deriveCorporateKeyHierarchy, generateSeed } from "../../audit/keys.ts";
 import { SIM_RELAYER_ADDRESS, SIM_VENDOR_ADDRESS } from "../../sim/defaults.ts";
 import * as snarkjs from "snarkjs";
-import { buildWitness } from "./witness.ts";
+import { buildWitness } from "../../sim/witness.ts";
 import { proveAndVerify } from "./circuit.ts";
 import { expectedRuntimeHash, type RuntimeArtifact } from "./bytecode.ts";
 

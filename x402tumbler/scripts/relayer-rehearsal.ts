@@ -52,7 +52,7 @@ import { Fp } from "../src/crypto/field.ts";
 import { poseidon2, poseidon4 } from "../src/crypto/poseidon.ts";
 import { IncrementalMerkleTree } from "../src/crypto/merkleTree.ts";
 import { deriveCorporateKeyHierarchy, generateSeed } from "../src/audit/keys.ts";
-import { buildWitness } from "../src/admin/deploy/witness.ts";
+import { buildWitness } from "../src/sim/witness.ts";
 
 // --------------------------------------------------------------------------- CLI & environment
 

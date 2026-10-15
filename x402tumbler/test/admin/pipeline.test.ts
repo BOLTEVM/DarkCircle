@@ -20,7 +20,7 @@ import * as snarkjs from "snarkjs";
 import { Pipeline, STAGES, type SelftestRequest } from "../../src/admin/deploy/pipeline.ts";
 import { changedInputs, readManifest, refFor, writeManifest, type Manifest, type StageRecord } from "../../src/admin/deploy/manifest.ts";
 import { requiredPower } from "../../src/admin/deploy/circuit.ts";
-import { PUBLIC_SIGNALS, buildUnshieldWitness } from "../../src/admin/deploy/witness.ts";
+import { PUBLIC_SIGNALS, buildUnshieldWitness } from "../../src/sim/witness.ts";
 import { createMultiAssetEnvironment } from "../../src/cli/context.ts";
 import { poseidon3, poseidon4 } from "../../src/crypto/poseidon.ts";
 import { computePublicInputsHash } from "../../src/crypto/unshield.ts";

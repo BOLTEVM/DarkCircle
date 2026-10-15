@@ -71,9 +71,11 @@ for (const [host, path, search, hash, want] of cases) {
 }
 
 // index.html carries its own copy of the subdomain rules (it runs before the portal paints);
-// it must send every app's subdomains to the same folder as 404.html does.
+// it must send every app's subdomains to the same folder as 404.html does. Pre-paint snippets are
+// allowed to share the head, so pick the block that IS the router, not merely the first one.
 const portal = readFileSync(join(here, '..', 'index.html'), 'utf8');
-const portalCode = portal.match(/<script>([\s\S]*?)<\/script>/)[1];
+const portalBlocks = [...portal.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+const portalCode = portalBlocks.find((c) => c.includes('subdomain auto-router')) ?? portalBlocks[0];
 function runPortal(host, path) {
   let dest = null;
   const window = { location: { hostname: host, pathname: path, search: '', hash: '', replace: (u) => { dest = u; } } };

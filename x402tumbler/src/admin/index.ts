@@ -30,7 +30,7 @@ import { AdminAuditLog } from "./auditLog.ts";
 import { PROJECT_ROOT, checkToolchain } from "./toolchain.ts";
 import { Pipeline, type SelftestRequest } from "./deploy/pipeline.ts";
 import { readManifest } from "./deploy/manifest.ts";
-import { buildUnshieldWitness } from "./deploy/witness.ts";
+import { buildUnshieldWitness } from "../sim/witness.ts";
 import { SIM_VENDOR_ADDRESS } from "../sim/defaults.ts";
 import { QuaiRpcClient } from "../quai/rpc.ts";
 import { DEFAULT_QUAI_NETWORK, QUAI_ORCHARD_CYPRUS1, type QuaiNetwork } from "../quai/networks.ts";

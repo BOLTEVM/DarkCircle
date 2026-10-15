@@ -9,12 +9,9 @@
   <link rel="icon" type="image/png" href="./0.png">
 
   <script>
-    // Remembered world colour, applied before the first paint so it never flashes red first
-    try { var wh = { ice: 190, violet: 272, emerald: 145, gold: 38, rose: 322 }[localStorage.getItem('darkcircle-world')]; if (wh) document.documentElement.style.setProperty('--hue', wh); } catch (e) { /* storage blocked: default colour */ }
-  </script>
-
-  <script>
-    // Immediate subdomain auto-router (runs before anything is painted or fetched)
+    // Immediate subdomain auto-router (runs before anything is painted or fetched).
+    // Must stay the FIRST script in this file: it leaves subdomains before the portal
+    // does any work, and tools/test_404_router.mjs behaviourally tests the first block.
     (function () {
       var host = window.location.hostname.toLowerCase();
       var path = window.location.pathname;
@@ -44,6 +41,12 @@
         }
       }
     })();
+  </script>
+
+  <script>
+    // Remembered world colour, applied before the first paint so it never flashes red first.
+    // Sits behind the auto-router: a redirected subdomain never paints this page anyway.
+    try { var wh = { ice: 190, violet: 272, emerald: 145, gold: 38, rose: 322 }[localStorage.getItem('darkcircle-world')]; if (wh) document.documentElement.style.setProperty('--hue', wh); } catch (e) { /* storage blocked: default colour */ }
   </script>
 
   <style>

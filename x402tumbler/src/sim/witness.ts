@@ -1,20 +1,21 @@
 /**
- * DarkCircle admin console: circuit witness from a simulation note
- * File: src/admin/deploy/witness.ts
- *
- * ADMIN-ONLY, REDACTED BEFORE PRODUCTION.
+ * DarkCircle: circuit witness from a simulation note
+ * File: src/sim/witness.ts
  *
  * Turns a real note in a simulated pool into the input object circuits/unshield.circom expects, so the
  * pipeline can prove a statement the simulation itself would accept. The build is read-only: it spends
  * nothing and changes no state, it only reads the note, its Merkle path and the keys.
+ *
+ * Shared tooling, kept in production: the deploy pipeline and scripts/relayer-rehearsal.ts both
+ * build witnesses from it, which is why it lives in src/sim rather than with either consumer.
  */
 
 import { getAddress } from "ethers";
-import { Fp } from "../../crypto/field.ts";
-import { poseidon3, poseidon4 } from "../../crypto/poseidon.ts";
-import { computePublicInputsHash } from "../../crypto/unshield.ts";
-import { BABYJUBJUB_L } from "../../crypto/babyjubjub.ts";
-import type { CliContext } from "../../cli/types.ts";
+import { Fp } from "../crypto/field.ts";
+import { poseidon3, poseidon4 } from "../crypto/poseidon.ts";
+import { computePublicInputsHash } from "../crypto/unshield.ts";
+import { BABYJUBJUB_L } from "../crypto/babyjubjub.ts";
+import type { CliContext } from "../cli/types.ts";
 
 /** Public signals in the order the circuit and the verifier contract use. */
 export const PUBLIC_SIGNALS = [
