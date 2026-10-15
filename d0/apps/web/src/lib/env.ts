@@ -41,15 +41,27 @@ export function writeStored(key: string, value: string): void {
 
 export const SAVED_DEPLOYMENT_PREFIX = 'darkorder.deployment.';
 
-/** A deployment recorded in this browser (e.g. after running deploy-quai locally), until deployments.ts catches up. */
+/**
+ * Networks where a deployment saved in this browser may stand in for one recorded in
+ * deployments.ts. Never mainnet: localStorage is writable by any script on this origin (every
+ * project site on a shared host such as <user>.github.io shares one), so trusting it there would
+ * let another page point visitors' real money at contracts it deployed.
+ */
+export const BROWSER_DEPLOYMENT_NETWORKS: readonly string[] = ['orchard'];
+
+const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
+
+/** A testnet deployment made from this browser's deploy modal, kept until it is recorded in deployments.ts. */
 export function savedDeployment(network: string): Deployment | null {
+  if (!BROWSER_DEPLOYMENT_NETWORKS.includes(network)) return null;
   const raw = readStored(SAVED_DEPLOYMENT_PREFIX + network);
   if (!raw) return null;
   try {
     const v = JSON.parse(raw) as { factory?: unknown; registry?: unknown; fromBlock?: unknown };
-    return typeof v?.factory === 'string' && typeof v?.registry === 'string'
-      ? { factory: v.factory, registry: v.registry, fromBlock: typeof v.fromBlock === 'number' ? v.fromBlock : undefined }
-      : null;
+    if (typeof v?.factory !== 'string' || typeof v?.registry !== 'string') return null;
+    if (!ADDRESS_RE.test(v.factory) || !ADDRESS_RE.test(v.registry)) return null;
+    const fromBlock = Number.isSafeInteger(v.fromBlock) && (v.fromBlock as number) >= 0 ? (v.fromBlock as number) : undefined;
+    return { factory: v.factory, registry: v.registry, fromBlock };
   } catch {
     return null;
   }

@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Crown, ExternalLink, Flame, Gem, ScrollText, Users } from 'lucide-react';
+import { ExternalLink, Gem, ScrollText, Users } from 'lucide-react';
 import {
   councilProposalStatus,
   explorerAddressUrl,
   formatTokenAmount,
+  parseGuildProfile,
   qnsProfileUrl,
   qnsSearchUrl,
   readCouncilMembers,
@@ -25,6 +26,8 @@ import { setCurrentGuild } from '../lib/currentGuild.js';
 import { useNetwork } from '../state/NetworkContext.js';
 import { useGuildDirectory } from '../state/directory.js';
 import { Badge, Button, Card, Notice, Stat, cx } from '../components/primitives.js';
+import { GuildAvatar } from '../components/GuildAvatar.js';
+import { StewardPanel } from '../components/StewardPanel.js';
 import { VoteMeter } from '../components/VoteMeter.js';
 
 interface ListedProposal {
@@ -125,6 +128,7 @@ export const GuildPage: React.FC<{ name: string }> = ({ name }) => {
   }
 
   const explorer = (addr: string) => explorerAddressUrl(network, addr);
+  const profile = summary ? parseGuildProfile(summary.metadata) : null;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 lg:px-8">
@@ -132,9 +136,7 @@ export const GuildPage: React.FC<{ name: string }> = ({ name }) => {
         <>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-center gap-4">
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-gold/25 bg-gold/10 text-gold">
-                {record.mode === 'token' ? <Flame className="h-6 w-6" aria-hidden /> : <Crown className="h-6 w-6" aria-hidden />}
-              </span>
+              <GuildAvatar avatar={profile?.avatar ?? null} mode={record.mode} size="lg" />
               <div>
                 <h1 className="font-display text-3xl text-bone">{record.name}</h1>
                 <div className="mt-1 flex items-center gap-2">
@@ -155,7 +157,16 @@ export const GuildPage: React.FC<{ name: string }> = ({ name }) => {
             </div>
           </div>
 
-          <p className="mt-5 max-w-3xl text-sm leading-relaxed text-bone-dim">{summary?.metadata ?? '…'}</p>
+          <p className="mt-5 max-w-3xl text-sm leading-relaxed text-bone-dim">{summary ? profile!.description || 'This hall keeps no charter yet.' : '…'}</p>
+          {profile && profile.links.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-3">
+              {profile.links.map((l, i) => (
+                <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-gold underline-offset-2 hover:text-gold-light hover:underline">
+                  {l.label} <ExternalLink className="h-3 w-3" aria-hidden />
+                </a>
+              ))}
+            </div>
+          )}
 
           {/* QNS identity block */}
           <Card className="mt-6 flex flex-wrap items-center justify-between gap-3 border-gold/20 bg-gold/[0.04]">
@@ -195,6 +206,8 @@ export const GuildPage: React.FC<{ name: string }> = ({ name }) => {
               Could not read this hall: {error}
             </Notice>
           )}
+
+          {!showcase && <StewardPanel record={record} summary={summary} />}
 
           {record.mode === 'council' && members && (
             <Card className="mt-6">

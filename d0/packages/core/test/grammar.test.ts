@@ -90,4 +90,36 @@ describe('voice grammar', () => {
     expect(canonicalize('Vote YES on Proposal #3!')).toBe('vote yes on proposal 3');
     expect(canonicalize('pay 1,250 quai tribute to emberhold')).toBe('pay 1250 quai tribute to emberhold');
   });
+
+  it('walks steward talk to the desk, never to a transaction', () => {
+    expect(intentOf('open the steward’s desk')).toEqual({ kind: 'steward' });
+    expect(intentOf('edit the charter')).toEqual({ kind: 'steward' });
+    expect(intentOf('rewrite our hall description')).toEqual({ kind: 'steward' });
+    expect(intentOf('change the crest')).toEqual({ kind: 'steward' });
+    expect(intentOf('upload a new avatar')).toEqual({ kind: 'steward' });
+    expect(intentOf('manage the guild roles')).toEqual({ kind: 'steward' });
+    // Role assignment phrased as an action still lands on the desk: an address may not travel by voice.
+    expect(intentOf('grant metadata power to alice')).toEqual({ kind: 'steward' });
+    expect(intentOf('give root power to bob')).toEqual({ kind: 'steward' });
+    expect(intentOf('revoke execute power')).toEqual({ kind: 'steward' });
+  });
+
+  it('answers "what roles does my key hold" as a query, optionally naming the hall', () => {
+    expect(intentOf('what roles does my key hold')).toEqual({ kind: 'my-roles' });
+    expect(intentOf('which roles do i have')).toEqual({ kind: 'my-roles' });
+    expect(intentOf('do i hold any power')).toEqual({ kind: 'my-roles' });
+    expect(intentOf('my roles in emberhold')).toEqual({ kind: 'my-roles', guild: 'emberhold' });
+    expect(intentOf('what roles does my wallet hold in iron council')).toEqual({ kind: 'my-roles', guild: 'iron council' });
+  });
+
+  it('still refuses a spoken address even inside steward talk', () => {
+    const r = parseCommand('grant metadata power to 0x00112233445566778899aabbccddeeff00112233');
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.code).toBe('NO_ADDRESSES_BY_VOICE');
+  });
+
+  it('keeps "open <hall>" working when the destination is not the desk', () => {
+    expect(intentOf('open emberhold')).toEqual({ kind: 'open-guild', guild: 'emberhold' });
+    expect(intentOf('open the iron council hall')).toEqual({ kind: 'open-guild', guild: 'iron council' });
+  });
 });

@@ -1,3 +1,4 @@
+import { buildGuildProfile } from './profile.js';
 import type { GuildRecord, GuildSummary, VotingProposalView } from './guilds.js';
 
 /**
@@ -17,8 +18,16 @@ export const SHOWCASE_GUILDS: GuildRecord[] = [
 ];
 
 const LORE: Record<string, string> = {
-  emberhold: 'Keepers of the crimson flame. Treasury decisions by token vote, 50% support, 20% turnout.',
-  ironcouncil: 'Five keys, three to turn. A council guild guarding the suite multisig bridge.',
+  emberhold: buildGuildProfile({
+    description: 'Keepers of the crimson flame. Treasury decisions by token vote, 50% support, 20% turnout.',
+    avatar: null,
+    links: [{ label: 'The Ember Charter', url: 'https://boltevm.com/darkorder' }],
+  }),
+  ironcouncil: buildGuildProfile({
+    description: 'Five keys, three to turn. A council guild guarding the suite multisig bridge.',
+    avatar: null,
+    links: [{ label: 'DarkSafe', url: 'https://boltevm.com/darksafe' }],
+  }),
   veilkeepers: 'A quiet order. Proposals appear at dusk; abstentions are counted and respected.',
 };
 

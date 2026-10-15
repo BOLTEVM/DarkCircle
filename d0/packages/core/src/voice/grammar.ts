@@ -22,6 +22,8 @@ export type Intent =
   | { kind: 'open-guild'; guild: string }
   | { kind: 'proposals'; guild?: string }
   | { kind: 'voting-power'; guild?: string }
+  | { kind: 'steward' }
+  | { kind: 'my-roles'; guild?: string }
   | { kind: 'vote'; choice: 'yes' | 'no' | 'abstain'; proposal: string }
   | { kind: 'approve'; proposal: string }
   | { kind: 'execute'; proposal: string }
@@ -47,6 +49,8 @@ export const EXAMPLES = [
   'approve proposal 1',
   'pay 5 QUAI tribute to emberhold',
   'found a new guild',
+  'open the steward’s desk',
+  'what roles does my key hold',
   'confirm 4 1 7',
   'cancel',
 ];
@@ -140,6 +144,12 @@ export function parseCommand(text: string): ParseResult {
   if (m('(cancel|stop|abort|never ?mind|no|forget (it|that|this))( (it|that|this))?')) return ok({ kind: 'cancel' });
   if (m('(help|commands|what can (you|i) (do|say)|what (are|is) (the|your) commands)')) return ok({ kind: 'help' });
 
+  // ---- steward actions: the desk types what voice must not carry (an address, a charter).
+  // Matched before the payment guard so "give root power to …" is not misread as a payment.
+  if (m('(grant|revoke|give|take|hand)( the)?( a)?( new)? ?(root|execute|metadata|steward)? ?(power|role)s?( (to|from) .+)?')) {
+    return ok({ kind: 'steward' });
+  }
+
   // ---- things that belong to other suite apps: redirect, never act
   if (m('(send|pay|transfer|give) .* to .+') && !m('.*tribute.*')) {
     return fail(
@@ -156,6 +166,26 @@ export function parseCommand(text: string): ParseResult {
   }
 
   // ---- navigation and reading
+  // The steward's desk and the roles query come first: "open the steward's desk" would
+  // otherwise be read as "open the hall called stewards desk".
+  if (m('(open|show|go to|take me to)( the)?( my| our| this)? stewards? desk')) return ok({ kind: 'steward' });
+  if (m('(edit|rewrite|change|update|write)( the)?( my| our| this)?( guild| hall| guilds| halls)? ?(charter|metadata|profile|description)')) {
+    return ok({ kind: 'steward' });
+  }
+  if (m('(change|upload|set|update)( the| a| an)?( new)?( my| our| this)?( guild| hall| guilds| halls)? ?(crest|avatar|icon|logo)')) return ok({ kind: 'steward' });
+  if (m('(manage|assign|edit|change|update)( the)?( my| our| this)?( guild| hall| guilds| halls)? ?roles?')) return ok({ kind: 'steward' });
+  if ((r = m('(what|which) roles? (do i|does my (key|wallet|address)) (hold|have)( (in|for|of) (.+))?'))) {
+    const guild = cleanGuildName(r[7] ?? '');
+    return ok(guild ? { kind: 'my-roles', guild } : { kind: 'my-roles' });
+  }
+  if ((r = m('do i (hold|have)( any)?( the)? (power|powers|a role|roles)( here| there)?( (in|for|of) (.+))?'))) {
+    const guild = cleanGuildName(r[8] ?? '');
+    return ok(guild ? { kind: 'my-roles', guild } : { kind: 'my-roles' });
+  }
+  if ((r = m('my roles?( (in|for|of) (.+))?'))) {
+    const guild = cleanGuildName(r[3] ?? '');
+    return ok(guild ? { kind: 'my-roles', guild } : { kind: 'my-roles' });
+  }
   if (m('((show|list|open|go to)( me)?( the)? )?(halls|guilds|grand guild halls|directory)')) return ok({ kind: 'halls' });
   if ((r = m('(open|go to|enter|show|visit)( the)? (.+?)( hall| guild)?$'))) {
     return ok({ kind: 'open-guild', guild: cleanGuildName(r[3] ?? '') });

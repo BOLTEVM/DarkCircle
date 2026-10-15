@@ -4,7 +4,10 @@ import { COUNCIL, TOKEN, VOTING, type GuildRecord, type RpcClient } from '@darko
 
 async function call(rpc: RpcClient, to: string, iface: typeof VOTING | typeof COUNCIL | typeof TOKEN, fn: string, args: unknown[] = []): Promise<any> {
   const raw = await rpc.call({ to, data: iface.encodeFunctionData(fn, args) });
-  return iface.decodeFunctionResult(fn, raw);
+  const result = iface.decodeFunctionResult(fn, raw);
+  // decodeFunctionResult wraps even one return value in an outer Result; unwrap it so a
+  // tuple/array return is the value itself, not a one-element box around it.
+  return result.length === 1 ? result[0] : result;
 }
 
 export async function proposalCount(rpc: RpcClient, record: GuildRecord): Promise<number> {

@@ -22,10 +22,21 @@ scripts/integrity.mjs   static gate (required files, chain ids, legacy-name scan
 ```
 pnpm install
 pnpm build          # contracts compile, core + web type-check and build
-pnpm test           # hardhat tests + vitest (core + web)
+pnpm test           # hardhat tests + vitest (core incl. a live-chain suite + web)
 pnpm integrity      # static gate
 pnpm dev            # the site on http://localhost:5300
+pnpm rehearse:local # deploy to a local Hardhat node, found two halls, walk the steward
+                    # paths (proposal-granted role, direct charter rewrite, tribute) and
+                    # assert the readback; keeps the chain up for `pnpm dev:local`
+                    # (--smoke runs the assertions and stops the chain)
 ```
+
+**Against the rehearsal chain locally.** `pnpm rehearse:local` starts a Hardhat node on port
+8646, deploys the protocol, founds `crimsonvigil` (token) and `ashencouncil` (council) with
+structured charters, and writes `apps/web/.env.localchain.local`. Then `pnpm dev:local` serves
+the site with the local network and a dev wallet in the network picker: account 0 is the
+founder, 1 the steward the hall voted in, 2–3 council members. The dev wallet exists only in
+that mode; `pnpm integrity` checks it is absent from production builds.
 
 ## Contract assurance
 
@@ -71,6 +82,22 @@ node and founds both hall modes as the EVM-level dry run of the Quai deploy.
   nothing. **TokenStackDeployer** exists because EIP-170 caps bytecode at 24 KiB: the token
   stack deploys from its own contract so both stay under the cap.
 
+## Guild profiles and the steward's desk
+
+A guild's on-chain `metadata` string is its charter. Plain text is valid and reads as the
+description; the structured form is a one-line marker plus JSON
+(`darkorder:profile:1\n{"description","avatar","links"}`) — schema and limits live in
+`packages/core/src/profile.ts`. Crests are raster data URIs (PNG/JPEG/GIF/WebP, ≤ 24 KB so
+they fit one transaction) or https/ipfs pointers; link URLs are https/ipfs only, so the hall
+page never renders a `javascript:` payload. The frontpage directory cards show the crest,
+charter text, links and treasury — never raw hex.
+
+Each hall page carries the steward's desk: a connected key holding `SET_METADATA_ROLE` rewrites
+the charter directly, a key holding `ROOT_ROLE` grants and revokes roles, and anyone can route
+either change through a proposal instead — the proposal executes as the guild itself, which
+holds every permission. The War Room decodes `setMetadata` / `grant` / `revoke` proposal
+actions into plain language before a vote.
+
 ## Quai specifics (learned on Cyprus-1)
 
 - Contract calls only work on a zone endpoint; everything here is Cyprus-1 (`0x00…`, second
@@ -91,6 +118,11 @@ tokenization, which would shred hex), it never sends payments to spoken names, a
 always names its asset. Planned actions get a spoken 3-digit confirmation code with a 3-minute
 TTL. The web page asks before opening the microphone (cloud transcription), and the typed
 command line is always first-class.
+
+The steward's desk is voice-reachable too: "open the steward's desk", "edit the charter" or
+"grant metadata power to …" all walk to the desk of the current hall — crest, charter and the
+target address are typed or uploaded there, never spoken — and "what roles does my key hold"
+reads the connected key's powers from the chain and speaks them.
 
 ## x402
 

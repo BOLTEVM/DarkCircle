@@ -6,6 +6,7 @@ import { href, type Route } from '../lib/router.js';
 import { useNetwork } from '../state/NetworkContext.js';
 import { useWallet } from '../state/WalletContext.js';
 import { BrandLockup, PoweredByBolt } from './Brand.js';
+import { DeployModal } from './DeployModal.js';
 import { Button, cx } from './primitives.js';
 
 const NAV: { route: Route; label: string; match: Route['name'][] }[] = [
@@ -137,6 +138,7 @@ export const Header: React.FC<{ route: Route }> = ({ route }) => {
 export const StatusBanner: React.FC = () => {
   const { network, rpcError, deployment } = useNetwork();
   const { address, chainId, onExpectedChain, addressProblem, wallet } = useWallet();
+  const [deployOpen, setDeployOpen] = useState(false);
   const items: { tone: 'gold' | 'warn' | 'danger'; icon: React.ReactNode; text: React.ReactNode }[] = [];
 
   if (!deployment) {
@@ -146,7 +148,10 @@ export const StatusBanner: React.FC = () => {
       text: (
         <>
           <strong className="font-semibold">Showcase.</strong> The DarkOrder protocol is not deployed on {network.label} yet. The halls below are invented
-          samples and every transaction is switched off.
+          samples and every transaction is switched off.{' '}
+          <button type="button" onClick={() => setDeployOpen(true)} className="font-semibold underline underline-offset-2 hover:text-gold-light" data-testid="open-deploy-modal">
+            Deploy it…
+          </button>
         </>
       ),
     });
@@ -162,7 +167,7 @@ export const StatusBanner: React.FC = () => {
       text: `${wallet?.name ?? 'Your wallet'} is on chain ${chainId}; this page is set to ${network.label} (chain ${network.chainId}). Switch one of them before sending anything.`,
     });
   }
-  if (!items.length) return null;
+  if (!items.length) return <DeployModal open={deployOpen} onClose={() => setDeployOpen(false)} />;
   const tones = {
     gold: 'border-gold/25 bg-gold/[0.06] text-gold-pale',
     warn: 'border-amber-400/25 bg-amber-400/[0.07] text-amber-100',
@@ -170,6 +175,7 @@ export const StatusBanner: React.FC = () => {
   } as const;
   return (
     <div className="border-b border-line">
+      <DeployModal open={deployOpen} onClose={() => setDeployOpen(false)} />
       {items.map((it, i) => (
         <div key={i} className={cx('border-b px-4 py-2.5 text-sm last:border-b-0', tones[it.tone])} role={it.tone === 'danger' ? 'alert' : 'status'}>
           <div className="mx-auto flex max-w-7xl items-start gap-2.5 lg:px-4">

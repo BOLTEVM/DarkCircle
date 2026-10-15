@@ -4,10 +4,12 @@
 
 export * from './config.js';
 export * from './address.js';
+export * from './codecheck.js';
 export * from './rpc.js';
 export * from './abi.js';
 export * from './tx.js';
 export * from './guilds.js';
+export * from './profile.js';
 export * from './deployments.js';
 export * from './tokens.js';
 export * from './naming.js';

@@ -1,33 +1,41 @@
 import React, { useMemo, useState } from 'react';
-import { Castle, Crown, Flame, Search, Users } from 'lucide-react';
-import { normalizeQnsName, qnsSearchUrl, type GuildRecord } from '@darkorder/core';
+import { Castle, Coins, Flame, Search, Users } from 'lucide-react';
+import { formatTokenAmount, normalizeQnsName, parseGuildProfile, qnsSearchUrl, type GuildSummary } from '@darkorder/core';
 import { href } from '../lib/router.js';
 import { useNetwork } from '../state/NetworkContext.js';
 import { useGuildDirectory } from '../state/directory.js';
+import { GuildAvatar } from '../components/GuildAvatar.js';
 import { Badge, Card, TextField, cx } from '../components/primitives.js';
 
-const GuildCard: React.FC<{ record: GuildRecord }> = ({ record }) => (
-  <a href={href({ name: 'guild', guild: record.name })} className="group block">
-    <Card className="h-full transition-colors group-hover:border-gold/40 group-hover:bg-panel-hover">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-gold/25 bg-gold/10 text-gold">
-            {record.mode === 'token' ? <Flame className="h-5 w-5" aria-hidden /> : <Crown className="h-5 w-5" aria-hidden />}
-          </span>
-          <div>
-            <div className="font-display text-lg text-bone group-hover:text-gold-light">{record.name}</div>
-            <div className="text-xs text-bone-mute">{record.mode === 'token' ? 'Token hall' : 'Council hall'}</div>
+const GuildCard: React.FC<{ record: GuildSummary; enriching: boolean }> = ({ record, enriching }) => {
+  const profile = useMemo(() => parseGuildProfile(record.metadata), [record.metadata]);
+  return (
+    <a href={href({ name: 'guild', guild: record.name })} className="group block">
+      <Card className="flex h-full flex-col transition-colors group-hover:border-gold/40 group-hover:bg-panel-hover">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <GuildAvatar avatar={profile.avatar} mode={record.mode} />
+            <div>
+              <div className="font-display text-lg text-bone group-hover:text-gold-light">{record.name}</div>
+              <div className="text-xs text-bone-mute">{record.mode === 'token' ? 'Token hall' : 'Council hall'}</div>
+            </div>
           </div>
+          <Badge tone={record.mode === 'token' ? 'gold' : 'sky'}>{record.mode}</Badge>
         </div>
-        <Badge tone={record.mode === 'token' ? 'gold' : 'sky'}>{record.mode}</Badge>
-      </div>
-      <div className="mt-4 font-mono text-[11px] text-bone-mute">
-        <div className="truncate">guild {record.guild}</div>
-        {record.token && <div className="mt-0.5 truncate">token {record.token}</div>}
-      </div>
-    </Card>
-  </a>
-);
+        <p className={cx('mt-3 line-clamp-3 min-h-[3.75rem] text-sm leading-relaxed text-bone-dim', enriching && !record.metadata && 'animate-pulse text-bone-mute')}>
+          {profile.description || (enriching && !record.metadata ? 'Reading the charter…' : 'This hall keeps no charter yet.')}
+        </p>
+        <div className="mt-auto flex items-center justify-between gap-2 pt-4 text-xs text-bone-mute">
+          <span className="inline-flex items-center gap-1.5">
+            <Coins className="h-3.5 w-3.5 text-gold/70" aria-hidden />
+            {enriching && record.treasury === 0n ? '…' : `${formatTokenAmount(record.treasury)} QUAI`}
+          </span>
+          {profile.links.length > 0 && <span>{profile.links.length} link{profile.links.length === 1 ? '' : 's'}</span>}
+        </div>
+      </Card>
+    </a>
+  );
+};
 
 export const HallsPage: React.FC = () => {
   const { network } = useNetwork();
@@ -37,7 +45,7 @@ export const HallsPage: React.FC = () => {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return directory.guilds;
-    return directory.guilds.filter((g) => g.name.toLowerCase().includes(q));
+    return directory.guilds.filter((g) => g.name.toLowerCase().includes(q) || parseGuildProfile(g.metadata).description.toLowerCase().includes(q));
   }, [directory.guilds, query]);
 
   const qns = normalizeQnsName(query);
@@ -130,7 +138,7 @@ export const HallsPage: React.FC = () => {
             ) : (
               <div className={cx('mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3', directory.mode === 'showcase' && 'opacity-90')}>
                 {filtered.map((g) => (
-                  <GuildCard key={g.guild} record={g} />
+                  <GuildCard key={g.guild} record={g} enriching={directory.enriching} />
                 ))}
               </div>
             )}

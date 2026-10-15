@@ -11,7 +11,8 @@
     "dev": "pnpm --filter @darkorder/web dev",
     "dev:local": "pnpm --filter @darkorder/web exec vite --mode localchain",
     "integrity": "node scripts/integrity.mjs",
-    "clean": "pnpm -r run clean"
+    "clean": "pnpm -r run clean",
+    "rehearse:local": "node scripts/rehearse-local.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

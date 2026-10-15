@@ -1,4 +1,4 @@
-import { Interface, randomBytes, hexlify } from 'ethers';
+import { Interface, randomBytes, hexlify, id as keccakId } from 'ethers';
 import { ZERO_ADDRESS, requireAddress, sameAddress } from './address.js';
 import type { NetworkConfig } from './config.js';
 import type { RpcClient } from './rpc.js';
@@ -11,6 +11,7 @@ import type { RpcClient } from './rpc.js';
 
 export const REGISTRY = new Interface([
   'function count() view returns (uint256)',
+  'function wire(address factory)',
   'function resolve(string name) view returns (address)',
   'function recordOf(address guild) view returns (tuple(string name, address guild, address token, address module, uint8 mode))',
   'function page(uint256 offset, uint256 limit) view returns (tuple(string name, address guild, address token, address module, uint8 mode)[])',
@@ -23,12 +24,31 @@ export const FACTORY = new Interface([
 export const GUILD = new Interface([
   'function metadata() view returns (string)',
   'function hasPermission(bytes32 role, address who) view returns (bool)',
+  'function setMetadata(string metadata)',
+  'function grant(bytes32 role, address who)',
+  'function revoke(bytes32 role, address who)',
   'function execute(tuple(address to, uint256 value, bytes data)[] actions) payable returns (bytes[])',
   'function payTribute(bytes32 invoiceId) payable',
   'function ROOT_ROLE() view returns (bytes32)',
   'function EXECUTE_ROLE() view returns (bytes32)',
+  'function SET_METADATA_ROLE() view returns (bytes32)',
   'event TributeReceived(address indexed from, uint256 amount, bytes32 indexed invoiceId)',
 ]);
+
+/** The guild's three permissions, by their on-chain ids. */
+export const GUILD_ROLES = {
+  ROOT: keccakId('ROOT_ROLE'),
+  EXECUTE: keccakId('EXECUTE_ROLE'),
+  SET_METADATA: keccakId('SET_METADATA_ROLE'),
+} as const;
+
+export type GuildRoleKey = keyof typeof GUILD_ROLES;
+
+export interface GuildRoles {
+  root: boolean;
+  execute: boolean;
+  setMetadata: boolean;
+}
 
 export const VOTING = new Interface([
   'function proposalCount() view returns (uint256)',
@@ -136,7 +156,10 @@ function decodeRecord(r: any): GuildRecord {
 
 async function call<T = any>(rpc: RpcClient, to: string, iface: Interface, fn: string, args: unknown[] = []): Promise<T> {
   const raw = await rpc.call({ to, data: iface.encodeFunctionData(fn, args) });
-  return iface.decodeFunctionResult(fn, raw) as T;
+  const result = iface.decodeFunctionResult(fn, raw);
+  // decodeFunctionResult wraps even one return value in an outer Result; unwrap it so a
+  // tuple/array return is the value itself, not a one-element box around it.
+  return (result.length === 1 ? result[0] : result) as T;
 }
 
 const PAGE = 50;
@@ -168,6 +191,29 @@ export async function readGuildSummary(rpc: RpcClient, record: GuildRecord): Pro
     rpc.getBalance(record.guild).catch(() => 0n),
   ]);
   return { ...record, metadata: String(metadata), treasury };
+}
+
+/** Every guild with its metadata and treasury, read in small batches so a full directory
+ *  does not burst the RPC. */
+export async function listGuildSummaries(rpc: RpcClient, registry: string): Promise<GuildSummary[]> {
+  const records = await listGuilds(rpc, registry);
+  const out: GuildSummary[] = [];
+  const BATCH = 8;
+  for (let i = 0; i < records.length; i += BATCH) {
+    const chunk = await Promise.all(records.slice(i, i + BATCH).map((r) => readGuildSummary(rpc, r)));
+    out.push(...chunk);
+  }
+  return out;
+}
+
+/** Which of the three permissions `who` holds on the guild. */
+export async function readGuildRoles(rpc: RpcClient, guild: string, who: string): Promise<GuildRoles> {
+  const [root, execute, setMetadata] = await Promise.all([
+    call<boolean>(rpc, guild, GUILD, 'hasPermission', [GUILD_ROLES.ROOT, who]),
+    call<boolean>(rpc, guild, GUILD, 'hasPermission', [GUILD_ROLES.EXECUTE, who]),
+    call<boolean>(rpc, guild, GUILD, 'hasPermission', [GUILD_ROLES.SET_METADATA, who]),
+  ]);
+  return { root: Boolean(root), execute: Boolean(execute), setMetadata: Boolean(setMetadata) };
 }
 
 export async function readVotingProposal(rpc: RpcClient, module: string, id: number): Promise<VotingProposalView> {
@@ -284,6 +330,18 @@ export function encodeDelegate(delegatee: string): string {
 
 export function encodeTribute(invoiceId: string): string {
   return GUILD.encodeFunctionData('payTribute', [invoiceId]);
+}
+
+export function encodeSetMetadata(metadata: string): string {
+  return GUILD.encodeFunctionData('setMetadata', [metadata]);
+}
+
+export function encodeGrant(role: string, who: string): string {
+  return GUILD.encodeFunctionData('grant', [role, who]);
+}
+
+export function encodeRevoke(role: string, who: string): string {
+  return GUILD.encodeFunctionData('revoke', [role, who]);
 }
 
 /** A fresh x402 invoice id: 32 random bytes, hex. */

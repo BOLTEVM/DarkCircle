@@ -6,6 +6,7 @@ import {
   Refusal,
   matchGuild,
   parseCommand,
+  readGuildRoles,
   type Intent,
   type Plan,
 } from '@darkorder/core';
@@ -148,6 +149,51 @@ export const VoicePage: React.FC = () => {
           }
           return;
         }
+        case 'steward': {
+          const cur = getCurrentGuild();
+          if (!cur) {
+            say('Open a hall first; every hall keeps its own steward’s desk.');
+            return;
+          }
+          say(
+            `The steward’s desk of ${cur.name}. Crest, charter and roles are set there — typed or uploaded, never spoken, so no address ever travels by voice. Nothing moves without your wallet.`
+          );
+          navigate({ name: 'guild', guild: cur.name });
+          window.setTimeout(() => document.getElementById('steward-desk')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 450);
+          return;
+        }
+        case 'my-roles': {
+          if (!deployment) {
+            say('Showcase mode: the protocol is not deployed on this network, so there are no on-chain roles to read.');
+            return;
+          }
+          if (!address) {
+            say('Connect your wallet first; I read your key’s powers from the chain.');
+            return;
+          }
+          const name = intent.guild ?? getCurrentGuild()?.name;
+          if (!name) {
+            say('Open a hall first, or name it: "my roles in emberhold".');
+            return;
+          }
+          const { guild, nearby } = matchGuild(name, directory.guilds);
+          if (!guild) {
+            say(nearby.length ? `No hall called "${name}". Did you mean ${nearby.join(' or ')}?` : `No hall called "${name}". Say "show the halls".`);
+            return;
+          }
+          say(`Reading your key’s powers in ${guild.name}…`);
+          readGuildRoles(rpc, guild.guild, address)
+            .then((held) => {
+              const list = [held.root && 'root power', held.execute && 'execute power', held.setMetadata && 'metadata power'].filter(Boolean) as string[];
+              say(
+                list.length
+                  ? `Your key holds ${list.join(', ')} in ${guild.name}.`
+                  : `Your key holds no powers in ${guild.name} — but any change can still go to a proposal from the steward’s desk.`
+              );
+            })
+            .catch(() => say('The chain would not answer; try again in a moment.'));
+          return;
+        }
         case 'help':
           say(`I understand: ${EXAMPLES.join('; ')}.`);
           return;
@@ -193,7 +239,7 @@ export const VoicePage: React.FC = () => {
         }
       }
     },
-    [directory.guilds, planner, address, plan, say, offerPlan, signPlan]
+    [directory.guilds, planner, address, plan, say, offerPlan, signPlan, rpc, deployment]
   );
 
   const handleCommand = useCallback(

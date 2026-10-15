@@ -110,6 +110,43 @@ function creationGasLimit(runtimeHex) {
   return wanted < MAX_GAS_LIMIT ? wanted : MAX_GAS_LIMIT;
 }
 
+/* --- codecheck: mirrors packages/core/src/codecheck.ts (kept inline: this script has no workspace deps) ---
+ * The registry's `_deployer` and the factory's `registry`/`tokenStack` are Solidity immutables: the
+ * build's deployedBytecode holds 32 zero bytes at each slot and the constructor fills them in, so
+ * on-chain code never hashes like the artifact. Compare byte for byte, accepting a difference only
+ * where a zeroed word of the build holds one of the expected values on chain. */
+const WORD_HEX = 64;
+const ZERO_WORD = '0'.repeat(WORD_HEX);
+
+function runtimeMatchesBuild(onchain, buildRuntime, immutables = []) {
+  const chain = onchain.slice(2).toLowerCase();
+  const build = buildRuntime.slice(2).toLowerCase();
+  if (chain.length === 0 || chain.length !== build.length) return false;
+  if (immutables.length === 0) return chain === build;
+  const words = new Set(immutables.map((v) => v.slice(2).toLowerCase().padStart(WORD_HEX, '0')));
+  let filled = 0;
+  let i = 0;
+  while (i < chain.length) {
+    if (chain[i] === build[i]) {
+      i++;
+      continue;
+    }
+    let matched = false;
+    const earliest = Math.max(0, i - (WORD_HEX - 1));
+    for (let start = i - (i % 2); start >= earliest; start -= 2) {
+      if (start + WORD_HEX > build.length) continue;
+      if (build.slice(start, start + WORD_HEX) !== ZERO_WORD) continue;
+      if (!words.has(chain.slice(start, start + WORD_HEX))) continue;
+      matched = true;
+      filled++;
+      i = start + WORD_HEX;
+      break;
+    }
+    if (!matched) return false;
+  }
+  return filled > 0;
+}
+
 function fmtQuai(wei) {
   return `${wei / 10n ** 18n}.${(wei % 10n ** 18n).toString().padStart(18, '0').slice(0, 4)} QUAI`;
 }
@@ -275,12 +312,12 @@ async function main() {
   const wireReceipt = await waitConfirmed(net, wireResp.hash, confirmations);
   if (parseInt(wireReceipt.status, 16) !== 1) fail(`registry.wire reverted (tx ${wireResp.hash})`);
   const registryCode = await rpc(net.rpc, 'quai_getCode', [registryRes.address, 'latest']);
-  if (keccak256(registryCode) !== keccak256(registryArt.deployedBytecode)) fail('GuildNameRegistry code on chain does not match the artifact');
+  if (!runtimeMatchesBuild(registryCode, registryArt.deployedBytecode, [deployer])) fail('GuildNameRegistry code on chain does not match the build');
   const tokenStackCode = await rpc(net.rpc, 'quai_getCode', [tokenStackRes.address, 'latest']);
-  if (keccak256(tokenStackCode) !== keccak256(tokenStackArt.deployedBytecode)) fail('TokenStackDeployer code on chain does not match the artifact');
+  if (!runtimeMatchesBuild(tokenStackCode, tokenStackArt.deployedBytecode)) fail('TokenStackDeployer code on chain does not match the build');
   const factoryCode = await rpc(net.rpc, 'quai_getCode', [factoryRes.address, 'latest']);
-  if (keccak256(factoryCode) !== keccak256(factoryArt.deployedBytecode)) fail('GuildFactory code on chain does not match the artifact');
-  console.log('  verified: all three code hashes');
+  if (!runtimeMatchesBuild(factoryCode, factoryArt.deployedBytecode, [registryRes.address, tokenStackRes.address])) fail('GuildFactory code on chain does not match the build');
+  console.log('  verified: all three runtimes match the build (immutable slots filled)');
 
   const record = {
     network: args.network,
