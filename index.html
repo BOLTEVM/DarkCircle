@@ -9,6 +9,11 @@
   <link rel="icon" type="image/png" href="./0.png">
 
   <script>
+    // Remembered world colour, applied before the first paint so it never flashes red first
+    try { var wh = { ice: 190, violet: 272, emerald: 145, gold: 38, rose: 322 }[localStorage.getItem('darkcircle-world')]; if (wh) document.documentElement.style.setProperty('--hue', wh); } catch (e) { /* storage blocked: default colour */ }
+  </script>
+
+  <script>
     // Immediate subdomain auto-router (runs before anything is painted or fetched)
     (function () {
       var host = window.location.hostname.toLowerCase();
@@ -44,8 +49,9 @@
   <style>
     :root {
       --bg: #05070a;
-      --accent-red: #ff3b30;
-      --accent-glow: rgba(255, 59, 48, 0.45);
+      --hue: 3;                                   /* world colour (degrees); the logo button cycles it */
+      --accent-red: hsl(var(--hue) 100% 59%);
+      --accent-glow: hsl(var(--hue) 100% 59% / 0.45);
       --text: #f8fafc;
       --text-muted: #94a3b8;
       --hud-bg: rgba(10, 14, 22, 0.72);
@@ -110,12 +116,22 @@
       width: 100%;
     }
     .brand-title { display: flex; align-items: center; gap: 0.9rem; min-width: 0; flex: 1 1 auto; }
+    .logo-btn {
+      display: flex; flex: none;
+      padding: 4px; margin: -4px;
+      background: none; border: 0;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .logo-btn:focus-visible { outline: 2px solid var(--accent-red); outline-offset: 2px; }
+    .logo-btn:active .brand-logo { transform: scale(0.9); }
     .brand-logo {
       /* 0.png is 255x190 black glyphs with white outlines, drawn for dark grounds: keep its aspect
          (it used to be squeezed into a 38px circle) and reverse it so it stays crisp at this size */
       height: 34px; width: auto;
       flex: none;
-      filter: invert(1) drop-shadow(0 0 8px var(--accent-glow));
+      filter: invert(1) drop-shadow(0 0 calc(7px + var(--beat, 0) * 14px) var(--accent-glow));
+      transition: transform 0.15s ease;
     }
     .brand-text h1 {
       font-family: var(--font-display);
@@ -153,7 +169,7 @@
       font-size: 0.95rem;
     }
     .btn-icon:hover { color: #fff; border-color: rgba(255, 255, 255, 0.3); }
-    .btn-icon.active { color: var(--accent-red); border-color: var(--accent-red); box-shadow: 0 0 10px var(--accent-glow); }
+    .btn-icon.active { color: var(--accent-red); border-color: var(--accent-red); box-shadow: 0 0 calc(8px + var(--beat, 0) * 14px) var(--accent-glow); }
 
     .app-selector-pills {
       display: flex;
@@ -360,7 +376,7 @@
       font-size: 0.75rem;
       letter-spacing: 0.12em;
       text-transform: uppercase;
-      color: rgba(255, 90, 80, 0.85);
+      color: hsl(var(--hue) 100% 66% / 0.85);
       pointer-events: none;
       transition: opacity 0.6s ease;
     }
@@ -372,17 +388,17 @@
     html.no-webgl .scanlines { opacity: 0.25; }
     html.no-webgl body {
       background:
-        radial-gradient(ellipse 60% 55% at 50% 38%, rgba(120, 12, 12, 0.55), rgba(40, 4, 4, 0.35) 45%, transparent 70%),
+        radial-gradient(ellipse 60% 55% at 50% 38%, hsl(var(--hue) 82% 26% / 0.55), hsl(var(--hue) 82% 9% / 0.35) 45%, transparent 70%),
         linear-gradient(#07090e, #05070a);
     }
     html.no-webgl .fallback-orb {
       display: block;
       position: absolute; left: 50%; top: 38%;
       width: min(34vh, 220px); aspect-ratio: 1;
-      transform: translate(-50%, -50%);
+      transform: translate(-50%, -50%) scale(calc(1 + var(--beat, 0) * 0.05));
       border-radius: 50%;
-      background: radial-gradient(circle at 36% 30%, #3a1a1a, #0b0505 55%, #000);
-      box-shadow: 0 0 0 3px rgba(255, 70, 50, 0.55), 0 0 40px 8px rgba(255, 50, 30, 0.45), inset 0 0 30px rgba(255, 40, 20, 0.25);
+      background: radial-gradient(circle at 36% 30%, hsl(var(--hue) 40% 16%), hsl(var(--hue) 50% 4%) 55%, #000);
+      box-shadow: 0 0 0 3px hsl(var(--hue) 100% 60% / 0.55), 0 0 calc(40px + var(--beat, 0) * 40px) 8px hsl(var(--hue) 100% 55% / 0.45), inset 0 0 30px hsl(var(--hue) 100% 50% / 0.25);
       z-index: 3;
     }
     html.no-webgl .hud-spacer { flex: 1 1 0; }
@@ -435,7 +451,7 @@
   <div class="hud">
     <header class="header-bar">
       <div class="brand-title">
-        <img src="./0.png" alt="BOLTEVM logo" class="brand-logo" width="46" height="34" onerror="this.style.display='none'">
+        <button class="logo-btn" id="logo-btn" type="button" title="Tap to change the world color" aria-label="Change world color"><img src="./0.png" alt="BOLTEVM logo" class="brand-logo" width="46" height="34" onerror="this.style.display='none'"></button>
         <div class="brand-text">
           <h1>DarkCircle Suite</h1>
           <div class="shard-tag">&#x25CF; Quai Network</div>
@@ -465,7 +481,7 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
     </button>
 
-    <div class="telemetry" id="telemetry" role="status" aria-live="polite">Drag to look around &middot; use the arrows to browse the apps &middot; tap or click the ring to open one</div>
+    <div class="telemetry" id="telemetry" role="status" aria-live="polite">Drag to look around &middot; arrows browse the apps &middot; tap the logo for a new color</div>
 
     <div class="portal-stations" id="portal-stations">
       <a href="./x402tumbler/" class="station-card station-darkcircle" data-app="darkcircle">
@@ -583,14 +599,23 @@
 
     class SoundEngine {
       constructor() { this.ctx = null; this.muted = false; }
-      ensure() {
-        if (this.muted) return false;
+      context() {                          // one AudioContext for the blips and the music analyser
         if (!this.ctx) {
           const AC = window.AudioContext || window.webkitAudioContext;
-          if (!AC) return false;
+          if (!AC) return null;
           this.ctx = new AC();
+          this.ctx.addEventListener('statechange', () => {
+            if (this.ctx.state === 'running') attachAnalyser();
+            else if (analyser.node && !document.hidden) this.ctx.resume().catch(() => {});   // the music flows through it
+          });
         }
-        if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+        return this.ctx;
+      }
+      ensure() {
+        if (this.muted) return false;
+        const ctx = this.context();
+        if (!ctx) return false;
+        if (ctx.state === 'suspended') ctx.resume().catch(() => {});
         return true;
       }
       blip(from, to, dur, gainPeak, type) {
@@ -611,6 +636,163 @@
       playWarp() { this.blip(110, 1800, 0.45, 0.12, 'sawtooth'); }
     }
     const sound = new SoundEngine();
+
+    // --- music analysis: bass / mid / treble / overall level / kick, shared by the 3D scene and the HUD ---
+    const audio = { bass: 0, mid: 0, treble: 0, level: 0, kick: 0, live: false };   // all 0..1
+    const analyser = { node: null, data: null, failed: false };
+    const AMP = reducedMotion ? 0.25 : 1;                        // gentler for people who asked for less motion
+
+    function primeAudio() {              // iOS/Safari only start an AudioContext from inside a tap, so wake it there
+      const c = sound.context();
+      if (c && c.state !== 'running') c.resume().catch(() => {});
+    }
+
+    function attachAnalyser() {
+      if (analyser.node || analyser.failed) return;
+      const ctx = sound.context();
+      if (!ctx) { analyser.failed = true; return; }
+      // The music must only be routed through the context once it is running, or it would go silent.
+      if (ctx.state !== 'running') { ctx.resume().catch(() => {}); return; }       // 'statechange' retries
+      try {
+        const src = ctx.createMediaElementSource(music);
+        const node = ctx.createAnalyser();
+        node.fftSize = 2048;
+        node.smoothingTimeConstant = 0.5;
+        src.connect(node);
+        node.connect(ctx.destination);
+        analyser.data = new Uint8Array(node.frequencyBinCount);
+        analyser.node = node;
+      } catch (err) { analyser.failed = true; console.warn('Music analysis unavailable', err); }
+    }
+
+    const BANDS = { bass: [30, 150], mid: [400, 2000], treble: [3000, 9000] };       // Hz
+    const rawNow = { bass: 0, mid: 0, treble: 0, level: 0 };
+    // Loud, dense music sits near the top of the meter all the time, so each band is judged against its own
+    // recent average (how far above or below "normal" it is right now) rather than by absolute loudness.
+    const stat = {};
+    for (const k in rawNow) stat[k] = { avg: 0, dev: 0.03, ready: false };
+    let lastBeat = 0;
+    function bandAvg(data, hzPerBin, lo, hi) {
+      const a = Math.max(1, Math.round(lo / hzPerBin));
+      const b = Math.min(data.length - 1, Math.round(hi / hzPerBin));
+      let sum = 0;
+      for (let i = a; i <= b; i++) sum += data[i];
+      return sum / ((b - a + 1) * 255);
+    }
+    function analyse(dt, now) {
+      const live = !!analyser.node && wantMusic && !music.paused && !document.hidden;
+      audio.live = live;
+      let bassZ = 0;
+      if (live) {
+        analyser.node.getByteFrequencyData(analyser.data);
+        const hz = sound.ctx.sampleRate / analyser.node.fftSize;
+        for (const k in BANDS) rawNow[k] = bandAvg(analyser.data, hz, BANDS[k][0], BANDS[k][1]);
+        rawNow.level = rawNow.bass * 0.45 + rawNow.mid * 0.35 + rawNow.treble * 0.2;
+      }
+      for (const k in rawNow) {
+        const st = stat[k];
+        let target = 0;
+        if (live) {
+          const r = rawNow[k];
+          if (!st.ready) { st.avg = r; st.ready = true; }
+          const z = (r - st.avg) / Math.max(st.dev, 0.02);
+          if (k === 'bass') bassZ = z;
+          st.avg += (r - st.avg) * (1 - Math.exp(-dt / 1.2));
+          st.dev += (Math.abs(r - st.avg) - st.dev) * (1 - Math.exp(-dt / 2.5));
+          target = Math.min(Math.max(0.45 + z * 0.28, 0), 1) * AMP;
+        } else {
+          st.ready = false;
+        }
+        audio[k] += (target - audio[k]) * (1 - Math.exp(-dt * (target > audio[k] ? 28 : 5)));   // quick attack, slower release
+      }
+      if (live && bassZ > 1.3 && now - lastBeat > 200) {
+        audio.kick = AMP * Math.min(1, 0.55 + (bassZ - 1.3) * 0.25);
+        lastBeat = now;
+      }
+      audio.kick *= Math.exp(-dt * 6);
+    }
+
+    // The few HUD pieces that glow with the music get their own --beat value (not the whole page, to keep restyling cheap)
+    const logoBtn = $('#logo-btn');
+    const beatEls = [logoBtn, $('#sound-btn'), $('.fallback-orb')];
+    let lastBeatVar = -1;
+    function updateBeatVar() {
+      const v = Math.min(1, audio.kick * 0.75 + audio.level * 0.35);
+      if (Math.abs(v - lastBeatVar) < 0.015) return;
+      lastBeatVar = v;
+      const str = v.toFixed(2);
+      beatEls.forEach((el) => { if (el) el.style.setProperty('--beat', str); });
+    }
+
+    // --- world colour: the logo cycles the palette; the whole room and the HUD follow ------------------
+    const PALETTES = [
+      { id: 'crimson', name: 'Crimson', hue: 3 },
+      { id: 'ice', name: 'Ice', hue: 190 },
+      { id: 'violet', name: 'Violet', hue: 272 },
+      { id: 'emerald', name: 'Emerald', hue: 145 },
+      { id: 'gold', name: 'Gold', hue: 38 },
+      { id: 'rose', name: 'Rose', hue: 322 },
+    ];
+    const BASE_HUE = PALETTES[0].hue;                            // the colours baked into the 3D scene
+    const WORLD_KEY = 'darkcircle-world';
+    let paletteIndex = 0;
+    try {
+      const saved = PALETTES.findIndex((q) => q.id === localStorage.getItem(WORLD_KEY));
+      if (saved > 0) paletteIndex = saved;
+    } catch (_) { /* storage blocked: default colour */ }
+    const hueState = { cur: PALETTES[paletteIndex].hue, target: PALETTES[paletteIndex].hue };
+    const hueListeners = [];                                      // the 3D scene registers one
+    const rootStyle = document.documentElement.style;
+    rootStyle.setProperty('--hue', String(hueState.cur));
+    function tickHue(dt) {
+      if (hueState.cur === hueState.target) return;
+      const d = ((hueState.target - hueState.cur + 540) % 360) - 180;                // shortest way round the wheel
+      if (reducedMotion || Math.abs(d) < 0.4) hueState.cur = hueState.target;
+      else hueState.cur = (hueState.cur + d * (1 - Math.exp(-dt * 7)) + 360) % 360;
+      rootStyle.setProperty('--hue', hueState.cur.toFixed(1));
+      hueListeners.forEach((fn) => fn(hueState.cur));
+      if (hueState.cur === hueState.target) scene3d?.refreshEnvironment();           // re-bake the room's reflections once
+    }
+    function labelLogo() {
+      const q = PALETTES[paletteIndex];
+      logoBtn.setAttribute('aria-label', 'World color: ' + q.name + '. Tap to change.');
+      logoBtn.title = 'World color: ' + q.name + ' (tap to change)';
+    }
+    let noteTimer = 0;
+    function flashNote(text) {            // a short message in the caption bar, then back to the selected app
+      telemetryEl.classList.add('live');
+      telemetryEl.textContent = text;
+      clearTimeout(noteTimer);
+      noteTimer = setTimeout(() => showTelemetry(current), 1800);
+    }
+    logoBtn.addEventListener('click', () => {
+      paletteIndex = (paletteIndex + 1) % PALETTES.length;
+      hueState.target = PALETTES[paletteIndex].hue;
+      try { localStorage.setItem(WORLD_KEY, PALETTES[paletteIndex].id); } catch (_) { /* ignore */ }
+      labelLogo();
+      sound.playSpin();
+      flashNote('World color: ' + PALETTES[paletteIndex].name);
+    });
+    labelLogo();
+
+    // an audio context that was suspended (phone call, browser policy) must wake on the next touch, or the music stays silent
+    ['pointerup', 'touchend', 'keydown'].forEach((n) => window.addEventListener(n, () => {
+      if (!analyser.node && !music.paused) attachAnalyser();
+      const c = sound.ctx;
+      if (c && analyser.node && c.state !== 'running') c.resume().catch(() => {});
+    }, true));
+
+    let lastTick = performance.now();
+    function mainTick(now) {
+      const real = Math.max((now - lastTick) / 1000, 0);
+      const dt = Math.min(real, 0.1);
+      lastTick = now;
+      analyse(Math.min(real, 0.5), now);          // true elapsed time, so the averages keep pace on a slow phone
+      tickHue(dt);
+      updateBeatVar();
+      requestAnimationFrame(mainTick);
+    }
+    requestAnimationFrame(mainTick);
 
     const soundBtn = $('#sound-btn');
     const music = new Audio();
@@ -645,6 +827,7 @@
       armed: false,
       handler(e) {
         if (e.target instanceof Element && e.target.closest('#sound-btn')) return;   // the button decides for itself
+        primeAudio();
         startMusic();
       },
       arm() { if (this.armed) return; this.armed = true; this.events.forEach((n) => window.addEventListener(n, this.handler, true)); },
@@ -652,7 +835,7 @@
     };
     music.addEventListener('play', syncSoundBtn);
     music.addEventListener('pause', syncSoundBtn);
-    music.addEventListener('playing', () => { trackErrors = 0; });
+    music.addEventListener('playing', () => { trackErrors = 0; attachAnalyser(); });
     music.addEventListener('ended', () => {            // only fires with 2+ tracks (a single track loops)
       loadTrack(trackIndex + 1);
       music.play().catch(() => {});
@@ -673,6 +856,7 @@
         music.pause();
       } else {
         wantMusic = true;
+        primeAudio();
         startMusic();
       }
       sound.muted = !wantMusic;
@@ -681,6 +865,7 @@
     });
     syncSoundBtn();
     startMusic();
+    if (params.has('debug')) window.__DC__ = { audio, rawNow, stat, analyser, hueState, PALETTES, music, sound };
     $('#fullscreen-btn').addEventListener('click', () => {
       if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
       else document.exitFullscreen?.().catch(() => {});
@@ -889,6 +1074,7 @@
 
       const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.1, 60);
       const HOME = new THREE.Vector3(0, ORB_Y + 0.05, 5.9);
+      let fovBase = camera.fov;                                     // the framing fov; the music nudges it on every kick
       camera.position.copy(HOME);
 
       const controls = new OrbitControls(camera, canvas);
@@ -907,7 +1093,7 @@
         const aspect = w / h;
         const hfov = aspect < 1 ? 58 : 50;                      // reference footage is ~43; 50 keeps the top label clear of the header at 16:9
         const vfov = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(hfov) / 2) / aspect);
-        camera.fov = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(vfov), 24, 80);
+        camera.fov = fovBase = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(vfov), 24, 80);
         camera.aspect = aspect;
         camera.updateProjectionMatrix();
         const portrait = aspect < 0.8;
@@ -935,7 +1121,8 @@
       const world = new THREE.Group();
       scene.add(world);
 
-      scene.add(new THREE.HemisphereLight(0x5a1410, 0x0a0303, 0.45));
+      const hemi = new THREE.HemisphereLight(0x5a1410, 0x0a0303, 0.45);
+      scene.add(hemi);
 
       // --- plasma shell: ridged-noise lightning veins + fresnel halo, additive -------------
       const shellMat = new THREE.ShaderMaterial({
@@ -1042,6 +1229,44 @@
       const beaconPos = new THREE.Vector3();
       const hitMeshes = beacons.map((b) => b.hit);
 
+      // --- world colour: every colour in the room is remembered once, then re-tinted by turning its hue ---
+      const tints = [], tintSeen = new Set(), hsl = { h: 0, s: 0, l: 0 };
+      function addTint(c) { if (c && !tintSeen.has(c)) { tintSeen.add(c); tints.push({ c, base: c.clone() }); } }
+      function tintObject(root) {
+        root.traverse((o) => {
+          if (o.isLight) addTint(o.color);
+          if (o.isMesh) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { if (m) { addTint(m.color); addTint(m.emissive); } });
+        });
+      }
+      function applyHue(h) {
+        const delta = (h - BASE_HUE) / 360;
+        for (const t of tints) {
+          t.base.getHSL(hsl);
+          t.c.setHSL((((hsl.h + delta) % 1) + 1) % 1, hsl.s, hsl.l);
+        }
+      }
+      [hemi.color, hemi.groundColor, scene.background, scene.fog.color, shellMat.uniforms.uColor.value, trackRing.material.color].forEach(addTint);
+
+      // --- music reactions: lights and glowing materials each follow a band of the music ----------
+      const reactiveLights = [], reactiveMats = [];
+      const bandOf = (name, i) => (/ring|floor/i.test(name) ? 'bass' : /hatch/i.test(name) ? 'treble' : ['bass', 'mid', 'treble'][i % 3]);
+      function registerReactive(root) {
+        let li = 0;
+        const seen = new Set();
+        root.traverse((o) => {
+          if (o.isLight && o !== corePulse) {
+            reactiveLights.push({ light: o, base: lightBase.get(o) ?? o.intensity, band: bandOf(o.name, li++), k: 0.35 });
+          }
+          if (o.isMesh && o.material && !Array.isArray(o.material) && !seen.has(o.material)) {
+            const m = o.material;
+            seen.add(m);
+            if (m.emissive && m.emissive.r + m.emissive.g + m.emissive.b > 0.001 && m.emissiveIntensity > 0) {
+              reactiveMats.push({ m, base: m.emissiveIntensity, band: /vent/i.test(m.name) ? 'mid' : /plasma/i.test(m.name) ? 'level' : 'bass', k: 0.55 });
+            }
+          }
+        });
+      }
+
       // --- model ------------------------------------------------------------------------------
       let mixer = null, core = null, corePulse = null, reflect = null, loadedModel = false;
       // GLB lights ship as unitless candela (W / 4pi, COMPAT mode). Blender renders a W light at ~1/pi
@@ -1068,6 +1293,8 @@
         core = orb;
         corePulse = light;
         lightBase.set(light, light.intensity);
+        [walls, floor, orb].forEach(tintObject);
+        addTint(light.color);
       }
 
       function onModelLoaded(gltf) {
@@ -1091,19 +1318,29 @@
         if (lowPower) {                       // halve the point-light count on weak GPUs
           ['Light_Fill_1', 'Light_Fill_3'].forEach((n) => { const l = model.getObjectByName(n); if (l) l.visible = false; });
         }
+        tintObject(model);
+        registerReactive(model);
         mixer = new THREE.AnimationMixer(model);
         gltf.animations.forEach((clip) => mixer.clipAction(clip).play());   // hover, plasma spin, camera loop
         loadedModel = true;
       }
 
-      function buildEnvironment() {
-        // 1) chamber environment for every PBR surface (PMREM from the room itself, orb excluded)
+      let envTarget = null;
+      function renderEnvMap() {
+        // chamber environment for every PBR surface (PMREM from the room itself, orb excluded)
         const pmrem = new THREE.PMREMGenerator(renderer);
         const hidden = [core, shell, track, ...beacons.map((b) => b.group)].filter(Boolean);
         hidden.forEach((o) => { o.visible = false; });
-        scene.environment = pmrem.fromScene(scene, 0.03).texture;
+        const next = pmrem.fromScene(scene, 0.03);
         hidden.forEach((o) => { o.visible = true; });
         pmrem.dispose();
+        scene.environment = next.texture;
+        if (envTarget) envTarget.dispose();
+        envTarget = next;
+      }
+      function buildEnvironment() {
+        // 1) the room's reflections
+        renderEnvMap();
         // 2) the orb mirrors the live room (bars, plasma) through its own cube camera
         if (core && core.material) {
           const rtCube = new THREE.WebGLCubeRenderTarget(128, { type: THREE.HalfFloatType });
@@ -1133,6 +1370,9 @@
         buildFallbackChamber();
       }
       if (core) core.add(shell);
+      const coreBase = core ? core.scale.clone() : null;
+      applyHue(hueState.cur);                                       // a remembered world colour is in place before the first bake
+      hueListeners.push(applyHue);
       buildEnvironment();
       bootEl.classList.add('done');
       setTimeout(() => bootEl.remove(), 700);
@@ -1246,7 +1486,7 @@
 
       // --- loop ---------------------------------------------------------------------------------
       const clock = new THREE.Clock();
-      let frame = 0;
+      let frame = 0, plasmaT = 0, spinT = 0;
       fitCamera();
       window.addEventListener('resize', fitCamera);
 
@@ -1257,10 +1497,22 @@
         frame++;
 
         if (mixer && !reducedMotion) mixer.update(dt);
-        shellMat.uniforms.uTime.value = reducedMotion ? 0 : t;
+        plasmaT += reducedMotion ? 0 : dt * (1 + audio.level * 1.4 + audio.kick * 1.8);   // the plasma runs faster with the music
+        spinT += reducedMotion ? 0 : dt * (1 + audio.treble * 2.2);
+        shellMat.uniforms.uTime.value = plasmaT;
+        shellMat.uniforms.uGain.value = 0.9 * (1 + audio.bass * 0.4 + audio.kick * 0.5);
         if (corePulse) {
           const base = lightBase.get(corePulse) || 1;
-          corePulse.intensity = base * (1.0 + 0.10 * Math.sin(t * 5.1) + 0.05 * Math.sin(t * 13.7));
+          corePulse.intensity = base * (1.0 + 0.10 * Math.sin(t * 5.1) + 0.05 * Math.sin(t * 13.7)) * (1 + audio.bass * 0.5 + audio.kick * 0.6);
+        }
+        if (core && coreBase) core.scale.copy(coreBase).multiplyScalar(1 + audio.kick * 0.06 + audio.bass * 0.025);
+        for (const r of reactiveLights) r.light.intensity = r.base * (1 + r.k * audio[r.band] + 0.4 * r.k * audio.kick);
+        for (const r of reactiveMats) r.m.emissiveIntensity = r.base * (1 + r.k * audio[r.band] + 0.5 * r.k * audio.kick);
+        scene.fog.density = 0.03 + audio.kick * 0.004 - audio.level * 0.004;
+        trackRing.material.opacity = 0.4 + audio.level * 0.35 + audio.kick * 0.2;
+        if (!warping) {
+          bloom.strength = BLOOM_BASE + audio.kick * 0.22 + audio.level * 0.1;
+          if (!reducedMotion) { camera.fov = fovBase * (1 - audio.kick * 0.012); camera.updateProjectionMatrix(); }
         }
 
         // pointer / tilt parallax: tilt the whole room a few degrees about the orb
@@ -1290,11 +1542,12 @@
           b.hover += ((on ? 1 : 0) - b.hover) * Math.min(dt * 8, 1);
           b.ring.rotation.z = t * (0.6 + i * 0.15);
           b.ring.rotation.x = 0.35 * Math.sin(t * 0.7 + i) * (1 - front);   // the front ring faces you and haloes the orb
-          b.crystal.rotation.x = t * 1.4; b.crystal.rotation.y = t * 1.9;
+          b.crystal.rotation.x = spinT * 1.4; b.crystal.rotation.y = spinT * 1.9;
           b.crystal.scale.setScalar(Math.max(1 - front, 0.001));   // keeps the orb's face clear
           // the front ring is already big, so it grows less on hover: it must stay under its own label
           const s = (1 + 0.35 * front) * (1 + b.hover * 0.28 * (1 - 0.6 * front) + 0.03 * Math.sin(t * 2.4 + i));
-          b.ring.scale.setScalar(s);
+          b.ring.scale.setScalar(s * (1 + audio.bass * 0.1 + audio.kick * 0.06));
+          b.bead.scale.setScalar(1 + audio.kick * 1.4);
           b.ring.material.opacity = (0.85 + 0.15 * b.hover) * (0.15 + 0.85 * seen);
           b.crystal.material.opacity = 0.15 + 0.85 * seen;
           b.bead.material.opacity = 0.3 + 0.7 * seen;
@@ -1319,8 +1572,9 @@
         document.documentElement.classList.add('no-webgl');
       });
 
+      if (params.has('debug')) Object.assign(window.__DC__, { tints, reactiveLights, reactiveMats });
       if (params.has('debug')) window.__QRB__ = { THREE, scene, camera, controls, world, beacons, bloom, renderer, composer, get core() { return core; } };
-      return { warp, resetWarp, focus };
+      return { warp, resetWarp, focus, refreshEnvironment() { if (!warping) renderEnvMap(); } };
     }
 
     start3D().then((api) => { scene3d = api; }).catch((err) => {
