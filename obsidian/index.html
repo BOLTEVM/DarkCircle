@@ -77,8 +77,9 @@
     <div class="panel">
       <h2>Treasury — Sovereign</h2>
       <div class="big" id="sovBal">—</div>
-      <div class="kv"><span class="k">sovereign</span><span class="v"><a id="sovLink" target="_blank" rel="noopener">0x007783A0…C27a</a></span></div>
-      <div class="kv"><span class="k">spend policy</span><span class="v">≤ 50 QUAI / tick · simulate-first</span></div>
+      <div class="kv"><span class="k">sovereign (gas float)</span><span class="v"><a id="sovLink" target="_blank" rel="noopener">0x007783A0…C27a</a></span></div>
+      <div class="kv"><span class="k">vault (4-of-7)</span><span class="v"><a id="aVault" target="_blank" rel="noopener">…</a> <span id="vaultBal">—</span></span></div>
+      <div class="kv"><span class="k">spend policy</span><span class="v">council custody · trades execute 4-of-7</span></div>
     </div>
 
     <div class="panel">
@@ -121,6 +122,7 @@
   // ---- chain constants (darkcircle.si deployment + obsidiantrust hall) ----
   var REGISTRY = "0x001bB186Bb7f1Fe7249d72848E4C2dC06c28764F";
   var SOVEREIGN = "0x007783A0efc51953ce21C5B1E204bdf9FA08C27a";
+  var VAULT_GUILD = "0x0064AD45B58474d24F3e96d1d513E1c24fBFC912";
   // ABI calldata, precomputed from the d0 artifacts (no runtime keccak needed).
   var CD_RESOLVE = "0x461a44780000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000d6f6273696469616e747275737400000000000000000000000000000000000000";
   var SEL = { recordOf: "c06ac6a3", proposalCount: "da35c664", getProposal: "c7f758a8", balanceOf: "70a08231" };
@@ -211,6 +213,8 @@
     document.getElementById("blk").textContent = "block " + state.block.toLocaleString();
     document.getElementById("sovBal").textContent = fmtQuai(state.sovQuai) + " QUAI";
     document.getElementById("sovLink").href = EXPLORER + SOVEREIGN;
+    link("aVault", VAULT_GUILD);
+    document.getElementById("vaultBal").textContent = fmtQuai(state.vaultQuai) + " QUAI";
     link("aGuild", state.hall.guild);
     link("aToken", state.hall.token);
     link("aModule", state.hall.module);
@@ -287,6 +291,8 @@
       });
     }).then(function () {
       return rpc("quai_getBalance", [SOVEREIGN, "latest"]).then(function (b) { state.sovQuai = b; });
+    }).then(function () {
+      return rpc("quai_getBalance", [VAULT_GUILD, "latest"]).then(function (b) { state.vaultQuai = b; });
     }).then(function () {
       var ps = SWARM.map(function (s, i) {
         return call(state.hall.token, "0x" + SEL.balanceOf + slot32(s[1])).then(function (b) {

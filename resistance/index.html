@@ -95,6 +95,7 @@
     <div class="panel">
       <h2>The Prize — Corporate Vault</h2>
       <div class="big" id="vaultQ0">—</div>
+      <div class="kv"><span class="k">QUAI (war chest)</span><span class="v" id="vaultQuai">—</span></div>
       <div class="kv"><span class="k">QAXE</span><span class="v" id="vaultQaxe">—</span></div>
       <div class="kv"><span class="k">vault guild</span><span class="v"><a id="aVault" target="_blank" rel="noopener">…</a></span></div>
       <div class="kv"><span class="k">custody</span><span class="v">4-of-7 council · swarm keys only</span></div>
@@ -389,6 +390,7 @@
   function render(state) {
     document.getElementById("blk").textContent = "block " + state.block.toLocaleString();
     document.getElementById("vaultQ0").innerHTML = fmtTok(state.vaultQ0) + " <small>Q0</small>";
+    document.getElementById("vaultQuai").textContent = fmtQuai(state.vaultQuai) + " QUAI";
     document.getElementById("vaultQaxe").textContent = fmtTok(state.vaultQaxe) + " QAXE";
     link("aVault", VAULT_GUILD);
     document.getElementById("blocObs").innerHTML = fmtTok(state.swarmObs) + " <small>OBS in swarm hands</small>";
@@ -448,6 +450,7 @@
       return Promise.all([
         call(Q0, "0x" + SEL.balanceOf + slot32(VAULT_GUILD)).then(function (b) { state.vaultQ0 = uint(b); }),
         call(QAXE, "0x" + SEL.balanceOf + slot32(VAULT_GUILD)).then(function (b) { state.vaultQaxe = uint(b); }),
+        rpc("quai_getBalance", [VAULT_GUILD, "latest"]).then(function (b) { state.vaultQuai = b; }),
         call(HALL.token, "0x" + SEL.totalSupply).then(function (b) { state.supply = uint(b); }),
         rpc("quai_getBalance", [SOVEREIGN, "latest"]).then(function (b) { state.sovQuai = b; })
       ]);
