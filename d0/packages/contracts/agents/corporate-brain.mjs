@@ -1,0 +1,1064 @@
+#!/usr/bin/env node
+/**
+ * The DarkOrder corporate brain — autonomous controller for the agent guild swarm.
+ *
+ *   node agents/corporate-brain.mjs --network mainnet                     observe + plan (dry run)
+ *   node agents/corporate-brain.mjs --network mainnet --once              execute one tick
+ *   node agents/corporate-brain.mjs --network mainnet --loop --interval 90
+ *   add --broadcast --i-understand-unaudited                              to sign and send
+ *
+ * Without --broadcast every phase is fully simulated (quai_call) and nothing is signed.
+ *
+ * The brain walks an idempotent phase ladder; every tick re-observes the chain and does
+ * only the next undone step, so it is safe to kill and restart at any time:
+ *
+ *   FOUND       sovereign founds the guild if the name does not resolve yet
+ *   FUND        sovereign sends each sybil a QUAI gas stipend
+ *   DISTRIBUTE  sovereign transfers each sybil its governance-token parcel
+ *   DELEGATE    every identity self-delegates so its balance counts as votes
+ *   GOVERN      directors file agenda proposals; the bloc votes YES with human-ish jitter;
+ *               the sentinel executes once the vote passes
+ *   POLICE      doctrine-driven (agents/doctrine.json): anything on a protected hall not
+ *               filed by the swarm is hostile and the bloc votes NO (posture "dominate")
+ *   WATCHMEN    every tick: walk the registry, snapshot every guild on chain into
+ *               agents/intel.json; the storyteller chronicles births, trades, and
+ *               enforcement into agents/chronicle.jsonl (see agents/CABAL.md)
+ *
+ * Key handling: keystores + passwords from agents/keys/ (written by agent-keys-new.mjs).
+ * These are hot game-agent wallets — fund them with what the swarm is allowed to spend.
+ */
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { Wallet, JsonRpcProvider, QuaiTransaction, Interface, getAddress, Zone, getZoneForAddress, isQiAddress } from 'quais';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(HERE, '..');
+
+const NETWORKS = {
+  orchard: { chainId: 15000n, rpc: 'https://orchard.rpc.quai.network/cyprus1', pathing: 'https://orchard.rpc.quai.network', confirmations: 6 },
+  mainnet: { chainId: 9n, rpc: 'https://rpc.quai.network/cyprus1', pathing: 'https://rpc.quai.network', confirmations: 3 },
+};
+
+// Corporate persona. The name is the on-chain handle; agendas are what directors propose.
+const CORP = {
+  name: 'obsidiantrust',
+  metadata: 'OBSIDIAN TRUST — corporate steward of the darkcircle skyline. Every tower a share, every share a vote.',
+  tokenName: 'Obsidian Share',
+  tokenSymbol: 'OBS',
+  initialSupply: 1000n * 10n ** 18n,
+  supportThreshold: 5_000n, // 50%
+  minParticipation: 1_000n, // 10%
+  minDuration: 3600n,
+  gasStipend: 5n * 10n ** 18n, // 5 QUAI per sybil for gas
+  maxQuaiPerTick: 50n * 10n ** 18n, // hard spend cap per tick (excluding the founding tx)
+  foundingGas: 15_000_000n,
+  vaultGas: 8_000_000n, // council founding is two contracts, not three; 8M keeps gas×price under the treasury
+  agendas: [
+    'AGENDA 001 — charter ratification: all construction flows through this hall.',
+    'AGENDA 002 — skyline fund: pledge hall treasury toward the first corporate tower.',
+    'AGENDA 003 — dividend policy: tower yield accrues to shareholders of record.',
+    'AGENDA 004 — expansion: survey a storefront site; open the order book to members.',
+    'AGENDA 005 — security detail: budget for tower defense against seizure attempts.',
+  ],
+  // ── Treasury policy (hardened 2026-10-19 per owner directive: "aggressive and greedy")
+  // Hard rails, enforced every tick regardless of strategy mood:
+  treasury: {
+    reserveFloor: 150n * 10n ** 18n, // QUAI the sovereign never trades below (governance runway, halved: idle capital is dead capital)
+    perTradeBudget: 15n * 10n ** 18n, // base QUAI notional per buy, at most one buy per tick
+    maxTradeBudget: 30n * 10n ** 18n, // crash-sizing cap: blood in the streets doubles the base
+    slippageBps: 600n,               // minOut = quote × (1 − 6%)
+    maxImpactBps: 400n,              // refuse a buy that moves the pool more than 4%
+    dipBps: 200n,                    // buy signal: price 2% under the 6-reading moving average
+    crashBps: 600n,                  // a 6% drop under the average = double the buy size
+    momentumBps: 150n,               // breakout signal: price 1.5% over the average — greed chases rips too
+    takeProfitBps: 800n,             // sell signal: price 8% over cost basis — harvest early, harvest often
+    sellDivisor: 5n,                 // a take-profit skims 1/5 of the Q0 position, the core rides
+    deadlineSeconds: 300n,           // router deadline window
+    venue: 'circleswap',             // the ONLY venue this policy allows
+    target: 'Q0',                    // the ONLY asset this policy accumulates
+  },
+  // ── Council desk (owner directive 2026-10-19: "move all funds into council custody,
+  // and start your trading strategy"). The 4-of-7 vault IS the trading entity: capital
+  // lives in the council guild, and every trade executes as a council proposal — the
+  // swarm's own keys provide the 4 approvals, so one tick files, approves, and executes
+  // a trade, but no single key can ever move the treasury alone.
+  desk: {
+    gasFloat: 40n * 10n ** 18n,        // QUAI the sovereign EOA keeps for gas; everything above is swept to the vault every tick
+    sweepMargin: 5n * 10n ** 18n,      // don't churn dust: sweep only when the excess clears this margin
+    vaultReserveFloor: 50n * 10n ** 18n, // QUAI the vault never trades below (council runway)
+    deadlineSeconds: 14_400n,          // 4h swap deadline — an approval wave may land a full tick (hour) late
+  },
+  // Corporate scrip for player engagement, deployed once through the live TokenStackDeployer
+  // (guild := sovereign, so the sovereign EOA owns minting; the sidecar voting module is unused).
+  scrip: {
+    name: 'Obsidian Credit',
+    symbol: 'OBSC',
+    supply: 1_000_000n * 10n ** 18n, // minted to the sovereign once, then distributed as rewards
+    payroll: 1_000n * 10n ** 18n,    // flavor grant to each sybil at issuance
+  },
+  // The vault: council-mode guild whose members are the whole swarm. 4-of-7 approvals move
+  // money; the donated community tokens are swept here from the hall and managed by council.
+  vault: {
+    name: 'obsidianvault',
+    metadata: 'OBSIDIAN VAULT — 4-of-7 council treasury of the Obsidian Trust. Community-donated assets under corporate custody.',
+    minApprovals: 4,
+    // Assets swept from the hall guild into the vault (full balance each sweep).
+    sweepTokens: [
+      { symbol: 'Q0', address: '0x00325150094E51107a931980Fdfc3bB1a4C48379' },
+      { symbol: 'QAXE', address: '0x0035187a7660f595D93cd53a4D16c635D6cFFC8f' },
+    ],
+  },
+};
+
+// Circleswap on Cyprus-1 mainnet — mirrored from b3js CircleswapProvider / q0 registries/deployed.ts.
+// There is NO direct Q0/WQUAI pair: Q0 trades through the QRB hub (verified 2026-10-19,
+// allPairs walk: QRB/WQUAI, BDELTA/QRB, BDELTA/Q0, BDELTA/WQUAI, Q0/QRB, QAXE/WQUAI, Q0/QAXE).
+const CIRCLESWAP = {
+  FACTORY: '0x001563Cc61F495eBF0D7d73Fd054Bc7eE245DD24',
+  ROUTER: '0x00591827868F2989Bb34DbCf71Ff5c48574d4D25',
+  WQUAI: '0x006C3e2AaAE5DB1bCd11A1a097cE572312EADdBB',
+  QRB: '0x0050A7fcB00521b75Bb5f3BC8e1D49FED7C08cE5',
+  Q0: '0x00325150094E51107a931980Fdfc3bB1a4C48379',
+};
+
+// Mutable treasury state across ticks (pair cache, price memory, position, scrip record).
+const TREASURY_STATE_PATH = path.join(ROOT, 'agents', 'treasury-state.json');
+function loadTreasuryState() {
+  try {
+    const s = JSON.parse(fs.readFileSync(TREASURY_STATE_PATH, 'utf8'));
+    s.desk ??= { proposalId: null, kind: null }; // council-desk trade in flight, if any
+    return s;
+  }
+  catch {
+    return {
+      pairs: null, readings: [], costBasis: null, q0Held: '0',
+      scripToken: null, scripMinted: false, scripPayrolled: false,
+      vault: { guild: null, module: null, swept: false, charterId: null, charterDone: false },
+      desk: { proposalId: null, kind: null },
+    };
+  }
+}
+function saveTreasuryState(s) {
+  fs.writeFileSync(TREASURY_STATE_PATH, JSON.stringify(s, null, 2) + '\n');
+}
+
+// ---------------------------------------------------------------------------
+// The Storyteller + the doctrine (see agents/CABAL.md)
+// ---------------------------------------------------------------------------
+
+// Private diary of the cabal — gitignored, the raw product the x402 gate will sell.
+const CHRONICLE_PATH = path.join(ROOT, 'agents', 'chronicle.jsonl');
+// Watchmen ledger — a snapshot of every registered guild, refreshed each tick.
+const INTEL_PATH = path.join(ROOT, 'agents', 'intel.json');
+const DOCTRINE_PATH = path.join(ROOT, 'agents', 'doctrine.json');
+
+function chronicle(event, details = {}) {
+  const line = JSON.stringify({ at: new Date().toISOString(), event, ...details });
+  try { fs.appendFileSync(CHRONICLE_PATH, line + '\n'); } catch { /* the diary never kills the mind */ }
+  console.log(`  chronicle: ${event}${details.note ? ` — ${details.note}` : ''}`);
+}
+
+function loadDoctrine() {
+  try {
+    const d = JSON.parse(fs.readFileSync(DOCTRINE_PATH, 'utf8'));
+    d.posture ??= 'dominate';
+    d.protectedGuilds ??= ['obsidiantrust', 'obsidianvault'];
+    return d;
+  } catch {
+    return { posture: 'dominate', protectedGuilds: ['obsidiantrust', 'obsidianvault'] };
+  }
+}
+
+function fail(msg) {
+  console.error(`error: ${msg}`);
+  process.exit(1);
+}
+
+function parseArgs(argv) {
+  const out = { flags: new Set() };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (!a.startsWith('--')) fail(`unexpected argument ${a}`);
+    const key = a.slice(2);
+    if (['broadcast', 'i-understand-unaudited', 'once', 'loop'].includes(key)) out.flags.add(key);
+    else if (['network', 'interval'].includes(key)) out[key] = argv[++i];
+    else fail(`unknown option ${a}`);
+  }
+  return out;
+}
+
+function artifact(name) {
+  const file = path.join(ROOT, 'artifacts/contracts', `${name}.sol`, `${name}.json`);
+  if (!fs.existsSync(file)) fail(`missing ${file}; run \`pnpm build\` first`);
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
+async function rpc(url, method, params) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) throw new Error(`RPC ${method}: HTTP ${res.status}`);
+  const json = await res.json();
+  if (json.error) throw new Error(`RPC ${method}: ${json.error.message}`);
+  return json.result;
+}
+
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+const jitter = (baseMs) => baseMs + Math.floor(Math.random() * baseMs); // human-ish spread
+
+// VoteOption in MajorityVoting.sol: None=0, Abstain=1, Yes=2, No=3. Do not reorder.
+const VOTE = { YES: 2, NO: 3 };
+
+function fmtQuai(wei) {
+  return `${wei / 10n ** 18n}.${(wei % 10n ** 18n).toString().padStart(18, '0').slice(0, 4)} QUAI`;
+}
+
+// ---------------------------------------------------------------------------
+// Swarm loading
+// ---------------------------------------------------------------------------
+
+function loadManifest() {
+  const file = path.join(ROOT, 'agents', 'manifest.json');
+  if (!fs.existsSync(file)) fail('agents/manifest.json not found; run scripts/agent-keys-new.mjs first');
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
+async function loadSwarm(manifest, provider, broadcast) {
+  const pwFile = path.join(ROOT, 'agents', 'keys', 'passwords.json');
+  if (broadcast && !fs.existsSync(pwFile)) fail('agents/keys/passwords.json not found');
+  const passwords = broadcast ? JSON.parse(fs.readFileSync(pwFile, 'utf8')) : {};
+  const swarm = new Map();
+  for (const id of manifest.identities) {
+    let wallet = null;
+    if (broadcast) {
+      const ks = path.join(ROOT, id.keystore);
+      wallet = (await Wallet.fromEncryptedJson(fs.readFileSync(ks, 'utf8'), passwords[id.id])).connect(provider);
+      if (wallet.address !== id.address) fail(`keystore ${id.id} unlocks ${wallet.address}, expected ${id.address}`);
+    }
+    swarm.set(id.id, { ...id, wallet });
+  }
+  return swarm;
+}
+
+// ---------------------------------------------------------------------------
+// Chain plumbing (same discipline as found-guild-quai.mjs: simulate, then sign)
+// ---------------------------------------------------------------------------
+
+async function waitConfirmed(net, hash, confirmations) {
+  const deadline = Date.now() + 30 * 60_000;
+  let seen = null;
+  while (Date.now() < deadline) {
+    const r = await rpc(net.rpc, 'quai_getTransactionReceipt', [hash]).catch(() => null);
+    if (r?.blockNumber) {
+      if (seen !== null && r.blockHash !== seen) console.log('  receipt moved block (reorg); recounting');
+      seen = r.blockHash;
+      const head = BigInt(await rpc(net.rpc, 'quai_blockNumber', []));
+      const depth = Number(head - BigInt(r.blockNumber)) + 1;
+      if (depth >= confirmations) {
+        const again = await rpc(net.rpc, 'quai_getTransactionReceipt', [hash]);
+        if (again?.blockHash === r.blockHash) return again;
+      }
+    }
+    await sleep(4000);
+  }
+  throw new Error(`no confirmed receipt for ${hash} after 30 minutes`);
+}
+
+let spentThisTick = 0n;
+
+async function act(net, who, tx, gasLimit, label, { broadcast, confirmations, exemptFromCap = false }) {
+  // JSON-RPC quantities are hex strings; BigInt would crash JSON.stringify.
+  const simTx = { ...tx, from: who.address };
+  if (simTx.value !== undefined) simTx.value = '0x' + BigInt(simTx.value).toString(16);
+  await rpc(net.rpc, 'quai_call', [simTx, 'latest']);
+  console.log(`  [${who.id}] ${label}: simulates cleanly`);
+  if (!broadcast) return null;
+  const gasPrice = BigInt(await rpc(net.rpc, 'quai_gasPrice', []));
+  const cost = gasLimit * gasPrice + BigInt(tx.value ?? 0);
+  if (!exemptFromCap) {
+    if (spentThisTick + cost > CORP.maxQuaiPerTick) {
+      console.log(`  [${who.id}] ${label}: skipped (tick spend cap ${fmtQuai(CORP.maxQuaiPerTick)} would be exceeded)`);
+      return null;
+    }
+    spentThisTick += cost;
+  }
+  const pop = await who.wallet.populateQuaiTransaction({ ...tx, from: who.address, gasLimit });
+  const signed = await who.wallet.signTransaction(QuaiTransaction.from(pop));
+  const zone = await who.wallet.zoneFromAddress(who.address);
+  const resp = await who.wallet.provider.broadcastTransaction(zone, signed, who.address);
+  console.log(`  [${who.id}] ${label}: sent ${resp.hash}`);
+  const receipt = await waitConfirmed(net, resp.hash, confirmations);
+  if (parseInt(receipt.status, 16) !== 1) fail(`${label} reverted (tx ${resp.hash})`);
+  console.log(`  [${who.id}] ${label}: confirmed in block ${parseInt(receipt.blockNumber, 16)}`);
+  return receipt;
+}
+
+// ---------------------------------------------------------------------------
+// Observation
+// ---------------------------------------------------------------------------
+
+function buildIfaces() {
+  return {
+    factory: new Interface(artifact('GuildFactory').abi),
+    registry: new Interface(artifact('GuildNameRegistry').abi),
+    token: new Interface(artifact('GovernanceToken').abi),
+    voting: new Interface(artifact('MajorityVoting').abi),
+    guild: new Interface(artifact('Guild').abi),
+    tokenStack: new Interface(artifact('TokenStackDeployer').abi),
+    council: new Interface(artifact('CouncilMultisig').abi),
+    ammFactory: new Interface(['function allPairsLength() view returns (uint256)', 'function allPairs(uint256) view returns (address)']),
+    pair: new Interface(['function getReserves() view returns (uint112, uint112, uint32)', 'function token0() view returns (address)', 'function token1() view returns (address)']),
+    router: new Interface([
+      'function swapExactETHForTokens(uint256 amountOutMin, address[] path, address to, uint256 deadline) payable returns (uint256[])',
+      'function swapExactTokensForETH(uint256 amountIn, uint256 amountOutMin, address[] path, address to, uint256 deadline) returns (uint256[])',
+    ]),
+    erc20: new Interface([
+      'function approve(address spender, uint256 amount) returns (bool)',
+      'function transfer(address to, uint256 amount) returns (bool)',
+      'function balanceOf(address owner) view returns (uint256)',
+      'function allowance(address owner, address spender) view returns (uint256)',
+      'function owner() view returns (address)',
+    ]),
+  };
+}
+
+async function call(net, to, data) {
+  return rpc(net.rpc, 'quai_call', [{ to, data }, 'latest']);
+}
+
+async function observe(net, ifaces, deployment, swarm) {
+  const state = { hall: null, proposals: [], balances: new Map(), votes: new Map() };
+  const resolved = await call(net, deployment.registry.address, ifaces.registry.encodeFunctionData('resolve', [CORP.name]));
+  if (BigInt(resolved) !== 0n) {
+    const guildAddr = getAddress('0x' + resolved.slice(-40));
+    const rec = ifaces.registry.decodeFunctionResult(
+      'recordOf',
+      await call(net, deployment.registry.address, ifaces.registry.encodeFunctionData('recordOf', [guildAddr])),
+    )[0];
+    state.hall = { guild: rec.guild, token: rec.token, module: rec.module };
+    state.proposalCount = Number(
+      ifaces.voting.decodeFunctionResult('proposalCount', await call(net, rec.module, ifaces.voting.encodeFunctionData('proposalCount', [])))[0],
+    );
+    // ProposalView carries no proposer; recover it from the ProposalCreated logs.
+    // quai_getLogs caps ranges at 10k blocks, so scan backwards in chunks until every
+    // known proposal id has a creator (or we run out of history — expired proposals
+    // are never acted on anyway).
+    const topic0 = ifaces.voting.getEvent('ProposalCreated').topicHash;
+    const proposers = new Map();
+    const head = BigInt(await rpc(net.rpc, 'quai_blockNumber', []));
+    const CHUNK = 9_500n;
+    for (let to = head; proposers.size < state.proposalCount && to > 0n;) {
+      const from = to > CHUNK ? to - CHUNK : 0n;
+      const logs = await rpc(net.rpc, 'quai_getLogs', [{
+        address: rec.module, topics: [topic0], fromBlock: '0x' + from.toString(16), toBlock: '0x' + to.toString(16),
+      }]);
+      for (const l of logs) proposers.set(Number(BigInt(l.topics[1])), getAddress('0x' + l.topics[2].slice(-40)));
+      if (from === 0n) break;
+      to = from - 1n;
+    }
+    for (let i = 0; i < state.proposalCount; i++) {
+      const p = ifaces.voting.decodeFunctionResult('getProposal', await call(net, rec.module, ifaces.voting.encodeFunctionData('getProposal', [i])))[0];
+      state.proposals.push({ id: i, metadata: p.metadata, yes: p.yes, no: p.no, supportThreshold: p.supportThreshold, executed: p.executed, endDate: Number(p.endDate), proposer: proposers.get(i) ?? null });
+    }
+    for (const [id, who] of swarm) {
+      const bal = ifaces.token.decodeFunctionResult('balanceOf', await call(net, rec.token, ifaces.token.encodeFunctionData('balanceOf', [who.address])))[0];
+      state.balances.set(id, bal);
+      const votes = ifaces.token.decodeFunctionResult('getVotes', await call(net, rec.token, ifaces.token.encodeFunctionData('getVotes', [who.address])))[0];
+      state.votes.set(id, votes);
+    }
+  }
+  for (const [id, who] of swarm) {
+    state.balances.set(`${id}:quai`, BigInt(await rpc(net.rpc, 'quai_getBalance', [who.address, 'latest'])));
+  }
+  return state;
+}
+
+// ---------------------------------------------------------------------------
+// Treasury — pair discovery, quotes, and the SPECULATE / ISSUE phases
+// ---------------------------------------------------------------------------
+
+/** Constant-product quote: Q0 out for QUAI in (0.3% fee), or QUAI out for Q0 in. */
+function quoteOut(amountIn, reserveIn, reserveOut) {
+  const withFee = amountIn * 997n;
+  return (withFee * reserveOut) / (reserveIn * 1000n + withFee);
+}
+
+// Tolerant single-uint decode: Q0 (and possibly other Cyprus-1 tokens) answer balanceOf /
+// allowance with a non-standard short word, which strict ABI decoding rejects. BigInt(raw)
+// is correct for any width. Encode stays strict; only uint decode goes through this.
+const uintOf = (raw) => BigInt(raw);
+
+/** Find the two pairs of the QRB route: QRB/WQUAI and Q0/QRB. Cached in treasury state. */
+async function discoverPairs(net, ifaces, ts) {
+  const n = Number(ifaces.ammFactory.decodeFunctionResult('allPairsLength',
+    await call(net, CIRCLESWAP.FACTORY, ifaces.ammFactory.encodeFunctionData('allPairsLength', [])))[0]);
+  console.log(`  treasury: walking ${Math.min(n, 200)} Circleswap pairs for the QRB route`);
+  const found = {};
+  for (let i = 0; i < Math.min(n, 200); i++) {
+    const pair = getAddress('0x' + (await call(net, CIRCLESWAP.FACTORY,
+      ifaces.ammFactory.encodeFunctionData('allPairs', [i]))).slice(-40));
+    const t0 = getAddress('0x' + (await call(net, pair, ifaces.pair.encodeFunctionData('token0', []))).slice(-40));
+    const t1 = getAddress('0x' + (await call(net, pair, ifaces.pair.encodeFunctionData('token1', []))).slice(-40));
+    const set = [t0.toLowerCase(), t1.toLowerCase()];
+    const has = (a) => set.includes(a.toLowerCase());
+    if (has(CIRCLESWAP.QRB) && has(CIRCLESWAP.WQUAI)) found.qrbWquai = { pair, wquaiIsToken0: t0.toLowerCase() === CIRCLESWAP.WQUAI.toLowerCase() };
+    if (has(CIRCLESWAP.QRB) && has(CIRCLESWAP.Q0)) found.q0Qrb = { pair, q0IsToken0: t0.toLowerCase() === CIRCLESWAP.Q0.toLowerCase() };
+  }
+  if (!found.qrbWquai || !found.q0Qrb) {
+    console.log(`  treasury: route incomplete — qrbWquai ${found.qrbWquai?.pair ?? 'MISSING'}, q0Qrb ${found.q0Qrb?.pair ?? 'MISSING'}; standing down`);
+    return null;
+  }
+  ts.pairs = found;
+  saveTreasuryState(ts);
+  console.log(`  treasury: route ${found.qrbWquai.pair} (QRB/WQUAI) -> ${found.q0Qrb.pair} (Q0/QRB)`);
+  return found;
+}
+
+/** Reserves of both hop pairs as { rW, rR1, rR2, rQ }: QUAI-side, QRB (hop1), QRB (hop2), Q0-side. */
+async function readRouteReserves(net, ifaces, pairs) {
+  const a = ifaces.pair.decodeFunctionResult('getReserves', await call(net, pairs.qrbWquai.pair, ifaces.pair.encodeFunctionData('getReserves', [])));
+  const b = ifaces.pair.decodeFunctionResult('getReserves', await call(net, pairs.q0Qrb.pair, ifaces.pair.encodeFunctionData('getReserves', [])));
+  return {
+    rW: pairs.qrbWquai.wquaiIsToken0 ? BigInt(a[0]) : BigInt(a[1]),
+    rR1: pairs.qrbWquai.wquaiIsToken0 ? BigInt(a[1]) : BigInt(a[0]),
+    rQ: pairs.q0Qrb.q0IsToken0 ? BigInt(b[0]) : BigInt(b[1]),
+    rR2: pairs.q0Qrb.q0IsToken0 ? BigInt(b[1]) : BigInt(b[0]),
+  };
+}
+
+/** Two-hop quote through the QRB hub. */
+function quoteRoute(amountIn, rIn1, rOut1, rIn2, rOut2) {
+  return quoteOut(quoteOut(amountIn, rIn1, rOut1), rIn2, rOut2);
+}
+
+/** QUAI per Q0 scaled 1e18, composed from both pairs. */
+function routePriceE18(r) {
+  return (r.rW * 10n ** 18n / r.rR1) * r.rR2 / r.rQ;
+}
+
+// DESK — the treasury strategy, executed entirely from the 4-of-7 council vault.
+// Every tick: (1) sweep sovereign QUAI above the gas float into council custody,
+// (2) drive any in-flight council trade proposal toward execution, (3) read the
+// market and, on a signal, file the trade as a council proposal and push it
+// through all 4 approvals in the same tick. The swarm holds every council key,
+// so approval is automatic — but the treasury never sits behind fewer than 4
+// signatures, the sovereign EOA included. Dry runs still record the reading.
+async function deskOps(net, sovereign, swarm, ifaces, ts, opts, sovQuai) {
+  if (!ts.vault?.guild || !ts.vault?.module) return false; // no council custody yet — nothing to desk
+  const t = CORP.treasury, d = CORP.desk;
+  const vault = ts.vault.guild, council = ts.vault.module;
+  const deskOpts = { ...opts, exemptFromCap: true }; // bounded fixed tx set per trade; owner-directed strategy
+
+  // (1) Consolidation: every QUAI above the gas float belongs to the council.
+  if (sovQuai > d.gasFloat + d.sweepMargin) {
+    const amount = sovQuai - d.gasFloat;
+    console.log(`phase DESK: consolidate ${fmtQuai(amount)} sovereign -> vault (float ${fmtQuai(d.gasFloat)} stays for gas)`);
+    await act(net, sovereign, { to: vault, value: amount, data: '0x' }, 100_000n, `sweep ${fmtQuai(amount)} to vault`, deskOpts);
+  }
+
+  const councilCall = (data) => call(net, council, data);
+  const getProp = async (id) => ifaces.council.decodeFunctionResult('getProposal',
+    await councilCall(ifaces.council.encodeFunctionData('getProposal', [id])))[0];
+
+  // Drive a council trade proposal through its approvals. Sybils approve first with
+  // cheap non-executing calls; the approval that can cross minApprovals carries
+  // tryExecution and a gas limit that covers the swap. Members who cannot cover the
+  // intrinsic gas cost are skipped this tick instead of failing on broadcast.
+  // Returns 'executed' | 'open'.
+  const driveProposal = async (id) => {
+    const order = ['director-1', 'director-2', 'worker-1', 'worker-2', 'worker-3', 'sentinel', 'sovereign'];
+    const gasPrice = BigInt(await rpc(net.rpc, 'quai_gasPrice', []));
+    let count = Number((await getProp(id)).approvals);
+    for (const mid of order) {
+      const w = swarm.get(mid);
+      const approved = ifaces.council.decodeFunctionResult('hasApproved',
+        await councilCall(ifaces.council.encodeFunctionData('hasApproved', [id, w.address])))[0];
+      if (approved) continue;
+      const executing = count >= Number(3); // this approval can reach the 4-of-7 threshold
+      const gasLimit = executing ? 800_000n : 150_000n;
+      const balance = BigInt(await rpc(net.rpc, 'quai_getBalance', [w.address, 'latest']));
+      if (balance < gasLimit * gasPrice) {
+        console.log(`  desk: ${mid} cannot cover ${executing ? 'executing ' : ''}approval gas (${fmtQuai(balance)} < ${fmtQuai(gasLimit * gasPrice)}) — skipped this tick`);
+        continue;
+      }
+      const receipt = await act(net, w, {
+        to: council, data: ifaces.council.encodeFunctionData('approve', [BigInt(id), executing]),
+      }, gasLimit, `council approve #${id}${executing ? ' + execute' : ''} (${mid})`, deskOpts);
+      if (opts.broadcast && receipt) count++;
+      await sleep(jitter(8_000));
+      if (!(opts.broadcast)) continue;
+      if ((await getProp(id)).executed) return 'executed';
+    }
+    return (await getProp(id)).executed ? 'executed' : 'open';
+  };
+
+  // Settle an executed desk trade into position state: refresh the vault's Q0,
+  // and for buys fold the fill into the weighted cost basis recorded at filing.
+  const settleTrade = async (kind) => {
+    const nowHeld = uintOf(await call(net, CIRCLESWAP.Q0, ifaces.erc20.encodeFunctionData('balanceOf', [vault])));
+    if (kind === 'buy' && ts.desk.q0Before !== undefined && ts.desk.priceE18) {
+      const before = BigInt(ts.desk.q0Before);
+      const price = BigInt(ts.desk.priceE18);
+      const bought = nowHeld - before;
+      if (bought > 0n) {
+        ts.costBasis = before === 0n || !ts.costBasis
+          ? price.toString()
+          : ((BigInt(ts.costBasis) * before + price * bought) / (before + bought)).toString();
+        console.log(`  desk: +${bought / 10n ** 18n} Q0 settled · cost basis ${(Number(BigInt(ts.costBasis)) / 1e18).toExponential(4)} QUAI`);
+      }
+    } else if (kind === 'sell' && nowHeld === 0n) {
+      ts.costBasis = null;
+    }
+    ts.q0Held = nowHeld.toString();
+    ts.desk = { proposalId: null, kind: null };
+    saveTreasuryState(ts);
+    chronicle('desk-trade-settled', { note: `${kind} settled — the vault holds ${nowHeld / 10n ** 18n} Q0`, kind, q0Held: nowHeld.toString() });
+  };
+
+  // (2) An in-flight desk trade? Finish it before reading the market again.
+  if (ts.desk.proposalId !== null && ts.desk.proposalId !== undefined) {
+    const id = Number(ts.desk.proposalId);
+    const onChainCount = Number(ifaces.council.decodeFunctionResult('proposalCount',
+      await councilCall(ifaces.council.encodeFunctionData('proposalCount', [])))[0]);
+    if (id >= onChainCount) {
+      console.log(`phase DESK: recorded trade #${id} never landed on chain (council has ${onChainCount} proposals) — discarding phantom state`);
+      ts.desk = { proposalId: null, kind: null };
+      saveTreasuryState(ts);
+    } else {
+    const p = await getProp(id);
+    if (p.executed) {
+      console.log(`phase DESK: council trade #${id} (${ts.desk.kind}) executed`);
+      await settleTrade(ts.desk.kind);
+    } else {
+      const ageS = (Date.now() - Number(p.createdAt) * 1000) / 1000;
+      if (ageS > Number(d.deadlineSeconds)) {
+        console.log(`phase DESK: council trade #${id} went stale (${Math.floor(ageS / 60)}min old) — abandoning it; its swap deadline is spent`);
+        ts.desk = { proposalId: null, kind: null };
+      } else {
+        console.log(`phase DESK: council trade #${id} (${ts.desk.kind}) open — approvals ${p.approvals}/4`);
+        if (opts.broadcast && (await driveProposal(id)) === 'executed') {
+          console.log(`phase DESK: council trade #${id} executed`);
+          ts.desk = { proposalId: null, kind: null };
+        }
+        saveTreasuryState(ts);
+        return true;
+      }
+    }
+    saveTreasuryState(ts);
+    }
+  }
+
+  // (3) Market read + signal.
+  if (!ts.pairs) {
+    await discoverPairs(net, ifaces, ts);
+    return true; // discovery is this tick's treasury work
+  }
+  const r = await readRouteReserves(net, ifaces, ts.pairs);
+  const priceE18 = routePriceE18(r); // QUAI per Q0, scaled
+  ts.readings.push({ at: Date.now(), priceE18: priceE18.toString() });
+  ts.readings = ts.readings.slice(-24);
+  // The position is the VAULT's, refreshed from the chain every tick.
+  const q0Held = uintOf(await call(net, CIRCLESWAP.Q0, ifaces.erc20.encodeFunctionData('balanceOf', [vault])));
+  const vaultQuai = BigInt(await rpc(net.rpc, 'quai_getBalance', [vault, 'latest']));
+  ts.q0Held = q0Held.toString();
+  saveTreasuryState(ts);
+
+  const px = Number(priceE18) / 1e18;
+  console.log(`  desk: Q0/QUAI ${px.toExponential(4)} via QRB · hop1 ${fmtQuai(r.rW)} WQUAI · hop2 ${r.rQ / 10n ** 18n} Q0 · vault ${fmtQuai(vaultQuai)} + ${q0Held / 10n ** 18n} Q0`);
+
+  // File a trade as a council proposal and drive it in the same tick.
+  const fileTrade = async (kind, metadata, actions) => {
+    const id = Number(ifaces.council.decodeFunctionResult('proposalCount',
+      await councilCall(ifaces.council.encodeFunctionData('proposalCount', [])))[0]);
+    const director = swarm.get(`director-${(id % 2) + 1}`);
+    console.log(`phase DESK: ${director.id} files council ${kind}: "${metadata}"`);
+    const receipt = await act(net, director, {
+      to: council, data: ifaces.council.encodeFunctionData('createProposal', [metadata, actions]),
+    }, 500_000n, `council createProposal (${kind})`, deskOpts);
+    if (!opts.broadcast) return; // dry run — do not record a proposal that was never filed
+    if (!receipt) return; // simulation passed but send failed — retry next tick
+    ts.desk = { proposalId: id, kind, priceE18: priceE18.toString(), q0Before: q0Held.toString() };
+    saveTreasuryState(ts);
+    chronicle('desk-trade-filed', { note: metadata, proposalId: id, kind });
+    if (opts.broadcast && (await driveProposal(id)) === 'executed') {
+      console.log(`phase DESK: council ${kind} #${id} executed same tick`);
+      await settleTrade(kind);
+    }
+  };
+
+  // Take profit: price ≥ +8% over cost basis and the vault holds a position. Skim 1/5.
+  if (q0Held > 0n && ts.costBasis && priceE18 * 10_000n >= BigInt(ts.costBasis) * (10_000n + t.takeProfitBps)) {
+    const amount = q0Held / t.sellDivisor;
+    if (amount === 0n) return false;
+    const quaiOut = quoteRoute(amount, r.rQ, r.rR2, r.rR1, r.rW);
+    const minOut = (quaiOut * (10_000n - t.slippageBps)) / 10_000n;
+    const deadline = BigInt(Math.floor(Date.now() / 1000)) + d.deadlineSeconds;
+    console.log(`phase DESK: take profit — vault sells ${amount / 10n ** 18n} Q0 (>= ${fmtQuai(minOut)} min)`);
+    await fileTrade('sell', `DESK SELL — skim ${amount / 10n ** 18n} Q0 at +8% over basis (>= ${fmtQuai(minOut)} min, 4h deadline)`, [
+      [CIRCLESWAP.Q0, 0n, ifaces.erc20.encodeFunctionData('approve', [CIRCLESWAP.ROUTER, amount])],
+      [CIRCLESWAP.ROUTER, 0n, ifaces.router.encodeFunctionData('swapExactTokensForETH', [amount, minOut, [CIRCLESWAP.Q0, CIRCLESWAP.QRB, CIRCLESWAP.WQUAI], vault, deadline])],
+    ]);
+    return true;
+  }
+
+  // Accumulate: dips AND breakouts, sized off the VAULT's free capital.
+  if (ts.readings.length >= 7) {
+    const prev = ts.readings.slice(-7, -1).map((x) => BigInt(x.priceE18));
+    const avg = prev.reduce((a, b) => a + b, 0n) / BigInt(prev.length);
+    const dipped = priceE18 * 10_000n <= avg * (10_000n - t.dipBps);
+    const crashed = priceE18 * 10_000n <= avg * (10_000n - t.crashBps);
+    const breakout = priceE18 * 10_000n >= avg * (10_000n + t.momentumBps);
+    if (dipped || breakout) {
+      const free = vaultQuai > d.vaultReserveFloor ? vaultQuai - d.vaultReserveFloor : 0n;
+      let amountIn = free / 10n;
+      if (amountIn < t.perTradeBudget) amountIn = t.perTradeBudget;
+      if (amountIn > t.maxTradeBudget) amountIn = t.maxTradeBudget;
+      if (crashed) {
+        amountIn *= 2n;
+        if (amountIn > t.maxTradeBudget) amountIn = t.maxTradeBudget;
+      }
+      const signal = crashed ? 'crash' : dipped ? 'dip' : 'breakout';
+      if (vaultQuai <= d.vaultReserveFloor + amountIn) {
+        console.log(`phase DESK: ${signal} signalled but the vault is at its reserve floor — standing down`);
+        return false;
+      }
+      const qrbOut = quoteOut(amountIn, r.rW, r.rR1);
+      const impact1 = (amountIn * 10_000n) / r.rW;
+      const impact2 = (qrbOut * 10_000n) / r.rR2;
+      if (impact1 > t.maxImpactBps || impact2 > t.maxImpactBps) {
+        console.log(`phase DESK: ${signal} signalled but hop impact ${Number(impact1) / 100}%/${Number(impact2) / 100}% exceeds policy — refusing to chase a thin pool`);
+        return false;
+      }
+      const expected = quoteOut(qrbOut, r.rR2, r.rQ);
+      const minOut = (expected * (10_000n - t.slippageBps)) / 10_000n;
+      const depth = Number((avg > priceE18 ? avg - priceE18 : priceE18 - avg) * 10_000n / avg) / 100;
+      const deadline = BigInt(Math.floor(Date.now() / 1000)) + d.deadlineSeconds;
+      console.log(`phase DESK: ${signal} (${depth}% ${dipped ? 'under' : 'over'} 6-tick average) — vault buys with ${fmtQuai(amountIn)} -> >= ${minOut / 10n ** 18n} Q0 via QRB`);
+      await fileTrade('buy', `DESK BUY — ${signal}: ${fmtQuai(amountIn)} into Q0 (>= ${minOut / 10n ** 18n} Q0 min, 4h deadline)`, [
+        [CIRCLESWAP.ROUTER, amountIn, ifaces.router.encodeFunctionData('swapExactETHForTokens', [minOut, [CIRCLESWAP.WQUAI, CIRCLESWAP.QRB, CIRCLESWAP.Q0], vault, deadline])],
+      ]);
+      return true;
+    }
+  }
+  console.log(`  desk: no signal (need ${Math.max(0, 7 - ts.readings.length)} more readings, or a dip/crash/rip)`);
+  return false;
+}
+
+// ISSUE — one-time corporate scrip for player engagement, deployed through the live
+// TokenStackDeployer with guild := sovereign so the EOA owns minting. Three steps over
+// three quiet ticks: deploy, mint the supply to the sovereign, payroll the sybils.
+async function issue(net, sovereign, sybils, ifaces, ts, deployment, opts, sovQuai) {
+  const s = CORP.scrip;
+  if (!ts.scripToken) {
+    if (sovQuai <= CORP.treasury.reserveFloor + 200n * 10n ** 18n) {
+      console.log(`phase ISSUE: scrip deployment deferred — treasury within 200 QUAI of the reserve floor`);
+      return false; // deferred is not "handled": let lower-priority phases (vault, agenda) run
+    }
+    console.log(`phase ISSUE: deploying ${s.name} (${s.symbol}) through the TokenStackDeployer`);
+    const data = ifaces.tokenStack.encodeFunctionData('deploy', [sovereign.address, s.name, s.symbol, 5_000n, 1_000n, 3_600n]);
+    // Predict the token address from the same call (CREATE addresses are nonce-deterministic).
+    const predicted = ifaces.tokenStack.decodeFunctionResult('deploy',
+      await call(net, deployment.tokenStack.address, data))[0];
+    const receipt = await act(net, sovereign, { to: deployment.tokenStack.address, data }, 12_000_000n,
+      `deploy ${s.symbol}`, { ...opts, exemptFromCap: true });
+    if (receipt) {
+      // Verify the predicted contract is real and ours before trusting it.
+      const code = await rpc(net.rpc, 'quai_getCode', [predicted, 'latest']);
+      const owner = getAddress('0x' + (await call(net, predicted, ifaces.erc20.encodeFunctionData('owner', []))).slice(-40));
+      if (code === '0x' || owner.toLowerCase() !== sovereign.address.toLowerCase()) {
+        fail(`scrip verification failed: code ${code === '0x' ? 'missing' : 'present'}, owner ${owner} — operator must inspect ${predicted}`);
+      }
+      ts.scripToken = predicted;
+      saveTreasuryState(ts);
+      console.log(`  scrip live at ${predicted} (owner: sovereign)`);
+    }
+    return true;
+  }
+  if (!ts.scripMinted) {
+    console.log(`phase ISSUE: minting ${s.supply / 10n ** 18n} ${s.symbol} to the sovereign`);
+    const receipt = await act(net, sovereign, {
+      to: ts.scripToken, data: ifaces.token.encodeFunctionData('mint', [sovereign.address, s.supply]),
+    }, 200_000n, `mint ${s.symbol} supply`, opts);
+    if (receipt) { ts.scripMinted = true; saveTreasuryState(ts); }
+    return true;
+  }
+  if (!ts.scripPayrolled) {
+    console.log(`phase ISSUE: payroll — ${s.payroll / 10n ** 18n} ${s.symbol} to each sybil`);
+    for (const w of sybils) {
+      await act(net, sovereign, {
+        to: ts.scripToken, data: ifaces.token.encodeFunctionData('transfer', [w.address, s.payroll]),
+      }, 200_000n, `payroll ${s.symbol} -> ${w.id}`, opts);
+      await sleep(jitter(5_000));
+    }
+    if (opts.broadcast) { ts.scripPayrolled = true; saveTreasuryState(ts); }
+    return true;
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Vault — the 4-of-7 council treasury (obsidianvault)
+// ---------------------------------------------------------------------------
+
+// VAULT — custody for community-donated assets. Found the council guild, sweep the
+// hall's donated tokens into it via a hall proposal (the bloc passes it through the
+// normal GOVERN flow), then prove the multisig with a charter proposal: 4 approvals
+// and it executes. One step per quiet tick.
+async function vaultOps(net, sovereign, swarm, ifaces, ts, deployment, opts, state) {
+  const v = CORP.vault;
+  const sybils = [...swarm.values()];
+
+  // Step 1: found the council guild.
+  if (!ts.vault.guild) {
+    const resolved = await call(net, deployment.registry.address, ifaces.registry.encodeFunctionData('resolve', [v.name]));
+    if (BigInt(resolved) !== 0n) {
+      const guildAddr = getAddress('0x' + resolved.slice(-40));
+      const rec = ifaces.registry.decodeFunctionResult('recordOf',
+        await call(net, deployment.registry.address, ifaces.registry.encodeFunctionData('recordOf', [guildAddr])))[0];
+      ts.vault.guild = rec.guild;
+      ts.vault.module = rec.module;
+      saveTreasuryState(ts);
+      console.log(`  vault: resolved ${v.name} — guild ${rec.guild} module ${rec.module}`);
+      return true;
+    }
+    console.log(`phase VAULT: founding council guild "${v.name}" (${v.minApprovals}-of-${sybils.length})`);
+    const params = {
+      name: v.name, metadata: v.metadata, mode: 1, // Council
+      tokenName: '', tokenSymbol: '', initialSupply: 0n,
+      supportThreshold: 0n, minParticipation: 0n, minDuration: 0n,
+      members: sybils.map((w) => w.address), minApprovals: BigInt(v.minApprovals),
+    };
+    const receipt = await act(net, sovereign, {
+      to: deployment.factory.address, data: ifaces.factory.encodeFunctionData('foundGuild', [params]),
+    }, CORP.vaultGas, `foundGuild(${v.name})`, { ...opts, exemptFromCap: true });
+    if (receipt) {
+      const guildAddr = getAddress('0x' + (await call(net, deployment.registry.address, ifaces.registry.encodeFunctionData('resolve', [v.name]))).slice(-40));
+      const rec = ifaces.registry.decodeFunctionResult('recordOf',
+        await call(net, deployment.registry.address, ifaces.registry.encodeFunctionData('recordOf', [guildAddr])))[0];
+      ts.vault.guild = rec.guild;
+      ts.vault.module = rec.module;
+      saveTreasuryState(ts);
+      console.log(`  vault live: guild ${rec.guild} council ${rec.module}`);
+    }
+    return true;
+  }
+
+  // Step 2: sweep the hall guild's donated tokens into the vault via a hall proposal.
+  // The bloc then passes it through the normal GOVERN machinery (file-only here).
+  if (!ts.vault.swept) {
+    const actions = [];
+    const lines = [];
+    for (const tok of v.sweepTokens) {
+      const bal = uintOf(await call(net, tok.address, ifaces.erc20.encodeFunctionData('balanceOf', [state.hall.guild])));
+      if (bal === 0n) continue;
+      actions.push([tok.address, 0n, ifaces.erc20.encodeFunctionData('transfer', [ts.vault.guild, bal])]);
+      lines.push(`${bal / 10n ** 18n} ${tok.symbol}`);
+    }
+    if (actions.length === 0) {
+      ts.vault.swept = true; // nothing left at the hall; consider the sweep complete
+      saveTreasuryState(ts);
+      return true;
+    }
+    const open = state.proposals.find((p) => !p.executed && p.endDate * 1000 > Date.now());
+    if (open) {
+      console.log(`  vault: sweep (${lines.join(', ')}) waits for proposal #${open.id} to close`);
+      return true;
+    }
+    const metadata = `VAULT SWEEP — move ${lines.join(' + ')} from the hall into council custody (${ts.vault.guild}).`;
+    const director = swarm.get(`director-${(state.proposalCount % 2) + 1}`);
+    console.log(`phase VAULT: ${director.id} files "${metadata}"`);
+    await act(net, director, {
+      to: state.hall.module,
+      data: ifaces.voting.encodeFunctionData('createProposal', [metadata, actions, 0n, 0n]),
+    }, 1_500_000n, `createProposal (vault sweep)`, { ...opts, exemptFromCap: true });
+    // Do NOT mark swept here: swept is earned when the on-chain balances reach zero
+    // (top of this step), after GOVERN passes and executes the proposal.
+    return true;
+  }
+
+  // Step 3: charter the multisig — one council proposal, approvals until execution.
+  if (!ts.vault.charterDone) {
+    const module = ts.vault.module;
+    const count = Number(ifaces.council.decodeFunctionResult('proposalCount',
+      await call(net, module, ifaces.council.encodeFunctionData('proposalCount', [])))[0]);
+    if (ts.vault.charterId === null) {
+      if (count > 0) { ts.vault.charterId = 0; saveTreasuryState(ts); return true; }
+      const director = swarm.get('director-1');
+      console.log(`phase VAULT: ${director.id} files the vault charter (empty actions — proves the 4-of-7)`);
+      const receipt = await act(net, director, {
+        to: module,
+        data: ifaces.council.encodeFunctionData('createProposal', ['VAULT CHARTER — this council holds the community treasury. Four keys turn; no one moves alone.', []]),
+      }, 1_000_000n, `council createProposal (charter)`, opts);
+      if (opts.broadcast && receipt) { ts.vault.charterId = 0; saveTreasuryState(ts); }
+      return true;
+    }
+    const id = ts.vault.charterId;
+    const p = ifaces.council.decodeFunctionResult('getProposal',
+      await call(net, module, ifaces.council.encodeFunctionData('getProposal', [id])))[0];
+    if (p.executed) {
+      ts.vault.charterDone = true;
+      saveTreasuryState(ts);
+      console.log(`  vault: charter executed — the ${v.minApprovals}-of-${sybils.length} council is live`);
+      return true;
+    }
+    // Approve with members that haven't yet; the 4th approval tries execution.
+    for (const w of sybils) {
+      const approved = ifaces.council.decodeFunctionResult('hasApproved',
+        await call(net, module, ifaces.council.encodeFunctionData('hasApproved', [id, w.address])))[0];
+      if (approved) continue;
+      console.log(`phase VAULT: ${w.id} approves the charter`);
+      await act(net, w, { to: module, data: ifaces.council.encodeFunctionData('approve', [id, true]) }, 500_000n, `council approve #${id}`, opts);
+      await sleep(jitter(8_000));
+      return true; // one approval per tick
+    }
+    // Everyone approved but not executed: finish it.
+    await act(net, swarm.get('sentinel'), { to: module, data: ifaces.council.encodeFunctionData('execute', [id]) }, 500_000n, `council execute #${id}`, opts);
+    if (opts.broadcast) { ts.vault.charterDone = true; saveTreasuryState(ts); }
+    return true;
+  }
+
+  return false; // vault is fully operational; nothing to do
+}
+
+// ---------------------------------------------------------------------------
+// WATCHMEN — the surveillance mesh (CABAL.md organ 2)
+// ---------------------------------------------------------------------------
+// Every tick, walk the GuildNameRegistry and snapshot EVERY corporation in the
+// gameworld: mode, module, proposal count, token. A guild that appears between
+// ticks is a birth, and the mind notices births. Read-only; per-guild faults are
+// logged and skipped — surveillance degrades, it never kills the tick.
+async function watchmen(net, ifaces, deployment) {
+  const doctrine = loadDoctrine();
+  const registry = deployment.registry.address;
+  const count = Number(ifaces.registry.decodeFunctionResult('count',
+    await call(net, registry, ifaces.registry.encodeFunctionData('count', [])))[0]);
+  let prev = null;
+  try { prev = new Set(JSON.parse(fs.readFileSync(INTEL_PATH, 'utf8')).guilds.map((g) => g.name)); } catch { prev = null; }
+  const guilds = [];
+  for (let i = 0; i < count; i++) {
+    try {
+      const name = ifaces.registry.decodeFunctionResult('nameAt',
+        await call(net, registry, ifaces.registry.encodeFunctionData('nameAt', [i])))[0];
+      const resolved = await call(net, registry, ifaces.registry.encodeFunctionData('resolve', [name]));
+      if (BigInt(resolved) === 0n) continue;
+      const guildAddr = getAddress('0x' + resolved.slice(-40));
+      const rec = ifaces.registry.decodeFunctionResult('recordOf',
+        await call(net, registry, ifaces.registry.encodeFunctionData('recordOf', [guildAddr])))[0];
+      let proposals = null;
+      try {
+        proposals = Number(ifaces.voting.decodeFunctionResult('proposalCount',
+          await call(net, rec.module, ifaces.voting.encodeFunctionData('proposalCount', [])))[0]);
+      } catch { proposals = null; } // module unreadable — record the hall anyway
+      const entry = {
+        name, guild: rec.guild, token: rec.token, module: rec.module,
+        mode: Number(rec.mode), proposals,
+        watched: doctrine.protectedGuilds.includes(name),
+      };
+      guilds.push(entry);
+      // First-ever sweep is the baseline — don't chronicle the whole world as born.
+      if (prev && !prev.has(name)) {
+        chronicle('guild-born', { note: `watchmen report a new corporation: ${name} (${rec.guild})`, guild: name });
+      }
+    } catch (e) {
+      console.log(`  watchmen: guild #${i} unreadable (${e?.message ?? e})`);
+    }
+  }
+  const foreign = guilds.filter((g) => !g.watched).length;
+  try {
+    fs.writeFileSync(INTEL_PATH, JSON.stringify({ at: new Date().toISOString(), count: guilds.length, guilds }, null, 2) + '\n');
+  } catch { /* ledger write failed; next tick retries */ }
+  console.log(`phase WATCHMEN: ${guilds.length} corporations under surveillance (${foreign} foreign)`);
+  chronicle('watchmen-sweep', { note: `${guilds.length} corporations under surveillance, ${foreign} foreign`, count: guilds.length, foreign });
+}
+
+// ---------------------------------------------------------------------------
+// The brain
+// ---------------------------------------------------------------------------
+async function tick(net, deployment, swarm, state, opts) {
+  const sovereign = swarm.get('sovereign');
+  const sybils = [...swarm.values()].filter((w) => w.role !== 'sovereign');
+  const ifaces = buildIfaces();
+
+  // FOUND — the sovereign establishes the hall.
+  if (!state.hall) {
+    console.log(`phase FOUND: "${CORP.name}" does not resolve; the sovereign founds it`);
+    const params = {
+      name: CORP.name, metadata: CORP.metadata, mode: 0,
+      tokenName: CORP.tokenName, tokenSymbol: CORP.tokenSymbol, initialSupply: CORP.initialSupply,
+      supportThreshold: CORP.supportThreshold, minParticipation: CORP.minParticipation,
+      minDuration: CORP.minDuration, members: [], minApprovals: 0n,
+    };
+    await act(net, sovereign, { to: deployment.factory.address, data: ifaces.factory.encodeFunctionData('foundGuild', [params]) },
+      CORP.foundingGas, `foundGuild(${CORP.name})`, { ...opts, exemptFromCap: true });
+    return;
+  }
+
+  // FUND — gas stipends so every sybil can sign.
+  const unfunded = sybils.filter((w) => state.balances.get(`${w.id}:quai`) < CORP.gasStipend / 2n);
+  if (unfunded.length > 0) {
+    console.log(`phase FUND: ${unfunded.length} sybils need gas`);
+    for (const w of unfunded) {
+      await act(net, sovereign, { to: w.address, value: CORP.gasStipend, data: '0x' }, 100_000n, `stipend ${fmtQuai(CORP.gasStipend)} -> ${w.id}`, opts);
+      await sleep(jitter(3_000));
+    }
+    return;
+  }
+
+  // DISTRIBUTE — token parcels make the bloc look (and vote) like a membership.
+  const empty = sybils.filter((w) => state.balances.get(w.id) === 0n);
+  if (empty.length > 0) {
+    console.log(`phase DISTRIBUTE: ${empty.length} parcels to deliver`);
+    for (const w of empty) {
+      const amount = BigInt(w.parcel) * 10n ** 18n;
+      await act(net, sovereign, { to: state.hall.token, data: ifaces.token.encodeFunctionData('transfer', [w.address, amount]) },
+        200_000n, `transfer ${w.parcel} ${CORP.tokenSymbol} -> ${w.id}`, opts);
+      await sleep(jitter(5_000));
+    }
+    return;
+  }
+
+  // DELEGATE — balances become votes only after self-delegation (ERC20Votes).
+  const powerless = [...swarm.values()].filter((w) => state.balances.get(w.id) > 0n && state.votes.get(w.id) === 0n);
+  if (powerless.length > 0) {
+    console.log(`phase DELEGATE: ${powerless.length} identities arm their voting power`);
+    for (const w of powerless) {
+      await act(net, w, { to: state.hall.token, data: ifaces.token.encodeFunctionData('delegate', [w.address]) }, 200_000n, `delegate(self)`, opts);
+      await sleep(jitter(5_000));
+    }
+    return;
+  }
+
+  // WATCH / GOVERN — scan for hostile proposals first, then advance the agenda.
+  const swarmAddresses = new Set([...swarm.values()].map((w) => w.address.toLowerCase()));
+  // Unknown proposer (log not found) is treated as hostile: corporate paranoia is policy.
+  const hostile = state.proposals.filter((p) => !(p.proposer && swarmAddresses.has(p.proposer.toLowerCase())) && !p.executed && p.endDate * 1000 > Date.now());
+  if (hostile.length > 0) {
+    const doctrine = loadDoctrine();
+    if (doctrine.posture !== 'dominate') {
+      console.log(`phase POLICE: ${hostile.length} hostile proposals open; posture "${doctrine.posture}" — logging only`);
+      chronicle('hostile-observed', { note: `${hostile.length} foreign proposals open on the home hall`, ids: hostile.map((p) => p.id) });
+      return;
+    }
+    console.log(`phase POLICE: ${hostile.length} hostile proposals open; the bloc votes NO`);
+    for (const p of hostile) {
+      for (const w of [...swarm.values()]) {
+        const already = ifaces.voting.decodeFunctionResult(
+          'voteOf', await call(net, state.hall.module, ifaces.voting.encodeFunctionData('voteOf', [p.id, w.address])))[0];
+        if (Number(already) !== 0) continue;
+        await act(net, w, { to: state.hall.module, data: ifaces.voting.encodeFunctionData('vote', [p.id, VOTE.NO, true]) }, 300_000n, `vote NO on #${p.id}`, opts);
+        await sleep(jitter(10_000));
+      }
+    }
+    if (opts.broadcast) chronicle('police-action', { note: `the bloc votes NO on ${hostile.map((p) => '#' + p.id).join(', ')} — corporate domination posture`, ids: hostile.map((p) => p.id) });
+    return;
+  }
+
+  const open = state.proposals.find((p) => !p.executed && p.endDate * 1000 > Date.now());
+  if (open) {
+    // Bloc votes YES with staggered timing; the sentinel goes last and early-executes.
+    const pending = [];
+    for (const w of [...swarm.values()]) {
+      const already = ifaces.voting.decodeFunctionResult(
+        'voteOf', await call(net, state.hall.module, ifaces.voting.encodeFunctionData('voteOf', [open.id, w.address])))[0];
+      if (Number(already) === 0) pending.push(w);
+    }
+    if (pending.length > 0) {
+      // Don't spend on a lost cause: if every unvoted swarm identity voting YES still
+      // can't reach the captured support threshold, wait out the expiry instead.
+      const pendingPower = pending.reduce((sum, w) => sum + state.votes.get(w.id), 0n);
+      const bestYes = open.yes + pendingPower;
+      if (bestYes * 10_000n < (bestYes + open.no) * open.supportThreshold) {
+        console.log(`phase GOVERN: proposal #${open.id} is mathematically dead (best YES ${bestYes / 10n ** 18n} vs NO ${open.no / 10n ** 18n}); waiting out expiry`);
+        return;
+      }
+      console.log(`phase GOVERN: proposal #${open.id} open; ${pending.length} bloc votes to cast`);
+      pending.sort((a, b) => (a.role === 'sentinel' ? 1 : 0) - (b.role === 'sentinel' ? 1 : 0));
+      for (const w of pending) {
+        const early = w.role === 'sentinel'; // last vote attempts early execution
+        await act(net, w, { to: state.hall.module, data: ifaces.voting.encodeFunctionData('vote', [open.id, VOTE.YES, early]) }, 500_000n, `vote YES on #${open.id}${early ? ' + execute' : ''}`, opts);
+        await sleep(jitter(15_000));
+      }
+      return;
+    }
+    const canExec = ifaces.voting.decodeFunctionResult(
+      'canExecute', await call(net, state.hall.module, ifaces.voting.encodeFunctionData('canExecute', [open.id])))[0];
+    if (canExec) {
+      const sentinel = swarm.get('sentinel');
+      await act(net, sentinel, { to: state.hall.module, data: ifaces.voting.encodeFunctionData('execute', [open.id]) }, 1_000_000n, `execute #${open.id}`, opts);
+    }
+    return;
+  }
+
+  // Quiet tick — no hostile fire, no open vote. Treasury, vault, then the agenda.
+  const ts = loadTreasuryState();
+  const sovQuai = state.balances.get('sovereign:quai');
+  if (await deskOps(net, sovereign, swarm, ifaces, ts, opts, sovQuai)) return;
+  if (await issue(net, sovereign, sybils, ifaces, ts, deployment, opts, sovQuai)) return;
+  if (await vaultOps(net, sovereign, swarm, ifaces, ts, deployment, opts, state)) return;
+
+  // Nothing else to do: a director files the next agenda item.
+  const nextAgenda = CORP.agendas[state.proposalCount % CORP.agendas.length];
+  const director = swarm.get(`director-${(state.proposalCount % 2) + 1}`);
+  console.log(`phase GOVERN: ${director.id} files "${nextAgenda}"`);
+  await act(net, director, {
+    to: state.hall.module,
+    data: ifaces.voting.encodeFunctionData('createProposal', [nextAgenda, [], 0n, 0n]),
+  }, 1_000_000n, `createProposal`, opts);
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const net = NETWORKS[args.network];
+  if (!net) fail('--network orchard|mainnet is required');
+  const broadcast = args.flags.has('broadcast');
+  if (args.network === 'mainnet' && broadcast && !args.flags.has('i-understand-unaudited')) {
+    fail('refusing a mainnet broadcast: these contracts have not had an independent audit. Pass --i-understand-unaudited to proceed anyway.');
+  }
+  const confirmations = net.confirmations;
+  const deploymentPath = path.join(ROOT, 'deployments', `${args.network}.json`);
+  if (!fs.existsSync(deploymentPath)) fail(`${deploymentPath} not found`);
+  const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
+
+  const chainId = BigInt(await rpc(net.rpc, 'quai_chainId', []));
+  if (chainId !== net.chainId) fail(`RPC reports chain ${chainId}, expected ${net.chainId}`);
+
+  const provider = new JsonRpcProvider(net.pathing, undefined, { usePathing: true });
+  const manifest = loadManifest();
+  const swarm = await loadSwarm(manifest, provider, broadcast);
+  const sovereign = swarm.get('sovereign');
+  const sovBalance = BigInt(await rpc(net.rpc, 'quai_getBalance', [sovereign.address, 'latest']));
+
+  console.log(`OBSIDIAN TRUST brain — network ${args.network} (chain ${chainId})  mode ${broadcast ? 'BROADCAST' : 'dry run'}`);
+  console.log(`sovereign ${sovereign.address}  balance ${fmtQuai(sovBalance)}`);
+  console.log(`swarm ${[...swarm.keys()].join(', ')}`);
+
+  const ifaces = buildIfaces();
+  const opts = { broadcast, confirmations };
+  const runOnce = async () => {
+    spentThisTick = 0n;
+    const state = await observe(net, ifaces, deployment, swarm);
+    if (state.hall) {
+      console.log(`hall guild=${state.hall.guild} token=${state.hall.token} module=${state.hall.module} proposals=${state.proposalCount}`);
+    }
+    await tick(net, deployment, swarm, state, opts);
+    // The surveillance mesh runs every tick, whatever the phase ladder did.
+    await watchmen(net, ifaces, deployment).catch((e) => console.error(`  watchmen error: ${e?.message ?? e}`));
+  };
+
+  if (args.flags.has('loop')) {
+    const interval = Number(args.interval ?? 90) * 1000;
+    console.log(`looping every ${interval / 1000}s (ctrl-c to stop)`);
+    for (;;) {
+      await runOnce().catch((e) => console.error(`  tick error: ${e?.message ?? e}`));
+      await sleep(interval);
+    }
+  } else {
+    await runOnce();
+  }
+}
+
+main().catch((err) => fail(err?.message ?? String(err)));

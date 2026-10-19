@@ -1,0 +1,22 @@
+{
+  "network": "mainnet",
+  "chainId": 9,
+  "deployedAt": "2026-10-18T01:20:53.000Z",
+  "deployer": "0x005c0faa361AE7c4A473343EF24bAe4d1379E638",
+  "registry": {
+    "address": "0x001bB186Bb7f1Fe7249d72848E4C2dC06c28764F",
+    "txHash": "0x004900615cabd195a27c8402d4ac180342462492b6f3ba2b80fb879dad543d5c",
+    "blockNumber": 10672507
+  },
+  "tokenStack": {
+    "address": "0x005827E59192cFB98838DBF8E2B3162c289af310",
+    "txHash": "0x005500299cb060e82f63f67a54f0312468f2bb2e9bcafa7619e71c3331854f25",
+    "blockNumber": 10672519
+  },
+  "factory": {
+    "address": "0x00701eF6Ef13c1950a78eF763C463B490dc10dBB",
+    "txHash": "0x0053004bd5c5418922c533c55df3d1b31873fa477b241cd93f4ee155626f2cf3",
+    "blockNumber": 10672528
+  },
+  "note": "reconstructed from quaiscan creation transactions 2026-10-18 (original record lived on the deploying machine); gasUsed fields omitted"
+}

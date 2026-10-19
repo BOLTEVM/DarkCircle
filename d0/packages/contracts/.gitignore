@@ -1,3 +1,9 @@
 
 # agent swarm secrets (hot game wallets — never commit)
 agents/keys/
+
+# cabal private state — live position, diary, intel ledger (see agents/CABAL.md)
+agents/treasury-state.json
+agents/chronicle.jsonl
+agents/intel.json
+agents/brain.log

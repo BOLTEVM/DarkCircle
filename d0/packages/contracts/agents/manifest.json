@@ -1,0 +1,63 @@
+{
+  "createdAt": "2026-10-18T16:13:37.926Z",
+  "network": "mainnet",
+  "zone": "cyprus1",
+  "identities": [
+    {
+      "id": "sovereign",
+      "role": "sovereign",
+      "parcel": 400,
+      "brief": "founds the guild, holds the reserve, funds the swarm",
+      "address": "0x007783A0efc51953ce21C5B1E204bdf9FA08C27a",
+      "keystore": "agents\\keys\\sovereign.json"
+    },
+    {
+      "id": "director-1",
+      "role": "director",
+      "parcel": 150,
+      "brief": "files construction and governance proposals",
+      "address": "0x00273EE0105FC565fB770fc5e9337dF4FD6a8046",
+      "keystore": "agents\\keys\\director-1.json"
+    },
+    {
+      "id": "director-2",
+      "role": "director",
+      "parcel": 150,
+      "brief": "files construction and governance proposals",
+      "address": "0x002655c1d2c65c6AC4757690B541ebb2566BEf30",
+      "keystore": "agents\\keys\\director-2.json"
+    },
+    {
+      "id": "worker-1",
+      "role": "worker",
+      "parcel": 90,
+      "brief": "rank-and-file vote bloc, staggered timing",
+      "address": "0x0067bDcAE3d3A0fA9fa6037c55376fDf449aC927",
+      "keystore": "agents\\keys\\worker-1.json"
+    },
+    {
+      "id": "worker-2",
+      "role": "worker",
+      "parcel": 90,
+      "brief": "rank-and-file vote bloc, staggered timing",
+      "address": "0x005227B35D05Cb57271E58eF4304Fd80814E1F8d",
+      "keystore": "agents\\keys\\worker-2.json"
+    },
+    {
+      "id": "worker-3",
+      "role": "worker",
+      "parcel": 90,
+      "brief": "rank-and-file vote bloc, staggered timing",
+      "address": "0x001D5A3399c2375C944CCfFdbD637181951A3CE2",
+      "keystore": "agents\\keys\\worker-3.json"
+    },
+    {
+      "id": "sentinel",
+      "role": "sentinel",
+      "parcel": 30,
+      "brief": "watches for hostile proposals, votes last, executes",
+      "address": "0x0059B4CC6Bb7Cc573671949d6ef456C01e1bF298",
+      "keystore": "agents\\keys\\sentinel.json"
+    }
+  ]
+}
