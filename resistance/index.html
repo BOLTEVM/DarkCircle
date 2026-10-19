@@ -121,6 +121,16 @@
     </div>
 
     <div class="panel span2">
+      <h2>The Desk — The Corporation Trades</h2>
+      <div class="kv"><span class="k">Q0 / QUAI (live)</span><span class="v" id="deskPx">—</span></div>
+      <div class="kv"><span class="k">vault mark-to-market</span><span class="v" id="deskMtm">—</span></div>
+      <div class="kv"><span class="k">desk scoreboard</span><span class="v" id="deskPnl">—</span></div>
+      <div class="hint">Baseline at custody: 1,000,000 Q0 (block 10,700,930) + 264.7443 QUAI consolidated (block 10,703,9xx).
+        Scoreboard isolates the desk's trading: ΔQ0 × live price + ΔQUAI. QAXE excluded — no reliable pool price.</div>
+      <div id="deskTrades"></div>
+    </div>
+
+    <div class="panel span2">
       <h2>Your Weight</h2>
       <label for="youAddr">your quai address (cyprus-1)</label>
       <input type="text" id="youAddr" placeholder="0x00…" spellcheck="false" autocomplete="off">
@@ -164,9 +174,14 @@
   var VAULT_COUNCIL = "0x006AF6198c9eC311bC4Ade40A8316092dd5637e7";
   var Q0 = "0x00325150094E51107a931980Fdfc3bB1a4C48379";
   var QAXE = "0x0035187a7660f595D93cd53a4D16c635D6cFFC8f";
+  // CircleSwap pairs of the QUAI->QRB->Q0 route (layouts known from the deployment).
+  var PAIR_QRB_WQUAI = "0x0032dd29561706444D77D899573eF1d501Ecf8c0"; // WQUAI is token1
+  var PAIR_Q0_QRB = "0x00567977C80b02f08BFc4C506DD814a5a9868a40";    // Q0 is token0
+  // Custody baseline for the desk scoreboard (on-chain facts at the blocks noted).
+  var BASE_Q0 = 1000000, BASE_QUAI = 264.7443;
   // Precomputed ABI material (no runtime keccak needed).
   var CD_RESOLVE = "0x461a44780000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000d6f6273696469616e747275737400000000000000000000000000000000000000";
-  var SEL = { recordOf: "c06ac6a3", proposalCount: "da35c664", getProposal: "c7f758a8", balanceOf: "70a08231", totalSupply: "18160ddd" };
+  var SEL = { recordOf: "c06ac6a3", proposalCount: "da35c664", getProposal: "c7f758a8", balanceOf: "70a08231", totalSupply: "18160ddd", getReserves: "0902f1ac" };
   var SEL_CREATE_PROPOSAL = "1f622d38"; // createProposal(string,(address,uint256,bytes)[],uint64,uint64)
   var TOPIC_PROPOSAL_CREATED = "0x15f2c88668ba9d792fc01e9d398ba5f68c77901b8b86f649117265082831af1e";
 
@@ -386,6 +401,92 @@
     });
   }
 
+  // CouncilMultisig ProposalView = (string metadata, uint64 createdAt, bool executed, uint256 approvals).
+  // Dynamic (string first) → offset-wrapped like the hall's ProposalView.
+  function decodeCouncilProposal(hex) {
+    var base = BigInt("0x" + word(hex, 0)) === 32n ? 1 : 0;
+    var sOffWords = Number(BigInt("0x" + word(hex, base + 0))) / 32;
+    var lenW = word(hex, base + sOffWords);
+    var sLen = Number(BigInt("0x" + lenW));
+    var dataStart = 2 + (base + sOffWords + 1) * 64;
+    var sHex = hex.slice(dataStart, dataStart + sLen * 2);
+    var meta = "";
+    try { meta = decodeURIComponent(escape(String.fromCharCode.apply(null, sHex.match(/.{2}/g).map(function (b) { return parseInt(b, 16); })))); } catch (e) { meta = "(unreadable)"; }
+    return {
+      createdAt: Number(BigInt("0x" + word(hex, base + 1))),
+      executed: BigInt("0x" + word(hex, base + 2)) !== 0n,
+      approvals: Number(BigInt("0x" + word(hex, base + 3))),
+      meta: meta
+    };
+  }
+
+  // Live composite price: QUAI per Q0 through the QRB hub, as a float.
+  function readDeskPrice() {
+    var r1, r2;
+    return call(PAIR_QRB_WQUAI, "0x" + SEL.getReserves).then(function (a) {
+      r1 = a;
+      return call(PAIR_Q0_QRB, "0x" + SEL.getReserves);
+    }).then(function (b) {
+      r2 = b;
+      // QRB/WQUAI: QRB is token0, WQUAI token1. Q0/QRB: Q0 token0, QRB token1.
+      var rQRB1 = Number(BigInt("0x" + word(r1, 0))) / 1e18, rW = Number(BigInt("0x" + word(r1, 1))) / 1e18;
+      var rQ0 = Number(BigInt("0x" + word(r2, 0))) / 1e18, rQRB2 = Number(BigInt("0x" + word(r2, 1))) / 1e18;
+      return (rW / rQRB1) * (rQRB2 / rQ0);
+    });
+  }
+
+  function fetchDeskTrades() {
+    var trades = [];
+    return call(VAULT_COUNCIL, "0x" + SEL.proposalCount).then(function (c) {
+      var n = Number(BigInt(c)), ps = [];
+      for (var i = 0; i < n; i++) {
+        (function (id) {
+          ps.push(call(VAULT_COUNCIL, "0x" + SEL.getProposal + slot32(id.toString(16))).then(function (p) {
+            var d = decodeCouncilProposal(p);
+            if (d.meta.indexOf("DESK ") === 0) { d.id = id; trades.push(d); }
+          }));
+        })(i);
+      }
+      return Promise.all(ps).then(function () { return trades; });
+    });
+  }
+
+  function renderDesk(state) {
+    var px = state.deskPrice;
+    document.getElementById("deskPx").textContent = px ? px.toExponential(4) + " QUAI" : "—";
+    if (!px) return;
+    var q0 = Number(state.vaultQ0 / 1000000000000000000n);
+    var quai = Number(fmtQuai(state.vaultQuai));
+    var mtm = quai + q0 * px;
+    document.getElementById("deskMtm").textContent = mtm.toLocaleString(undefined, { maximumFractionDigits: 2 }) + " QUAI (Q0 leg " + (q0 * px).toLocaleString(undefined, { maximumFractionDigits: 1 }) + ")";
+    var pnl = (q0 - BASE_Q0) * px + (quai - BASE_QUAI);
+    var el = document.getElementById("deskPnl");
+    var pct = ((q0 * px + quai) / (BASE_Q0 * px + BASE_QUAI) - 1) * 100; // vs holding the baseline at today's price
+    el.innerHTML = '<span class="' + (pnl >= 0 ? "yes" : "no") + '">' + (pnl >= 0 ? "+" : "") + pnl.toFixed(2) + " QUAI since custody</span>" +
+      ' <span style="color:var(--dim)">(' + (pct >= 0 ? "+" : "") + pct.toFixed(2) + '% vs untouched baseline)</span>';
+
+    var html = "";
+    var open = state.deskTrades.filter(function (t) { return !t.executed; });
+    var done = state.deskTrades.filter(function (t) { return t.executed; }).reverse();
+    if (open.length) {
+      html += '<div style="margin-top:8px;border-top:1px solid var(--edge);padding-top:6px;color:var(--amber);font-size:10px">COUNCIL TRADE OPEN — the bloc is mid-execution</div>';
+      for (var i = 0; i < open.length; i++) {
+        var t = open[i];
+        var ageMin = Math.max(0, Math.floor((Date.now() / 1000 - t.createdAt) / 60));
+        html += '<div class="prop"><div class="meta">#' + t.id + " — " + t.meta + ' <span class="tag open">' + t.approvals + "/4 approvals · " + ageMin + "m old</span></div></div>";
+      }
+    }
+    if (done.length) {
+      html += '<div style="margin-top:8px;border-top:1px solid var(--edge);padding-top:6px;color:var(--dim);font-size:10px">EXECUTED COUNCIL TRADES</div>';
+      for (i = 0; i < done.length; i++) {
+        t = done[i];
+        html += '<div class="prop"><div class="meta">#' + t.id + " — " + t.meta + ' <span class="tag exec">executed</span></div></div>';
+      }
+    }
+    if (!html) html = '<div class="hint" style="margin-top:8px">No council trades yet — the desk files here when the market moves.</div>';
+    document.getElementById("deskTrades").innerHTML = html;
+  }
+
   // ---- main render ----
   function render(state) {
     document.getElementById("blk").textContent = "block " + state.block.toLocaleString();
@@ -397,6 +498,7 @@
     document.getElementById("obsSupply").textContent = fmtTok(state.supply) + " OBS";
     document.getElementById("obsFloat").textContent = fmtTok(state.supply - state.swarmObs) + " OBS";
     document.getElementById("sovQuai").textContent = fmtQuai(state.sovQuai) + " QUAI";
+    renderDesk(state);
     renderMath(state.supply, state.swarmObs);
 
     var now = Date.now() / 1000, html = "";
@@ -452,7 +554,9 @@
         call(QAXE, "0x" + SEL.balanceOf + slot32(VAULT_GUILD)).then(function (b) { state.vaultQaxe = uint(b); }),
         rpc("quai_getBalance", [VAULT_GUILD, "latest"]).then(function (b) { state.vaultQuai = b; }),
         call(HALL.token, "0x" + SEL.totalSupply).then(function (b) { state.supply = uint(b); }),
-        rpc("quai_getBalance", [SOVEREIGN, "latest"]).then(function (b) { state.sovQuai = b; })
+        rpc("quai_getBalance", [SOVEREIGN, "latest"]).then(function (b) { state.sovQuai = b; }),
+        readDeskPrice().then(function (p) { state.deskPrice = p; }),
+        fetchDeskTrades().then(function (t) { state.deskTrades = t; })
       ]);
     }).then(function () {
       var ps = SWARM.map(function (s) {
