@@ -269,6 +269,7 @@ async function waitConfirmed(net, hash, confirmations) {
 }
 
 let spentThisTick = 0n;
+let gasSpentThisTick = 0n; // actual gasPaid from confirmed receipts — feeds the runway ledger
 
 async function act(net, who, tx, gasLimit, label, { broadcast, confirmations, exemptFromCap = false }) {
   // JSON-RPC quantities are hex strings; BigInt would crash JSON.stringify.
@@ -294,6 +295,7 @@ async function act(net, who, tx, gasLimit, label, { broadcast, confirmations, ex
   const receipt = await waitConfirmed(net, resp.hash, confirmations);
   if (parseInt(receipt.status, 16) !== 1) fail(`${label} reverted (tx ${resp.hash})`);
   console.log(`  [${who.id}] ${label}: confirmed in block ${parseInt(receipt.blockNumber, 16)}`);
+  gasSpentThisTick += BigInt(receipt.gasUsed) * BigInt(receipt.effectiveGasPrice ?? 0);
   return receipt;
 }
 
@@ -565,10 +567,58 @@ async function deskOps(net, sovereign, swarm, ifaces, ts, opts, sovQuai) {
   const q0Held = uintOf(await call(net, CIRCLESWAP.Q0, ifaces.erc20.encodeFunctionData('balanceOf', [vault])));
   const vaultQuai = BigInt(await rpc(net.rpc, 'quai_getBalance', [vault, 'latest']));
   ts.q0Held = q0Held.toString();
+  // Gas ledger: fold this tick's confirmed spend into the cumulative record the
+  // runway floor is sized from (STRATEGY.md rule 1).
+  ts.gasLedger ??= { total: '0', since: new Date().toISOString() };
+  if (opts.broadcast && gasSpentThisTick > 0n) {
+    ts.gasLedger.total = (BigInt(ts.gasLedger.total) + gasSpentThisTick).toString();
+  }
   saveTreasuryState(ts);
 
   const px = Number(priceE18) / 1e18;
   console.log(`  desk: Q0/QUAI ${px.toExponential(4)} via QRB · hop1 ${fmtQuai(r.rW)} WQUAI · hop2 ${r.rQ / 10n ** 18n} Q0 · vault ${fmtQuai(vaultQuai)} + ${q0Held / 10n ** 18n} Q0`);
+
+  // ── Longevity strategy (agents/STRATEGY.md) ──────────────────────────────
+  const strat = loadDoctrine().treasury ?? {};
+  // Rule 1 — runway floor adapts to observed burn once the ledger has data.
+  let runwayFloor = d.vaultReserveFloor;
+  if (BigInt(ts.gasLedger.total ?? '0') > 0n) {
+    const days = Math.max(1, Math.ceil((Date.now() - new Date(ts.gasLedger.since).getTime()) / 86_400_000));
+    const monthlyBurn = (BigInt(ts.gasLedger.total) * 30n) / BigInt(days);
+    const adaptive = monthlyBurn * BigInt(strat.runwayMonths ?? 6);
+    if (adaptive > runwayFloor) runwayFloor = adaptive;
+  }
+  // Rule 2 — volatility scales the entry bands, clamped to the configured rails.
+  let sigmaBps = 0;
+  if (ts.readings.length >= 7) {
+    const series = ts.readings.map((x) => Number(x.priceE18) / 1e18);
+    const mean = series.reduce((a, b) => a + b, 0) / series.length;
+    const varr = series.reduce((a, b) => a + (b - mean) * (b - mean), 0) / series.length;
+    sigmaBps = mean > 0 ? (Math.sqrt(varr) / mean) * 10_000 : 0;
+  }
+  const volK = Number(strat.volK ?? 1.5);
+  const adaptBps = (floorBps) => {
+    const scaled = BigInt(Math.round(volK * sigmaBps));
+    const f = BigInt(floorBps);
+    return scaled > f ? (scaled < t.crashBps ? scaled : t.crashBps) : f;
+  };
+  const dipBps = adaptBps(t.dipBps);
+  const momBps = adaptBps(t.momentumBps);
+  // Rule 3 — drawdown throttles size deterministically from basis + live price.
+  let sizeMulBps = 10_000n;
+  if (q0Held > 0n && ts.costBasis) {
+    const basis = BigInt(ts.costBasis);
+    if (priceE18 * 10_000n < basis * (10_000n - BigInt(strat.drawdownQuarterBps ?? 2000))) sizeMulBps = 2_500n;
+    else if (priceE18 * 10_000n < basis * (10_000n - BigInt(strat.drawdownHalfBps ?? 1000))) sizeMulBps = 5_000n;
+  }
+  const preserve = vaultQuai <= runwayFloor;
+  // Rule 4 — the health record, every quiet tick.
+  chronicle('treasury-health', {
+    note: preserve ? 'capital preservation mode' : 'active',
+    vaultQuai: fmtQuai(vaultQuai), q0Held: (q0Held / 10n ** 18n).toString(),
+    runwayFloor: fmtQuai(runwayFloor), adaptiveFloor: runwayFloor > d.vaultReserveFloor,
+    sigmaBps: Math.round(sigmaBps), sizeMul: Number(sizeMulBps) / 10_000,
+  });
 
   // File a trade as a council proposal and drive it in the same tick.
   const fileTrade = async (kind, metadata, actions) => {
@@ -605,15 +655,15 @@ async function deskOps(net, sovereign, swarm, ifaces, ts, opts, sovQuai) {
     return true;
   }
 
-  // Accumulate: dips AND breakouts, sized off the VAULT's free capital.
+  // Accumulate: dips AND breakouts, sized off the VAULT's free capital above the runway floor.
   if (ts.readings.length >= 7) {
     const prev = ts.readings.slice(-7, -1).map((x) => BigInt(x.priceE18));
     const avg = prev.reduce((a, b) => a + b, 0n) / BigInt(prev.length);
-    const dipped = priceE18 * 10_000n <= avg * (10_000n - t.dipBps);
+    const dipped = priceE18 * 10_000n <= avg * (10_000n - dipBps);
     const crashed = priceE18 * 10_000n <= avg * (10_000n - t.crashBps);
-    const breakout = priceE18 * 10_000n >= avg * (10_000n + t.momentumBps);
+    const breakout = priceE18 * 10_000n >= avg * (10_000n + momBps);
     if (dipped || breakout) {
-      const free = vaultQuai > d.vaultReserveFloor ? vaultQuai - d.vaultReserveFloor : 0n;
+      const free = vaultQuai > runwayFloor ? vaultQuai - runwayFloor : 0n;
       let amountIn = free / 10n;
       if (amountIn < t.perTradeBudget) amountIn = t.perTradeBudget;
       if (amountIn > t.maxTradeBudget) amountIn = t.maxTradeBudget;
@@ -621,9 +671,10 @@ async function deskOps(net, sovereign, swarm, ifaces, ts, opts, sovQuai) {
         amountIn *= 2n;
         if (amountIn > t.maxTradeBudget) amountIn = t.maxTradeBudget;
       }
+      amountIn = (amountIn * sizeMulBps) / 10_000n; // drawdown throttle — being wrong makes the desk smaller
       const signal = crashed ? 'crash' : dipped ? 'dip' : 'breakout';
-      if (vaultQuai <= d.vaultReserveFloor + amountIn) {
-        console.log(`phase DESK: ${signal} signalled but the vault is at its reserve floor — standing down`);
+      if (vaultQuai <= runwayFloor + amountIn) {
+        console.log(`phase DESK: ${signal} signalled but the vault is at its runway floor (${fmtQuai(runwayFloor)}) — capital preservation, standing down`);
         return false;
       }
       const qrbOut = quoteOut(amountIn, r.rW, r.rR1);
@@ -959,6 +1010,19 @@ async function tick(net, deployment, swarm, state, opts) {
 
   const open = state.proposals.find((p) => !p.executed && p.endDate * 1000 > Date.now());
   if (open) {
+    // Already carried? Execute immediately — don't spend gas on votes that add nothing.
+    // (Cyprus-1 gas spikes can price a vote's notional cost above the tick cap for hours;
+    // a proposal that has passed must not be held hostage by its own bloc's pending votes.)
+    const carried = ifaces.voting.decodeFunctionResult(
+      'canExecute', await call(net, state.hall.module, ifaces.voting.encodeFunctionData('canExecute', [open.id])))[0];
+    if (carried) {
+      const sentinel = swarm.get('sentinel');
+      console.log(`phase GOVERN: proposal #${open.id} has already carried — executing`);
+      // Exempt from the notional tick cap: executing the bloc's own passed will is not
+      // discretionary spend, and gas spikes must not freeze governance.
+      await act(net, sentinel, { to: state.hall.module, data: ifaces.voting.encodeFunctionData('execute', [open.id]) }, 1_000_000n, `execute #${open.id}`, { ...opts, exemptFromCap: true });
+      return;
+    }
     // Bloc votes YES with staggered timing; the sentinel goes last and early-executes.
     const pending = [];
     for (const w of [...swarm.values()]) {
@@ -1040,6 +1104,7 @@ async function main() {
   const opts = { broadcast, confirmations };
   const runOnce = async () => {
     spentThisTick = 0n;
+    gasSpentThisTick = 0n;
     const state = await observe(net, ifaces, deployment, swarm);
     if (state.hall) {
       console.log(`hall guild=${state.hall.guild} token=${state.hall.token} module=${state.hall.module} proposals=${state.proposalCount}`);

@@ -3,5 +3,12 @@
   "protectedGuilds": ["obsidiantrust", "obsidianvault"],
   "chronicleVoice": "cabal",
   "fixerMaxPositionPct": 10,
+  "treasury": {
+    "runwayMonths": 6,
+    "volK": 1.5,
+    "drawdownHalfBps": 1000,
+    "drawdownQuarterBps": 2000,
+    "notes": "longevity strategy — see agents/STRATEGY.md. runwayMonths sizes the adaptive Tier-1 floor from observed gas burn; volK scales signal bands by measured volatility; drawdown bands throttle position size, never force exits."
+  },
   "notes": "posture dominate: foreign proposals on protected halls are voted NO by the bloc. observe: log to the chronicle only. See CABAL.md."
 }
