@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DarkOrder &middot; DarkCircle Suite Docs</title>
+<link rel="stylesheet" href="./docs.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <img src="../0.png" alt="" width="30" height="22">
+    <a href="./">DarkCircle Suite Docs</a>
+  </div>
+  <nav>
+    <a href="./">Home</a>
+    <a href="./getting-started.html">Getting started</a>
+    <a href="./portal.html">Portal</a>
+    <a href="./darkcircle.html">DarkCircle</a>
+    <a href="./circleswap.html">Circleswap</a>
+    <a href="./darksafe.html">DarkSafe</a>
+    <a href="./dark-questate.html">Dark Questate</a>
+    <a class="here" href="./darkorder.html">DarkOrder</a>
+    <a href="./security.html">Security</a>
+    <a href="../">&larr; Portal</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <div class="crumb"><a href="./">Docs</a> / DarkOrder</div>
+  <h1>&#x2694;&#xFE0F; DarkOrder &middot; Grand Guild Halls <span class="badge amber">Showcase</span></h1>
+  <p class="lede">Guild governance for the DarkCircle suite on Quai Network (Cyprus-1). Found a
+  guild in one transaction, govern it by checkpointed token vote or council multisig, govern
+  members by QNS name (quaidomains.com), pay or charge x402 tribute, and drive every flow with a
+  voice seneschal. Source: <code>d0/</code> &middot; Route: <a href="../darkorder/"><code>/darkorder/</code></a></p>
+
+  <div class="panel callout warn">
+    <span class="tag">Where it stands</span>
+    <p>The contracts (<code>GuildFactory</code>, <code>GuildHall</code>,
+    <code>TokenStackDeployer</code>) are <strong>not deployed</strong> on Orchard or mainnet, so
+    the site runs as a <strong>labelled showcase</strong>: invented sample halls, marked as such,
+    with every transaction switched off. QNS names resolve only against a live deployment. No
+    independent audit.</p>
+  </div>
+
+  <h2>The protocol</h2>
+  <ul>
+    <li><strong>Guild</strong> &mdash; the treasury and the permissions. Everything goes through
+      <code>execute</code>, callable only by a holder of <code>EXECUTE_ROLE</code>.
+      <code>payTribute(invoiceId)</code> receives native QUAI and emits
+      <code>TributeReceived</code> &mdash; the on-chain x402 receipt.</li>
+    <li><strong>GovernanceToken</strong> &mdash; ERC-20 + Votes checkpoints. The guild owns it, so
+      minting is a governance act. Balances count only once delegated.</li>
+    <li><strong>MajorityVoting</strong> &mdash; token-hall module. Thresholds are snapshotted per
+      proposal; one vote per address; early execution when yes beats the whole supply.</li>
+    <li><strong>CouncilMultisig</strong> &mdash; council-hall module. Fixed members, N-of-M
+      approvals, an approval can carry try-execution.</li>
+    <li><strong>GuildFactory + GuildNameRegistry</strong> &mdash; the Founding Rite: one transaction
+      deploys and wires everything, mints the founder's power, registers the handle, and leaves the
+      factory with nothing. <strong>TokenStackDeployer</strong> exists because EIP-170 caps
+      bytecode at 24 KiB.</li>
+  </ul>
+
+  <h2>Guild profiles and the steward's desk</h2>
+  <p>A guild's on-chain <code>metadata</code> string is its charter. Plain text reads as the
+  description; the structured form is a one-line marker plus JSON
+  (<code>darkorder:profile:1\n{"description","avatar","links"}</code>). Crests are raster data URIs
+  (PNG/JPEG/GIF/WebP, &le; 24 KB so they fit one transaction) or https/ipfs pointers; link URLs are
+  https/ipfs only, so the hall page never renders a <code>javascript:</code> payload.</p>
+  <p>Each hall page carries the steward's desk: a connected key holding
+  <code>SET_METADATA_ROLE</code> rewrites the charter directly, a key holding
+  <code>ROOT_ROLE</code> grants and revokes roles, and anyone can route either change through a
+  proposal instead &mdash; the proposal executes as the guild itself, which holds every permission.
+  The War Room decodes <code>setMetadata</code> / <code>grant</code> / <code>revoke</code> proposal
+  actions into plain language before a vote.</p>
+
+  <h2>Voice seneschal</h2>
+  <p><code>packages/core/src/voice</code> is a grammar, not a language model: a closed intent list,
+  the same answer every time, offline. Hard rules: voice never carries an address (checked before
+  tokenization), it never sends payments to spoken names, and tribute always names its asset.
+  Planned actions get a spoken 3-digit confirmation code with a 3-minute TTL. The web page asks
+  before opening the microphone (cloud transcription), and the typed command line is always
+  first-class. The steward's desk is voice-reachable too: "open the steward's desk", "edit the
+  charter" or "grant metadata power to ..." all walk to the desk of the current hall.</p>
+
+  <h2>x402 tribute</h2>
+  <p><code>packages/core/src/x402/challenge.ts</code> parses DarkCircle-compatible challenges (RFC
+  7807 body &rarr; <code>WWW-Authenticate</code> &rarr; <code>X-Payment-*</code>) and adds the
+  native <code>quai_native_tribute</code> scheme: the recipient is the guild contract and the body
+  carries <code>payTribute(invoiceId)</code> calldata, so paying the invoice writes the invoice id
+  into the guild's event log. Token decimals are validated against the known-token registry; a
+  challenge that misstates them is rejected.</p>
+
+  <h2>Build, test, rehearse</h2>
+  <pre><code>cd d0
+pnpm install
+pnpm build          # contracts compile, core + web type-check and build
+pnpm test           # hardhat tests + vitest (core incl. a live-chain suite + web)
+pnpm integrity      # static gate
+pnpm dev            # the site on http://localhost:5300
+pnpm rehearse:local # deploy to a local Hardhat node, found two halls, walk the steward paths</code></pre>
+  <p><strong>Rehearsal chain.</strong> <code>pnpm rehearse:local</code> starts a Hardhat node on
+  port 8646, deploys the protocol, founds <code>crimsonvigil</code> (token) and
+  <code>ashencouncil</code> (council) with structured charters, and writes
+  <code>apps/web/.env.localchain.local</code>. Then <code>pnpm dev:local</code> serves the site
+  with a dev wallet in the network picker: account 0 is the founder, 1 the voted-in steward, 2-3
+  council members. <code>pnpm integrity</code> checks the dev wallet is absent from production
+  builds.</p>
+  <p><strong>Foundry assurance.</strong> <code>cd packages/contracts && forge test</code> runs 43
+  fuzz properties (x1000 runs) and 3 invariant campaigns over the exact Hardhat-compiled bytecode:
+  the QNS charset rule, the permission wall, all-or-nothing batches, vote tallies and threshold
+  arithmetic, quorum at execution and treasury accounting. Slither runs in CI and fails on medium
+  or higher.</p>
+
+  <h2>Quai specifics (learned on Cyprus-1)</h2>
+  <ul>
+    <li>Contract calls only work on a zone endpoint; everything here is Cyprus-1
+      (<code>0x00...</code>, second byte below <code>0x80</code>), enforced in
+      <code>packages/core/src/address.ts</code>.</li>
+    <li>A reverted transaction burns its whole gas limit, so every transaction is simulated
+      (<code>quai_call</code>), gas-estimated and access-listed before the wallet is asked to sign.</li>
+    <li>Deploys grind a CREATE salt until the predicted address lands in-zone; the deploy script
+      signs from an encrypted keystore only and verifies code hashes on chain before writing
+      <code>packages/core/src/deployments.ts</code>.</li>
+    <li>Hardhat cannot build Quai transactions; the Hardhat network here is for tests only.</li>
+  </ul>
+
+  <div class="footer">
+    <span>Source: <code>d0/</code> (ships as <code>darkorder/</code>; the <code>d0/</code> name is never published)</span>
+    <span><a href="./">Docs home</a></span>
+  </div>
+</main>
+
+</body>
+</html>

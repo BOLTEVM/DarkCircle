@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The portal &middot; DarkCircle Suite Docs</title>
+<link rel="stylesheet" href="./docs.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <img src="../0.png" alt="" width="30" height="22">
+    <a href="./">DarkCircle Suite Docs</a>
+  </div>
+  <nav>
+    <a href="./">Home</a>
+    <a href="./getting-started.html">Getting started</a>
+    <a class="here" href="./portal.html">Portal</a>
+    <a href="./darkcircle.html">DarkCircle</a>
+    <a href="./circleswap.html">Circleswap</a>
+    <a href="./darksafe.html">DarkSafe</a>
+    <a href="./dark-questate.html">Dark Questate</a>
+    <a href="./darkorder.html">DarkOrder</a>
+    <a href="./security.html">Security</a>
+    <a href="../">&larr; Portal</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <div class="crumb"><a href="./">Docs</a> / The portal</div>
+  <h1>The WebGL portal</h1>
+  <p class="lede"><code>index.html</code> is the real-time 3D front door to the suite. A black
+  obsidian orb hovers inside a crimson-lit octagonal containment vault, wrapped in a ring of
+  plasma. The five apps ride a carousel round the orb; the node at the front haloes the orb and
+  is the selected app.</p>
+
+  <h2>Controls</h2>
+  <table>
+    <tr><th>Input</th><th>Action</th></tr>
+    <tr><td>Drag</td><td>Orbit the chamber</td></tr>
+    <tr><td>&lsaquo; &rsaquo; arrows, <kbd>&larr;</kbd> <kbd>&rarr;</kbd></td><td>Spin the carousel one app either way</td></tr>
+    <tr><td>Click a side node</td><td>Spin it to the front</td></tr>
+    <tr><td>Click the front node (the orb), <kbd>Enter</kbd></td><td>Warp transition into the selected app</td></tr>
+    <tr><td>Click a card or pill, <kbd>1</kbd>&ndash;<kbd>5</kbd></td><td>Spin that app to the front, then warp: DarkCircle, Circleswap, DarkSafe, Dark Questate, DarkOrder</td></tr>
+    <tr><td>Hover a node</td><td>Telemetry readout: node, route, live Cyprus-1 block height</td></tr>
+    <tr><td>Sound button</td><td>Music and synthesized cues (Web Audio, muted by default)</td></tr>
+    <tr><td>Book button</td><td>Opens this documentation</td></tr>
+    <tr><td>Phone tilt</td><td>Parallax (iOS asks for permission on first touch)</td></tr>
+    <tr><td><code>?mode=2d</code></td><td>Force the 2D card portal</td></tr>
+  </table>
+  <p>It opens on <strong>Circleswap</strong> in front, <strong>DarkCircle</strong> and
+  <strong>DarkSafe</strong> to either side, and <strong>Dark Questate</strong> and
+  <strong>DarkOrder</strong> behind the orb. Tap the BOLTEVM logo for a new world color.</p>
+
+  <h2>Graceful degradation</h2>
+  <p>No WebGL, a failed GPU context, a missing model file or
+  <code>prefers-reduced-motion</code> all land on a working 2D portal or a calmer 3D one. The
+  links are plain anchors, so navigation never depends on the 3D engine. In the 2D portal the
+  arrows still work: they move the highlight across the cards, and <kbd>Enter</kbd> opens the
+  highlighted app.</p>
+
+  <h2>Privacy</h2>
+  <p>The portal loads nothing from a third-party host: three.js and every add-on are vendored
+  under <code>assets/3d/vendor/</code>, and there are no web fonts. The only network call is a
+  single read-only <code>quai_blockNumber</code> to <code>rpc.quai.network</code>, made the first
+  time you target a node or spin the carousel, with credentials and referrer omitted. The bottom
+  bar shows its state (<code>RPC idle</code>, <code>querying</code>, <code>CYPRUS-1 #...</code>).</p>
+
+  <h2>Subdomain and path routing</h2>
+  <table>
+    <tr><th>Host starts with</th><th>Goes to</th></tr>
+    <tr><td><code>q0.</code> <code>circleswap.</code> or contains <code>q0-</code></td><td><code>/q0/</code></td></tr>
+    <tr><td><code>darksafe.</code> <code>safe.</code> <code>multisig.</code> or contains <code>darksafe-</code></td><td><code>/multisigows/</code></td></tr>
+    <tr><td><code>tumbler.</code> <code>privacy.</code> <code>x402.</code> or contains <code>tumbler-</code></td><td><code>/x402tumbler/</code></td></tr>
+    <tr><td><code>questate.</code> <code>darkquestate.</code> <code>realestate.</code> or contains <code>questate-</code></td><td><code>/darkquestate/</code></td></tr>
+    <tr><td><code>darkorder.</code> <code>guild.</code> <code>halls.</code> or contains <code>darkorder-</code></td><td><code>/darkorder/</code></td></tr>
+  </table>
+  <p><code>404.html</code> applies the same rules to deep links and keeps the
+  <code>/&lt;repo&gt;/</code> prefix on GitHub project pages. A deep link under
+  <code>/questate/</code> goes to <code>/darkquestate/</code>; a deep link under
+  <code>/guildhalls/</code> goes to <code>/darkorder/</code>.</p>
+
+  <h2>The 3D asset</h2>
+  <table>
+    <tr><td>Space</td><td>Y-up, metres. Orb centre at <code>(0, 1.7, 0)</code>, radius 0.5. Room: 14.8 m across, 4.6 m high</td></tr>
+    <tr><td>Size</td><td>about 24k triangles, 790 KB <code>.glb</code>, 10 PBR materials, no textures</td></tr>
+    <tr><td>Lights</td><td>7 punctual lights, exported unitless (<code>COMPAT</code>) so three.js does not blow out</td></tr>
+    <tr><td>Animation</td><td>Four 5-second loop clips: orb hover, plasma spin, plasma sweep, camera push</td></tr>
+    <tr><td>Reference</td><td>Proportions measured from the QRB artwork <code>q0/QgoGIF.gif</code></td></tr>
+    <tr><td>Source</td><td>Rebuilt from code by <code>tools/build_qrb_scene.py</code>; verified by <code>tools/verify_qrb_assets.mjs</code></td></tr>
+  </table>
+
+  <div class="panel callout">
+    <span class="tag">Note</span>
+    <p>Both <code>index.html</code> and <code>404.html</code> must stay pure ASCII; CI fails on any
+    non-ASCII byte (the first build shipped corrupted dashes and emoji &mdash; emoji are written as
+    HTML entities instead).</p>
+  </div>
+
+  <div class="footer">
+    <span>Built on Quai Network (Cyprus-1, chain id 9) &middot; BOLTEVM</span>
+    <span><a href="./">Docs home</a></span>
+  </div>
+</main>
+
+</body>
+</html>

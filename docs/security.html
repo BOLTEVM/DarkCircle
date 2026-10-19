@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security &amp; limitations &middot; DarkCircle Suite Docs</title>
+<link rel="stylesheet" href="./docs.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <img src="../0.png" alt="" width="30" height="22">
+    <a href="./">DarkCircle Suite Docs</a>
+  </div>
+  <nav>
+    <a href="./">Home</a>
+    <a href="./getting-started.html">Getting started</a>
+    <a href="./portal.html">Portal</a>
+    <a href="./darkcircle.html">DarkCircle</a>
+    <a href="./circleswap.html">Circleswap</a>
+    <a href="./darksafe.html">DarkSafe</a>
+    <a href="./dark-questate.html">Dark Questate</a>
+    <a href="./darkorder.html">DarkOrder</a>
+    <a class="here" href="./security.html">Security</a>
+    <a href="../">&larr; Portal</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <div class="crumb"><a href="./">Docs</a> / Security &amp; limitations</div>
+  <h1>&#x1F512; Security &amp; known limitations</h1>
+  <p class="lede">One page for the honest state of the suite: what is audited, what is simulated,
+  and every tracked limitation. These are tracked, not hidden.</p>
+
+  <div class="panel callout warn">
+    <span class="tag">Pre-release</span>
+    <p>No contract in the suite has had an independent security audit. Treat everything as
+    pre-release and do not point any of it at funds you cannot afford to lose.</p>
+  </div>
+
+  <h2>Audit status by app</h2>
+  <table>
+    <tr><th>App</th><th>Contracts</th><th>Audit status</th></tr>
+    <tr><td>DarkCircle</td><td><code>DarkCirclePool.sol</code> + <code>unshield.circom</code> are reference implementations, deployed nowhere</td><td><span class="badge red">Unaudited</span> dev trusted ceremony; compliance (PPOI, C8) not enforced on chain</td></tr>
+    <tr><td>Circleswap</td><td>interacts with live Quaiswap pools; ships no new AMM contracts</td><td><span class="badge amber">Internal only</span> <code>SECURITY_AUDIT.md</code> is AI-assisted, not external</td></tr>
+    <tr><td>DarkSafe</td><td><code>DarkSafeVault</code> v2 + factory (ERC-1967 proxies)</td><td><span class="badge red">Unaudited</span> mainnet creation gated behind <code>VITE_ALLOW_MAINNET_VAULTS</code>; audit package in <code>docs/AUDIT_SCOPE.md</code></td></tr>
+    <tr><td>Dark Questate</td><td><code>QuestateDeed</code>, <code>QuestateBrokerage</code> &mdash; not deployed</td><td><span class="badge red">Unaudited</span> 38 Hardhat suites + Foundry fuzz/invariants are not an audit</td></tr>
+    <tr><td>DarkOrder</td><td><code>GuildFactory</code>, <code>GuildHall</code>, <code>TokenStackDeployer</code> &mdash; not deployed</td><td><span class="badge red">Unaudited</span> fuzz, invariants and Slither in CI are not an audit</td></tr>
+  </table>
+
+  <h2>Known limitations</h2>
+
+  <h3>DarkCircle</h3>
+  <ul>
+    <li>The pools, relayer and ledger are simulations; nothing is deployed on Quai and no funds
+      move. Gas is not metered except for the Quai revert-burn rule.</li>
+    <li>On static hosting the UI shows a "Static preview" banner, switches its actions off and
+      makes no API calls; the real console is <code>pnpm ui</code> locally.</li>
+    <li>The reference circuit and contract are unaudited, with a single-contributor development
+      ceremony; their behaviour on Quai itself (zone deployment, access lists, the pairing
+      precompile) has not been exercised.</li>
+    <li>Persistence saves the whole simulated environment, keys included, under a passphrase-derived
+      key. It is not a KMS-backed production store; lose the passphrase and the snapshots are
+      unreadable.</li>
+    <li>No Quai-specific sanctions list is bundled (the seed is Ethereum OFAC addresses); load your
+      provider's list at startup.</li>
+    <li>The voice agent understands English commands from a fixed grammar only. On Orchard, WQUAI
+      has no contract, so wrapping and WQUAI sends are refused with
+      <code>ASSET_NOT_ON_NETWORK</code>.</li>
+  </ul>
+
+  <h3>Circleswap</h3>
+  <ul>
+    <li>On static hosting, explorer-indexed stats and Quainance's catalog are not CORS-open, so USD
+      values come from pool reserves and launches from a dated deploy-time snapshot. Token metadata
+      is unaffected.</li>
+  </ul>
+
+  <h3>DarkSafe</h3>
+  <ul>
+    <li>The vault contracts have not had an independent audit; the app shows a beta banner.</li>
+    <li>v2 is not deployed yet; until a factory is recorded or configured the app explains that
+      vaults cannot be created or opened.</li>
+  </ul>
+
+  <h3>Dark Questate</h3>
+  <ul>
+    <li>Contracts not deployed: the hosted site shows invented sample listings with a "Showcase"
+      banner and every transaction switched off.</li>
+    <li>Metadata hosting (publishing the document behind each deed CID) is the registrar's step.</li>
+    <li>Listing reads are unindexed (newest 60 by id). Native QUAI only. Legal effect depends on
+      the operating agreement and local law.</li>
+  </ul>
+
+  <h3>DarkOrder</h3>
+  <ul>
+    <li>Contracts not deployed: the hosted site shows invented sample halls with a "Showcase"
+      banner and every transaction switched off. QNS names resolve only against a live deployment.</li>
+  </ul>
+
+  <h3>Portal and suite-wide</h3>
+  <ul>
+    <li>Portal metrics: the hover readout shows the Cyprus-1 block height only; pool TVL and vault
+      status are not wired in.</li>
+    <li>Wallet extensions are treated as untrusted input everywhere: a provider that throws or
+      lacks events is reported as absent.</li>
+    <li>No licence file at the suite root yet; until one is added, reuse rights are unspecified.
+      Vendored three.js keeps its MIT licence in <code>assets/3d/vendor/three/LICENSE</code>
+      (DarkCircle itself is MIT).</li>
+  </ul>
+
+  <h2>Reporting a vulnerability</h2>
+  <p>DarkSafe's reporting policy is in <code>multisigows/SECURITY.md</code>, with its threat model,
+  owner security guide, incident runbook and audit scope under <code>multisigows/docs/</code>.
+  DarkCircle's audit and open items are in <code>x402tumbler/AUDIT.md</code> and its release gates
+  in <code>x402tumbler/docs/SHIELDED_POOL_CHECKLIST.md</code>. Circleswap's internal review is
+  <code>q0/SECURITY_AUDIT.md</code>.</p>
+
+  <div class="footer">
+    <span>Built on Quai Network (Cyprus-1, chain id 9) &middot; BOLTEVM</span>
+    <span><a href="./">Docs home</a></span>
+  </div>
+</main>
+
+</body>
+</html>

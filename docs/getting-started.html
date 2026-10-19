@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Getting started &middot; DarkCircle Suite Docs</title>
+<link rel="stylesheet" href="./docs.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <img src="../0.png" alt="" width="30" height="22">
+    <a href="./">DarkCircle Suite Docs</a>
+  </div>
+  <nav>
+    <a href="./">Home</a>
+    <a class="here" href="./getting-started.html">Getting started</a>
+    <a href="./portal.html">Portal</a>
+    <a href="./darkcircle.html">DarkCircle</a>
+    <a href="./circleswap.html">Circleswap</a>
+    <a href="./darksafe.html">DarkSafe</a>
+    <a href="./dark-questate.html">Dark Questate</a>
+    <a href="./darkorder.html">DarkOrder</a>
+    <a href="./security.html">Security</a>
+    <a href="../">&larr; Portal</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <div class="crumb"><a href="./">Docs</a> / Getting started</div>
+  <h1>Getting started</h1>
+  <p class="lede">How to build every app, assemble the unified site, serve it locally and deploy it.
+  These are the same commands CI runs.</p>
+
+  <h2>Prerequisites</h2>
+  <table>
+    <tr><th>Tool</th><th>Version</th><th>Needed for</th></tr>
+    <tr><td>Node.js</td><td>22+</td><td>everything</td></tr>
+    <tr><td>pnpm</td><td>10</td><td>every app is a pnpm workspace</td></tr>
+    <tr><td>Blender</td><td>5.x</td><td>only to regenerate the 3D scene (optional; the committed <code>.glb</code> is what ships)</td></tr>
+    <tr><td>Foundry</td><td>recent</td><td>optional fuzz / invariant campaigns in Dark Questate, DarkOrder and DarkSafe contracts</td></tr>
+  </table>
+  <p>On Windows, Blender lives at <code>C:\Program Files\Blender Foundation\Blender 5.2\blender.exe</code>.</p>
+
+  <h2>1. Build the apps</h2>
+
+  <h3>Circleswap (q0)</h3>
+  <pre><code>(cd q0 && pnpm install --frozen-lockfile \
+  && pnpm --filter quai-service build && pnpm --filter stats-app build)</code></pre>
+
+  <h3>DarkSafe (multisigows)</h3>
+  <pre><code>(cd multisigows && pnpm install --frozen-lockfile \
+  && pnpm --filter @darksafe/core build  && pnpm --filter @darksafe/ui build \
+  && pnpm --filter @darksafe/verify build && pnpm --filter @darksafe/watcher build \
+  && pnpm --filter @darksafe/web build)</code></pre>
+
+  <h3>Dark Questate (b6)</h3>
+  <pre><code>(cd b6 && pnpm install --frozen-lockfile \
+  && pnpm build && pnpm test && pnpm integrity)</code></pre>
+  <p>Its tests include an end-to-end run against a Hardhat node they start on
+  <code>127.0.0.1:18545</code>, so that port must be free.</p>
+
+  <h3>DarkOrder (d0)</h3>
+  <pre><code>(cd d0 && pnpm install --frozen-lockfile \
+  && pnpm build && pnpm test && pnpm integrity)</code></pre>
+  <p>Its suites are unit tests plus Hardhat's in-process network, so they bind nothing.</p>
+
+  <h3>DarkCircle (x402tumbler)</h3>
+  <pre><code>(cd x402tumbler && pnpm install && pnpm test && pnpm lint)</code></pre>
+  <p>The UI (<code>ui/</code>) is plain HTML/JS with no build step; it is copied into the bundle as-is.</p>
+
+  <h2>2. Assemble and serve the unified site</h2>
+  <pre><code>bash tools/assemble_site.sh _site
+python -m http.server 8080 --directory _site     # then open http://localhost:8080</code></pre>
+  <p><code>assemble_site.sh</code> copies the portal, the 3D asset, the vendored three.js, the docs,
+  the playlist and each app's static build into one directory, and exits non-zero if any
+  destination the portal links to is missing from the bundle.</p>
+
+  <h2>3. Regenerate the 3D scene (optional)</h2>
+  <pre><code>blender --background --python tools/build_qrb_scene.py
+blender --background --python tools/build_qrb_scene.py -- --preview out.png --frame 30 --no-export
+node tools/verify_qrb_assets.mjs</code></pre>
+  <p>The builder produces <code>assets/3d/qrb_chamber.blend</code> and <code>qrb_chamber.glb</code>
+  from code; the verifier is a structural gate over the exported asset (up-axis, orb and room
+  scale, light units, animation seams, triangle and size budgets).</p>
+
+  <h2>Deployment</h2>
+  <p><code>.github/workflows/deploy-pages.yml</code> runs on every push to <code>main</code>:</p>
+  <ol>
+    <li>Verify the 3D asset, check portal sources are pure ASCII, test the redirect router, run the Circleswap unit tests.</li>
+    <li>Refresh the Quainance launchpad snapshot (best effort), then build Circleswap and DarkSafe.</li>
+    <li>Build Dark Questate and DarkOrder, run their tests and their integrity gates (a failure stops the deploy).</li>
+    <li><code>tools/assemble_site.sh _site</code>.</li>
+    <li>Upload and deploy to GitHub Pages.</li>
+  </ol>
+  <p><code>.github/workflows/ci.yml</code> runs on every push and pull request and is what says a
+  change is safe: per-app types, unit and contract suites, fuzz and invariant campaigns, lint,
+  integrity gates and a production dependency audit for each app.</p>
+
+  <h2>Quality gates you can run locally</h2>
+  <table>
+    <tr><th>Gate</th><th>Command</th><th>What it catches</th></tr>
+    <tr><td>Asset structure</td><td><code>node tools/verify_qrb_assets.mjs</code></td><td>Wrong up-axis, orb/room scale, physical light units, stalled animation loops, unused UVs, budgets</td></tr>
+    <tr><td>Token metadata</td><td><code>node --test q0/packages/quai-service/test/tokenMetadata.test.ts</code></td><td>Untrusted contract decoding, chain-first precedence, icon URLs, TTL and negative caching</td></tr>
+    <tr><td>Redirect router</td><td><code>node tools/test_404_router.mjs</code></td><td>Project-pages prefix loss, subdomain and deep-link redirects</td></tr>
+    <tr><td>Brand</td><td><code>bash tools/check_legacy_name.sh</code></td><td>The retired product name reappearing in tracked text</td></tr>
+    <tr><td>Bundle integrity</td><td><code>bash tools/assemble_site.sh</code></td><td>A navigation target or vendored module missing from the bundle</td></tr>
+    <tr><td>Dark Questate integrity</td><td><code>cd b6 && pnpm integrity</code></td><td>Legacy demo artifacts, wrong chain ids, the dev wallet in the production bundle</td></tr>
+    <tr><td>DarkOrder integrity</td><td><code>cd d0 && pnpm integrity</code></td><td>Legacy codenames, foreign chain ids, dev wallet in bundle, voice grammar accepting a raw address</td></tr>
+    <tr><td>DarkOrder fuzz</td><td><code>cd d0/packages/contracts && forge test</code></td><td>43 fuzz properties and 3 invariant campaigns over the shipped bytecode</td></tr>
+    <tr><td>Dark Questate fuzz</td><td><code>cd b6/packages/contracts && forge test</code></td><td>27+ fuzz properties and 2 invariant campaigns over the shipped bytecode</td></tr>
+  </table>
+
+  <div class="panel callout">
+    <span class="tag">Next</span>
+    <p>Learn to drive the front door: <a href="./portal.html">the portal guide</a>, or jump to an
+    app guide from the navigation bar.</p>
+  </div>
+
+  <div class="footer">
+    <span>Built on Quai Network (Cyprus-1, chain id 9) &middot; BOLTEVM</span>
+    <span><a href="./">Docs home</a></span>
+  </div>
+</main>
+
+</body>
+</html>

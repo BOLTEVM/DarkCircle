@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DarkSafe &middot; DarkCircle Suite Docs</title>
+<link rel="stylesheet" href="./docs.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <img src="../0.png" alt="" width="30" height="22">
+    <a href="./">DarkCircle Suite Docs</a>
+  </div>
+  <nav>
+    <a href="./">Home</a>
+    <a href="./getting-started.html">Getting started</a>
+    <a href="./portal.html">Portal</a>
+    <a href="./darkcircle.html">DarkCircle</a>
+    <a href="./circleswap.html">Circleswap</a>
+    <a class="here" href="./darksafe.html">DarkSafe</a>
+    <a href="./dark-questate.html">Dark Questate</a>
+    <a href="./darkorder.html">DarkOrder</a>
+    <a href="./security.html">Security</a>
+    <a href="../">&larr; Portal</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <div class="crumb"><a href="./">Docs</a> / DarkSafe</div>
+  <h1>&#x1F510; DarkSafe <span class="badge amber">Beta</span></h1>
+  <p class="lede">A Safe{Wallet}-style multi-signature vault dashboard for Quai Network's Cyprus-1
+  execution shard: on-chain proposals, a native timelock, quorum checks, and no
+  <code>DELEGATECALL</code>. Source: <code>multisigows/</code> &middot; Route:
+  <a href="../multisigows/"><code>/multisigows/</code></a></p>
+
+  <h2>What it is</h2>
+  <ul>
+    <li><strong>On-chain multi-sig contracts (v2)</strong> &mdash; <code>DarkSafeVault</code>:
+      owners propose, approve and execute on chain, with a required expiry, a native timelock and no
+      DELEGATECALL. Vaults are ERC-1967 proxies created by <code>DarkSafeVaultFactory</code>.</li>
+    <li><strong>A Quai Cyprus-1 core SDK</strong> (<code>@darksafe/core</code>) &mdash; address
+      validation, Quai JSON-RPC, the transaction pipeline and the v2 vault library (hashing,
+      vault-address mining, calldata decoding, risk rules, authenticity checks, cross-source reads).</li>
+    <li><strong>A live on-chain dashboard</strong> &mdash; no seeded, hardcoded or fabricated data
+      anywhere; every balance, owner list, threshold and queue is read from the chain or a real
+      wallet extension.</li>
+    <li><strong>Extension-only signing</strong> &mdash; every transaction goes through a connected
+      Quai wallet (Pelagus, Blip). Approvals are on-chain transactions; nothing is signed off chain
+      and no signer is bundled.</li>
+    <li><strong>Independent tools</strong> &mdash; <code>darksafe-verify</code> checks a vault or
+      transaction outside the app; <code>darksafe-watch</code> alerts on governance changes,
+      proposals, quorum and reorgs.</li>
+  </ul>
+
+  <h2>Creating a vault</h2>
+  <p>The "Create Vault" wizard (connect &rarr; owners &rarr; security &rarr; review) goes through
+  the DarkSafe v2 factory. It:</p>
+  <ol>
+    <li>mines a CREATE2 salt so the address lands in Cyprus-1 on the Quai ledger;</li>
+    <li>checks that address against the factory's own <code>predictWalletAddress</code>;</li>
+    <li>simulates the creation, sends it, and waits for confirmations;</li>
+    <li>requires the <code>WalletCreated</code> event to name the predicted address;</li>
+    <li>verifies the new vault on chain (code, implementation, factory registration, owners,
+      threshold, timelock) before saving it.</li>
+  </ol>
+  <p>"Add existing vault" accepts only vaults the verified factory created. The factory address
+  comes from <code>packages/contracts/deployments</code> via <code>pinned.ts</code>, or from
+  <code>VITE_V2_FACTORY_ADDRESS</code>, and is checked on chain against the pinned build before the
+  app uses it.</p>
+
+  <h2>Review before every write</h2>
+  <p>Every propose, approve and execute goes through a review screen that decodes the call and
+  lists risks; shows full addresses, exact amounts and raw calldata with a typed confirmation for
+  admin changes; re-derives the transaction hash from its stored contents; and compares vault and
+  transaction state across the app's RPC, an optional second RPC and the wallet's own node. A
+  disagreement blocks every write.</p>
+
+  <h2>Build and run</h2>
+  <pre><code>cd multisigows
+pnpm install
+pnpm build        # contracts, all packages, then the web app
+pnpm test
+pnpm dev          # dashboard dev server</code></pre>
+  <p>Point the dashboard at a network at build/dev time in <code>apps/web</code>:</p>
+  <pre><code>VITE_QUAI_NETWORK=mainnet|testnet     # default: testnet (Orchard)
+VITE_QUAI_RPC_URL=&lt;override&gt;          # default: the profile's canonical rpcUrl
+VITE_V2_FACTORY_ADDRESS=0x00...       # optional: a factory to use instead of the recorded one
+VITE_QUAI_SECONDARY_RPC_URL=&lt;url&gt;     # optional: a second RPC to cross-check vault state</code></pre>
+
+  <h2>Security status</h2>
+  <div class="panel callout warn">
+    <span class="tag">Unaudited</span>
+    <p>The vault contracts have not had an independent audit. The app shows a beta banner, and
+    mainnet vault creation is off unless a build sets <code>VITE_ALLOW_MAINNET_VAULTS=true</code>.
+    The road to mainnet is gated step by step in <code>docs/LAUNCH.md</code> inside
+    <code>multisigows/</code>.</p>
+  </div>
+  <ul>
+    <li>v2 only (v1 was removed): on-chain approvals, required expiry, native timelock,
+      epoch-invalidated approvals, no DELEGATECALL, no modules, no upgrade path.</li>
+    <li>The app only treats an address as a vault if its code is the pinned proxy, it points at the
+      pinned implementation, and the verified factory created it. Regenerate pins after any
+      contract change with <code>pnpm -F @darksafe/contracts pin</code>; CI fails if stale.</li>
+    <li>Security documents live in <code>multisigows/</code>: <code>SECURITY.md</code> (reporting),
+      <code>docs/THREAT_MODEL.md</code>, <code>docs/SECURITY_GUIDE.md</code>,
+      <code>docs/INCIDENT_RUNBOOK.md</code>, <code>docs/AUDIT_SCOPE.md</code>.</li>
+    <li>Contract checks: Hardhat unit + stateful fuzz, Foundry fuzz + invariants on the shipped
+      bytecode, <code>forge:diff</code> (TypeScript core agrees with the contracts), lint, gas
+      snapshot, opcode and coverage checks.</li>
+  </ul>
+
+  <div class="footer">
+    <span>Source: <code>multisigows/</code></span>
+    <span><a href="./">Docs home</a></span>
+  </div>
+</main>
+
+</body>
+</html>

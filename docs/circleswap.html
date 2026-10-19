@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Circleswap &middot; DarkCircle Suite Docs</title>
+<link rel="stylesheet" href="./docs.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <img src="../0.png" alt="" width="30" height="22">
+    <a href="./">DarkCircle Suite Docs</a>
+  </div>
+  <nav>
+    <a href="./">Home</a>
+    <a href="./getting-started.html">Getting started</a>
+    <a href="./portal.html">Portal</a>
+    <a href="./darkcircle.html">DarkCircle</a>
+    <a class="here" href="./circleswap.html">Circleswap</a>
+    <a href="./darksafe.html">DarkSafe</a>
+    <a href="./dark-questate.html">Dark Questate</a>
+    <a href="./darkorder.html">DarkOrder</a>
+    <a href="./security.html">Security</a>
+    <a href="../">&larr; Portal</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <div class="crumb"><a href="./">Docs</a> / Circleswap</div>
+  <h1>&#x26A1; Circleswap <span class="badge green">Live reads</span></h1>
+  <p class="lede">The Quai DeFi dashboard: real-time pool analytics, constant-product swap math,
+  liquidity provision, and a chain-driven Farms &amp; Pools page with an owner admin dashboard.
+  Source: <code>q0/</code> &middot; Route: <a href="../q0/"><code>/q0/</code></a></p>
+
+  <h2>What it does</h2>
+  <ul>
+    <li><strong>Real-time stat tracking</strong> &mdash; on-chain metadata (<code>name</code>,
+      <code>symbol</code>, <code>decimals</code>, <code>totalSupply</code>) and live Cyprus-1 block
+      numbers read directly over RPC.</li>
+    <li><strong>Liquidity pool analytics</strong> &mdash; reserve ratios, token rates and balances
+      for the monitored pairs, including Q0 / WQUAI (<code>0x003B4b96...eEef8</code>) and
+      Q0 / BOSS (<code>0x0036c1A5...7787</code>).</li>
+    <li><strong>Swap simulation &amp; execution</strong> &mdash; output rates, slippage thresholds
+      and price impact from constant-product math (x &middot; y = k) with a 0.3% pool fee. Execution
+      is direct-to-contract: a token <code>transfer()</code> to the pair followed by
+      <code>swap()</code> on the LP pair &mdash; no hardcoded router.</li>
+    <li><strong>Explorer ledger</strong> &mdash; the latest token transfer events from Quaiscan, with
+      top holder distribution.</li>
+  </ul>
+
+  <h2>Architecture</h2>
+  <table>
+    <tr><th>Package</th><th>What it is</th></tr>
+    <tr><td><code>apps/stats-app/</code></td><td>React + TypeScript single-page dashboard on Vite; dark glassmorphism theme in vanilla CSS</td></tr>
+    <tr><td><code>packages/quai-service/</code></td><td>Shared ESModule service client wrapping Quai JSON-RPC, AMM swap formulas and explorer REST APIs</td></tr>
+  </table>
+  <p>Configuration: RPC <code>https://rpc.quai.network/cyprus1</code>, explorer
+  <code>https://quaiscan.io/api/v2</code>, target shard Cyprus-1 (Region 0, Zone 0; byte prefix
+  <code>0x00</code>).</p>
+
+  <h2>Build and run</h2>
+  <pre><code>cd q0
+pnpm install
+pnpm build        # compile the workspace
+pnpm dev          # local dashboard on http://localhost:4100/</code></pre>
+
+  <h2>Wallet and signing</h2>
+  <p>Transactions are signed by your own wallet extension (Pelagus, MetaMask). Every app in the
+  suite treats an injected wallet as untrusted input: a provider that throws or lacks events is
+  reported as absent rather than allowed to break the page, and Circleswap shows a crash screen
+  with details instead of a blank page.</p>
+
+  <h2>Static-hosting behaviour</h2>
+  <div class="panel callout">
+    <span class="tag">CORS</span>
+    <p>Neither the explorer's indexed stats nor Quainance's launchpad catalog send a CORS header,
+    so the hosted page does not request them: USD values come from pool reserves, and Hartii / POOP /
+    curve launches come from a snapshot taken at deploy time and labelled with its date. Token
+    metadata is unaffected: it uses the CORS-open <code>/api/token/&lt;address&gt;</code> endpoint
+    and the RPC.</p>
+  </div>
+  <p>Token metadata decoding is chain-first: decimals never come from the explorer and are never
+  defaulted to 0; icon URLs are resolved, TTLed and negative-cached. The gate is
+  <code>node --test q0/packages/quai-service/test/tokenMetadata.test.ts</code>.</p>
+
+  <div class="panel callout warn">
+    <span class="tag">Audit status</span>
+    <p><code>q0/SECURITY_AUDIT.md</code> is an internal, AI-assisted review &mdash;
+    <strong>not</strong> an external audit.</p>
+  </div>
+
+  <div class="footer">
+    <span>Source: <code>q0/</code></span>
+    <span><a href="./">Docs home</a></span>
+  </div>
+</main>
+
+</body>
+</html>

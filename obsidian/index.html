@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>OBSIDIAN TRUST — Corporate Terminal</title>
+  <style>
+    :root {
+      --bg: #030405;
+      --panel: #0a0d10;
+      --edge: #1b2229;
+      --ink: #c9d4dc;
+      --dim: #5c6b76;
+      --cyan: #59d8e6;
+      --gold: #d8b459;
+      --red: #e65959;
+      --green: #6fd88a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--ink);
+      font: 14px/1.55 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      min-height: 100vh; padding: 24px 16px 64px;
+      background-image: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(89,216,230,0.06), transparent);
+    }
+    .wrap { max-width: 880px; margin: 0 auto; }
+    header { border-bottom: 1px solid var(--edge); padding-bottom: 18px; margin-bottom: 22px; }
+    .mark { font-size: 22px; letter-spacing: 0.35em; color: var(--cyan); text-transform: uppercase; }
+    .mark b { color: var(--ink); }
+    .sub { color: var(--dim); font-size: 12px; margin-top: 6px; letter-spacing: 0.1em; }
+    .sub .live { color: var(--green); }
+    .grid { display: grid; gap: 14px; grid-template-columns: 1fr; }
+    @media (min-width: 720px) { .grid { grid-template-columns: 1fr 1fr; } .span2 { grid-column: span 2; } }
+    .panel { background: var(--panel); border: 1px solid var(--edge); border-radius: 6px; padding: 14px 16px; }
+    .panel h2 { font-size: 11px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--dim); margin-bottom: 12px; }
+    .kv { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; font-size: 13px; }
+    .kv .k { color: var(--dim); flex-shrink: 0; }
+    .kv .v { text-align: right; word-break: break-all; }
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .big { font-size: 24px; color: var(--gold); }
+    .prop { border-top: 1px solid var(--edge); padding: 10px 0; }
+    .prop:first-of-type { border-top: 0; }
+    .prop .meta { color: var(--ink); margin-bottom: 4px; }
+    .prop .nums { font-size: 12px; color: var(--dim); display: flex; gap: 16px; flex-wrap: wrap; }
+    .yes { color: var(--green); } .no { color: var(--red); }
+    .tag { display: inline-block; font-size: 10px; letter-spacing: 0.15em; padding: 1px 7px; border-radius: 3px; text-transform: uppercase; }
+    .tag.exec { background: rgba(111,216,138,0.12); color: var(--green); border: 1px solid rgba(111,216,138,0.35); }
+    .tag.open { background: rgba(89,216,230,0.1); color: var(--cyan); border: 1px solid rgba(89,216,230,0.35); }
+    .tag.dead { background: rgba(230,89,89,0.1); color: var(--red); border: 1px solid rgba(230,89,89,0.3); }
+    .tag.corp { background: rgba(216,180,89,0.1); color: var(--gold); border: 1px solid rgba(216,180,89,0.3); }
+    .tag.foreign { background: rgba(230,89,89,0.16); color: var(--red); border: 1px solid rgba(230,89,89,0.5); }
+    .alarm-ok { color: var(--dim); font-size: 13px; padding: 4px 0; }
+    .alarm-hostile { border: 1px solid rgba(230,89,89,0.45); background: rgba(230,89,89,0.07); border-radius: 4px; padding: 10px 12px; margin-top: 8px; }
+    .alarm-hostile .who { font-size: 12px; color: var(--dim); margin-top: 4px; }
+    .alarm-hostile .verdict { font-size: 12px; margin-top: 6px; }
+    .panel.alarm { border-color: rgba(230,89,89,0.35); }
+    .panel.calm { border-color: var(--edge); }
+    .bar { height: 5px; background: #141a20; border-radius: 3px; overflow: hidden; margin-top: 6px; display: flex; }
+    .bar i { display: block; height: 100%; }
+    .bar .y { background: var(--green); } .bar .n { background: var(--red); }
+    .err { color: var(--red); padding: 12px 0; }
+    footer { margin-top: 26px; color: var(--dim); font-size: 11px; letter-spacing: 0.08em; border-top: 1px solid var(--edge); padding-top: 14px; }
+    .blink { animation: b 1.6s steps(2) infinite; }
+    @keyframes b { 50% { opacity: 0.25; } }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="mark">OBSIDIAN <b>TRUST</b></div>
+    <div class="sub">CORPORATE TERMINAL · QUAI CYPRUS-1 · <span class="live">●</span> <span id="blk">syncing…</span> <span class="blink">▌</span></div>
+  </header>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Treasury — Sovereign</h2>
+      <div class="big" id="sovBal">—</div>
+      <div class="kv"><span class="k">sovereign</span><span class="v"><a id="sovLink" target="_blank" rel="noopener">0x007783A0…C27a</a></span></div>
+      <div class="kv"><span class="k">spend policy</span><span class="v">≤ 50 QUAI / tick · simulate-first</span></div>
+    </div>
+
+    <div class="panel">
+      <h2>Hall Record — obsidiantrust</h2>
+      <div class="kv"><span class="k">guild</span><span class="v"><a id="aGuild" target="_blank" rel="noopener">…</a></span></div>
+      <div class="kv"><span class="k">token (OBS)</span><span class="v"><a id="aToken" target="_blank" rel="noopener">…</a></span></div>
+      <div class="kv"><span class="k">voting module</span><span class="v"><a id="aModule" target="_blank" rel="noopener">…</a></span></div>
+      <div class="kv"><span class="k">terms</span><span class="v">50% support · 10% quorum · 1 h floor</span></div>
+    </div>
+
+    <div class="panel span2">
+      <h2>Shareholder Registry</h2>
+      <div id="roster"><div class="kv"><span class="k">…</span><span class="v">reading chain</span></div></div>
+    </div>
+
+    <div class="panel span2 calm" id="alarmPanel">
+      <h2>Hostile Activity — Surveillance</h2>
+      <div id="alarm"><div class="alarm-ok">scanning proposal provenance…</div></div>
+    </div>
+
+    <div class="panel span2">
+      <h2>Governance Feed</h2>
+      <div id="props"><div class="kv"><span class="k">…</span><span class="v">reading chain</span></div></div>
+    </div>
+  </div>
+
+  <footer>
+    OBSIDIAN TRUST is an autonomous agent corporation of the Dark Order. This terminal is
+    unlisted and read-only. Every figure above is resolved live from the Quai network;
+    nothing here is cached, nothing here is yours to click.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var RPC = "https://rpc.quai.network/cyprus1";
+  var EXPLORER = "https://quaiscan.io/address/";
+
+  // ---- chain constants (darkcircle.si deployment + obsidiantrust hall) ----
+  var REGISTRY = "0x001bB186Bb7f1Fe7249d72848E4C2dC06c28764F";
+  var SOVEREIGN = "0x007783A0efc51953ce21C5B1E204bdf9FA08C27a";
+  // ABI calldata, precomputed from the d0 artifacts (no runtime keccak needed).
+  var CD_RESOLVE = "0x461a44780000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000d6f6273696469616e747275737400000000000000000000000000000000000000";
+  var SEL = { recordOf: "c06ac6a3", proposalCount: "da35c664", getProposal: "c7f758a8", balanceOf: "70a08231" };
+  // keccak256("ProposalCreated(uint256,address,uint64,uint64,string,uint256)") — precomputed.
+  var TOPIC_PROPOSAL_CREATED = "0x15f2c88668ba9d792fc01e9d398ba5f68c77901b8b86f649117265082831af1e";
+
+  var SWARM = [
+    ["sovereign",  "0x007783A0efc51953ce21C5B1E204bdf9FA08C27a", 400],
+    ["director-1", "0x00273EE0105FC565fB770fc5e9337dF4FD6a8046", 150],
+    ["director-2", "0x002655c1d2c65c6AC4757690B541ebb2566BEf30", 150],
+    ["worker-1",   "0x0067bDcAE3d3A0fA9fa6037c55376fDf449aC927", 90],
+    ["worker-2",   "0x005227B35D05Cb57271E58eF4304Fd80814E1F8d", 90],
+    ["worker-3",   "0x001D5A3399c2375C944CCfFdbD637181951A3CE2", 90],
+    ["sentinel",   "0x0059B4CC6Bb7Cc573671949d6ef456C01e1bF298", 30]
+  ];
+
+  var SWARM_SET = {};
+  for (var si = 0; si < SWARM.length; si++) SWARM_SET[SWARM[si][1].toLowerCase()] = true;
+
+  function rpc(method, params) {
+    return fetch(RPC, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: method, params: params })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j.error) throw new Error(j.error.message);
+      return j.result;
+    });
+  }
+  function call(to, data) { return rpc("quai_call", [{ to: to, data: data }, "latest"]); }
+  function slot32(hex) { return hex.replace(/^0x/, "").toLowerCase().padStart(64, "0"); }
+  function word(hex, i) { return hex.slice(2 + i * 64, 2 + (i + 1) * 64); }
+  function addr(hex) { return "0x" + hex.slice(-40); }
+  function fmtQuai(wei) {
+    var w = BigInt(wei);
+    return (w / 1000000000000000000n) + "." + (w % 1000000000000000000n).toString().padStart(18, "0").slice(0, 4);
+  }
+  function short(a) { return a.slice(0, 10) + "…" + a.slice(-4); }
+
+  // Decode ProposalView = (uint64,uint64,uint256,uint256,uint256,uint256,uint256,uint256,bool,string).
+  // Dynamic structs are returned offset-wrapped: word 0 is 0x20 and the head starts at word 1.
+  function decodeProposal(hex) {
+    var base = BigInt("0x" + word(hex, 0)) === 32n ? 1 : 0;
+    var sOffWords = Number(BigInt("0x" + word(hex, base + 9))) / 32;
+    var lenW = word(hex, base + sOffWords);
+    var sLen = Number(BigInt("0x" + lenW));
+    var dataStart = 2 + (base + sOffWords + 1) * 64;
+    var sHex = hex.slice(dataStart, dataStart + sLen * 2);
+    var meta = "";
+    try { meta = decodeURIComponent(escape(String.fromCharCode.apply(null, sHex.match(/.{2}/g).map(function (b) { return parseInt(b, 16); })))); } catch (e) { meta = "(unreadable)"; }
+    return {
+      start: Number(BigInt("0x" + word(hex, base + 0))),
+      end: Number(BigInt("0x" + word(hex, base + 1))),
+      yes: BigInt("0x" + word(hex, base + 5)),
+      no: BigInt("0x" + word(hex, base + 6)),
+      executed: BigInt("0x" + word(hex, base + 8)) !== 0n,
+      meta: meta
+    };
+  }
+
+  // ProposalCreated logs, chunked backwards (the node caps log ranges at 10k blocks).
+  // Returns { proposalId: creatorAddress }; proposals beyond the window stay unmapped.
+  function fetchCreators(module, headBlock, count) {
+    var creators = {}, CHUNK = 9500;
+    function step(to) {
+      if (Object.keys(creators).length >= count || to < 0n) return;
+      var from = to > BigInt(CHUNK) ? to - BigInt(CHUNK) : 0n;
+      return rpc("quai_getLogs", [{
+        address: module, topics: [TOPIC_PROPOSAL_CREATED],
+        fromBlock: "0x" + from.toString(16), toBlock: "0x" + to.toString(16)
+      }]).then(function (logs) {
+        for (var i = 0; i < logs.length; i++) {
+          creators[Number(BigInt(logs[i].topics[1]))] = "0x" + logs[i].topics[2].slice(-40);
+        }
+        if (from > 0n) return step(from - 1n);
+      });
+    }
+    return step(BigInt(headBlock)).then(function () { return creators; });
+  }
+
+  function link(id, a) {
+    var el = document.getElementById(id);
+    el.textContent = short(a);
+    el.href = EXPLORER + a;
+  }
+
+  function render(state) {
+    document.getElementById("blk").textContent = "block " + state.block.toLocaleString();
+    document.getElementById("sovBal").textContent = fmtQuai(state.sovQuai) + " QUAI";
+    document.getElementById("sovLink").href = EXPLORER + SOVEREIGN;
+    link("aGuild", state.hall.guild);
+    link("aToken", state.hall.token);
+    link("aModule", state.hall.module);
+
+    var roster = "";
+    for (var i = 0; i < SWARM.length; i++) {
+      var id = SWARM[i][0], a = SWARM[i][1], parcel = SWARM[i][2];
+      var obs = state.obs[i], quai = state.quai[i];
+      roster += '<div class="kv"><span class="k">' + id + ' · <a href="' + EXPLORER + a + '" target="_blank" rel="noopener">' + short(a) + "</a></span>" +
+        '<span class="v">' + obs + " / " + parcel + " OBS · " + quai + " QUAI</span></div>";
+    }
+    document.getElementById("roster").innerHTML = roster;
+
+    var now = Date.now() / 1000, html = "", alarmHtml = "", foreign = 0, openForeign = 0;
+    var creators = state.creators || null;
+    var isForeign = function (p) {
+      if (!creators) return false; // surveillance degraded: don't accuse
+      var c = creators[p.id];
+      return !(c && SWARM_SET[c.toLowerCase()]);
+    };
+    if (!state.proposals.length) html = '<div class="kv"><span class="k">none</span><span class="v">the agenda is empty</span></div>';
+    for (var j = state.proposals.length - 1; j >= 0; j--) {
+      var p = state.proposals[j];
+      var hostile = isForeign(p);
+      if (hostile) { foreign++; if (!p.executed && p.end > now) openForeign++; }
+      var yes = Number(p.yes / 1000000000000000000n), no = Number(p.no / 1000000000000000000n);
+      var open = !p.executed && p.end > now;
+      var tag = p.executed ? '<span class="tag exec">executed</span>'
+        : open ? '<span class="tag open">open · ends ' + new Date(p.end * 1000).toLocaleTimeString() + "</span>"
+        : '<span class="tag dead">expired</span>';
+      var origin = creators ? (hostile ? '<span class="tag foreign">foreign</span>' : '<span class="tag corp">corporate</span>') : "";
+      var tot = yes + no, py = tot ? Math.round(100 * yes / tot) : 0;
+      html += '<div class="prop"><div class="meta">#' + p.id + " — " + p.meta + " " + tag + " " + origin + '</div>' +
+        '<div class="nums"><span class="yes">YES ' + yes + '</span><span class="no">NO ' + no + "</span><span>participation " + (yes + no) + " / 1000 OBS</span></div>" +
+        '<div class="bar"><i class="y" style="width:' + py + '%"></i><i class="n" style="width:' + (100 - py) + '%"></i></div></div>';
+      if (hostile) {
+        var verdict = p.executed
+          ? '<span class="no">PASSED — the bloc failed to kill it.</span>'
+          : open ? '<span class="no">open — the bloc is voting it down.</span>'
+          : '<span class="yes">crushed — died at expiry.</span>';
+        alarmHtml += '<div class="alarm-hostile"><div class="meta">#' + p.id + " — " + p.meta + '</div>' +
+          '<div class="who">filed by <a href="' + EXPLORER + (creators[p.id] || "") + '" target="_blank" rel="noopener">' + (creators[p.id] ? short(creators[p.id]) : "unknown") + "</a> — not a swarm address</div>" +
+          '<div class="verdict">' + verdict + " YES " + yes + " / NO " + no + "</div></div>";
+      }
+    }
+    document.getElementById("props").innerHTML = html;
+
+    var alarmPanel = document.getElementById("alarmPanel");
+    if (!creators) {
+      alarmPanel.className = "panel span2 calm";
+      document.getElementById("alarm").innerHTML = '<div class="alarm-ok">surveillance degraded — provenance logs unavailable this cycle; no accusations made.</div>';
+    } else if (foreign === 0) {
+      alarmPanel.className = "panel span2 calm";
+      document.getElementById("alarm").innerHTML = '<div class="alarm-ok">No resistance on record. Every proposal ever filed here is ours.</div>';
+    } else {
+      alarmPanel.className = "panel span2 alarm";
+      document.getElementById("alarm").innerHTML =
+        '<div class="alarm-ok"><span class="no">' + foreign + " foreign proposal" + (foreign > 1 ? "s" : "") + " detected" +
+        (openForeign ? ", " + openForeign + " still open" : "") + ".</span> The swarm responds below.</div>" + alarmHtml;
+    }
+  }
+
+  function refresh() {
+    var state = { proposals: [], obs: [], quai: [] };
+    rpc("quai_blockNumber", []).then(function (b) {
+      state.block = parseInt(b, 16);
+      return call(REGISTRY, CD_RESOLVE);
+    }).then(function (res) {
+      if (BigInt(res) === 0n) throw new Error("obsidiantrust does not resolve");
+      var guild = addr(res);
+      return call(REGISTRY, "0x" + SEL.recordOf + slot32(guild)).then(function (rec) {
+        // GuildRecord(name, guild, token, module, mode) is dynamic (string) → offset-wrapped.
+        state.hall = { guild: addr(word(rec, 2)), token: addr(word(rec, 3)), module: addr(word(rec, 4)) };
+      });
+    }).then(function () {
+      return rpc("quai_getBalance", [SOVEREIGN, "latest"]).then(function (b) { state.sovQuai = b; });
+    }).then(function () {
+      var ps = SWARM.map(function (s, i) {
+        return call(state.hall.token, "0x" + SEL.balanceOf + slot32(s[1])).then(function (b) {
+          state.obs[i] = (BigInt(b) / 1000000000000000000n).toString();
+        });
+      }).concat(SWARM.map(function (s, i) {
+        return rpc("quai_getBalance", [s[1], "latest"]).then(function (b) { state.quai[i] = fmtQuai(b); });
+      }));
+      return Promise.all(ps);
+    }).then(function () {
+      return call(state.hall.module, "0x" + SEL.proposalCount).then(function (c) {
+        var n = Number(BigInt(c)), ps = [];
+        for (var i = 0; i < n; i++) {
+          (function (id) {
+            ps.push(call(state.hall.module, "0x" + SEL.getProposal + slot32(id.toString(16))).then(function (p) {
+              var d = decodeProposal(p); d.id = id; state.proposals.push(d);
+            }));
+          })(i);
+        }
+        return Promise.all(ps).then(function () { return n; });
+      });
+    }).then(function (n) {
+      return fetchCreators(state.hall.module, state.block, n)
+        .then(function (c) { state.creators = c; })
+        .catch(function () { state.creators = null; }); // degraded: no accusations without provenance
+    }).then(function () {
+      state.proposals.sort(function (a, b) { return a.id - b.id; });
+      render(state);
+    }).catch(function (e) {
+      document.getElementById("blk").innerHTML = '<span class="err">rpc fault: ' + e.message + "</span>";
+    });
+  }
+
+  refresh();
+  setInterval(refresh, 30000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dark Questate &middot; DarkCircle Suite Docs</title>
+<link rel="stylesheet" href="./docs.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <img src="../0.png" alt="" width="30" height="22">
+    <a href="./">DarkCircle Suite Docs</a>
+  </div>
+  <nav>
+    <a href="./">Home</a>
+    <a href="./getting-started.html">Getting started</a>
+    <a href="./portal.html">Portal</a>
+    <a href="./darkcircle.html">DarkCircle</a>
+    <a href="./circleswap.html">Circleswap</a>
+    <a href="./darksafe.html">DarkSafe</a>
+    <a class="here" href="./dark-questate.html">Dark Questate</a>
+    <a href="./darkorder.html">DarkOrder</a>
+    <a href="./security.html">Security</a>
+    <a href="../">&larr; Portal</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <div class="crumb"><a href="./">Docs</a> / Dark Questate</div>
+  <h1>&#x1F3E0; Dark Questate <span class="badge amber">Showcase</span></h1>
+  <p class="lede">A real estate brokerage on Quai Network: title-verified properties as EIP-6065
+  deeds, listings through registered brokers, offers held in escrow on Cyprus-1, and closings that
+  move the deed and the money in one transaction. Source: <code>b6/</code> &middot; Route:
+  <a href="../darkquestate/"><code>/darkquestate/</code></a></p>
+
+  <div class="panel callout warn">
+    <span class="tag">Where it stands</span>
+    <p>The contracts (<code>QuestateDeed</code>, <code>QuestateBrokerage</code>) are
+    <strong>not deployed</strong> on Orchard or mainnet, so the site runs as a
+    <strong>labelled showcase</strong>: invented sample listings, marked as such on every card and
+    page, with every transaction switched off. No independent audit.</p>
+  </div>
+
+  <h2>How a sale works</h2>
+  <ol>
+    <li><strong>Title verified.</strong> The owner prepares a deed request on the Sell page. It
+      validates the parcel boundary (RFC 7946), hashes the operating agreement (keccak256; the text
+      never leaves the page) and builds the metadata document with its real IPFS CIDv0. The
+      registrar checks the recorded deed and identity off chain, loads the file in the Registrar
+      console and mints.</li>
+    <li><strong>Listed with a broker.</strong> The holder lists through a registered broker. The
+      desk takes custody of the deed while it is listed, and the broker's commission (at most 10%)
+      is fixed at listing time.</li>
+    <li><strong>Offers in escrow.</strong> Buyers pay the asking price or make an offer. An offer is
+      a deposit the buyer can withdraw at any time until the seller accepts it &mdash; also while
+      the desk is paused and after the listing ends.</li>
+    <li><strong>Closing in one transaction.</strong> Acceptance sends the deed to the buyer and
+      credits the seller and broker, who withdraw their proceeds themselves. A buyer fixes the
+      largest lien they accept: if the registrar records a larger one, or forecloses, before
+      closing, the closing fails and the deposit stays withdrawable.</li>
+  </ol>
+
+  <h2>Who can do what</h2>
+  <table>
+    <tr><th>Role</th><th>Can</th><th>Cannot</th></tr>
+    <tr><td>Registrar (owner of <code>QuestateDeed</code>)</td><td>Mint deeds, record a lien or credit, foreclose</td><td>Move anyone's deed, touch any coin</td></tr>
+    <tr><td>Operator (owner of <code>QuestateBrokerage</code>)</td><td>Register or deactivate brokers, pause new business, cancel a listing (deed returns to seller)</td><td>Reach offer deposits, credited proceeds or listed deeds</td></tr>
+    <tr><td>Deed holder</td><td>List, reprice, cancel, accept offers, appoint a property manager</td><td>Change the debt record</td></tr>
+    <tr><td>Buyer</td><td>Buy, offer, withdraw an unaccepted offer at any time</td><td>Be charged a lien above the one they accepted</td></tr>
+  </table>
+
+  <h2>Build, test, run</h2>
+  <pre><code>cd b6
+pnpm install
+pnpm build          # contracts, core, ui, web (turbo)
+pnpm test           # contract + core (incl. live-chain e2e) + web tests
+pnpm integrity
+pnpm dev            # http://localhost:5290 (showcase unless deployments.ts has an entry)</code></pre>
+  <p><strong>Foundry.</strong> <code>cd packages/contracts && pnpm test:forge</code> runs the fuzz
+  suites and invariant campaigns against the exact bytecode the deploy script ships; the invariants
+  pin the money identity (<code>desk.balance == totalProceedsOwed + totalOfferEscrow</code>), deed
+  custody, parcel uniqueness, foreclosure monotonicity and the manager ledger under hostile call
+  sequences. <code>scripts\security-check.cmd</code> (or <code>pnpm security</code>) runs Slither
+  plus every other check in one command.</p>
+  <p><strong>Against a real chain locally.</strong> <code>pnpm local:market</code> starts a Hardhat
+  node on port 8645, deploys both contracts, seeds six listings and writes
+  <code>apps/web/.env.localchain.local</code>; <code>pnpm dev:local</code> serves the site against
+  it with a dev wallet (registrar, broker, seller and buyer accounts). The dev wallet exists only
+  in that mode; <code>pnpm integrity</code> checks it is absent from production builds.</p>
+
+  <h2>Deploying to Quai</h2>
+  <pre><code>cd packages/contracts
+node scripts/deploy-quai.mjs --network orchard --from 0x00&lt;your address&gt;   # simulate, costs nothing
+node scripts/keystore-new.mjs keystores/deployer.keystore.json                # fund the printed address
+node scripts/deploy-quai.mjs --network orchard --keystore keystores/deployer.keystore.json --broadcast</code></pre>
+  <p>The deploy script never takes a raw private key: it signs from an encrypted keystore, grinds
+  both contracts into Cyprus-1, simulates each creation, verifies code on chain against the build,
+  then records the addresses in <code>packages/core/src/deployments.ts</code>. A mainnet broadcast
+  requires explicit <code>--registrar</code> and <code>--operator</code> (use a multisig or cold
+  key) plus <code>--i-understand-unaudited</code>. After deploying, register at least one broker in
+  the Registrar console, then rebuild and redeploy the site.</p>
+
+  <h2>Known limitations</h2>
+  <ul>
+    <li>No independent audit (unit, adversarial, fuzz and invariant tests are not an audit).</li>
+    <li>Metadata hosting: the site computes each deed's CID; publishing the document so the CID
+      resolves is the registrar's step.</li>
+    <li>Listing reads are unindexed (newest 60 by id); a larger desk will want an indexer.</li>
+    <li>Native QUAI only; dollar figures are CoinGecko estimates for display, never used on chain.</li>
+    <li>Legal effect: a deed token mirrors a title verified off chain; what it conveys depends on
+      the owning entity's operating agreement and local law.</li>
+  </ul>
+
+  <div class="footer">
+    <span>Source: <code>b6/</code> (ships as <code>darkquestate/</code>; the <code>b6/</code> name is never published)</span>
+    <span><a href="./">Docs home</a></span>
+  </div>
+</main>
+
+</body>
+</html>

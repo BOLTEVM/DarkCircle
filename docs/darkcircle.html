@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DarkCircle &middot; DarkCircle Suite Docs</title>
+<link rel="stylesheet" href="./docs.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <img src="../0.png" alt="" width="30" height="22">
+    <a href="./">DarkCircle Suite Docs</a>
+  </div>
+  <nav>
+    <a href="./">Home</a>
+    <a href="./getting-started.html">Getting started</a>
+    <a href="./portal.html">Portal</a>
+    <a class="here" href="./darkcircle.html">DarkCircle</a>
+    <a href="./circleswap.html">Circleswap</a>
+    <a href="./darksafe.html">DarkSafe</a>
+    <a href="./dark-questate.html">Dark Questate</a>
+    <a href="./darkorder.html">DarkOrder</a>
+    <a href="./security.html">Security</a>
+    <a href="../">&larr; Portal</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <div class="crumb"><a href="./">Docs</a> / DarkCircle</div>
+  <h1>&#x1F6E1;&#xFE0F; DarkCircle <span class="badge amber">Simulation</span></h1>
+  <p class="lede">x402 payment privacy for Quai Network: shielded-pool settlement in WQUAI and WQI,
+  with Private Proof of Innocence (PPOI) compliance, ephemeral payees and a voice agent.
+  Source: <code>x402tumbler/</code> &middot; Route: <a href="../x402tumbler/"><code>/x402tumbler/</code></a></p>
+
+  <h2>What is real and what is simulated</h2>
+  <table>
+    <tr><th>Layer</th><th>Status</th></tr>
+    <tr><td>Quai network rules (zones, chain ids, address validation, checksums, access lists)</td><td><span class="badge green">Real</span> checked against <code>rpc.quai.network/cyprus1</code></td></tr>
+    <tr><td>WQUAI / WQI registry (addresses, decimals, WQI's EIP-2612 domain)</td><td><span class="badge green">Real</span> <code>pnpm verify:quai</code> re-checks them live</td></tr>
+    <tr><td>Quai JSON-RPC client, access-list preparation, on-chain payment verifier</td><td><span class="badge green">Real code</span> read/prepare only; never signs or broadcasts</td></tr>
+    <tr><td>x402 protocol, spending policy, gateway, ephemeral payees, audit engine, CLI, UI</td><td><span class="badge green">Real code</span> running against the simulated ledger</td></tr>
+    <tr><td>Blockchain, token contracts, shielded pools, relayer</td><td><span class="badge amber">Simulation</span> in-memory; nothing deployed on Quai</td></tr>
+    <tr><td>Voice agent page</td><td><span class="badge green">Real Quai</span> your wallet signs every step; public operations only</td></tr>
+    <tr><td>Groth16 circuit and pool contract</td><td><span class="badge red">Reference</span> unaudited, dev ceremony, deployed nowhere</td></tr>
+  </table>
+  <div class="panel callout warn">
+    <span class="tag">Before real funds</span>
+    <p>Everything up to the chain boundary is Quai-correct and testable; the pools themselves are a
+    model. Do not point this at real funds until the open items in <code>x402tumbler/AUDIT.md</code>
+    (O-1, O-2 and O-14 to O-17) are closed.</p>
+  </div>
+
+  <h2>Two pools, both live</h2>
+  <p>WQUAI and WQI each have their own shielded pool, relayer, merchant gateway, treasury notes and
+  accounting journal on one shared ledger. A WQUAI note can never be spent from the WQI pool;
+  custody and anonymity sets are per asset.</p>
+  <table>
+    <tr><th></th><th>WQUAI</th><th>WQI</th></tr>
+    <tr><td>Obtain</td><td>wraps native QUAI (<code>deposit()</code> / <code>withdraw()</code>)</td><td>issued by its own contract; no wrap</td></tr>
+    <tr><td>EIP-2612 permit</td><td>no</td><td><strong>yes</strong></td></tr>
+    <tr><td>Sweeping a payee address</td><td>needs the relayer to fund QUAI gas</td><td><strong>gasless</strong>: payee signs a permit, relayer submits</td></tr>
+    <tr><td>Decimals</td><td>18</td><td>18</td></tr>
+  </table>
+
+  <h2>Quick start</h2>
+  <pre><code>pnpm test                       # full suite (915 tests)
+pnpm lint                       # tsc --noEmit
+pnpm verify:quai                # live, read-only check of Cyprus-1, WQUAI, WQI
+pnpm ui                         # operator console on http://127.0.0.1:5180 (simulation)
+pnpm voice:setup                # shows which speech model the voice agent needs
+pnpm voice:setup -- --yes       # downloads it once (~145 MB); speech never leaves this machine
+
+# durable, encrypted state (passphrase from the environment, never a flag)
+DARKCIRCLE_STORE_PASSPHRASE='twelve or more characters' pnpm ui --data-dir ./.darkcircle-data</code></pre>
+
+  <h3>CLI</h3>
+  <pre><code>node bin/darkcircle.ts shield --amount 10                         # deposit into the pool
+node bin/darkcircle.ts invoice --amount 2.5                       # x402 invoice, single-use payee
+node bin/darkcircle.ts pay --recipient 0x0037...8d --amount 1.25
+node bin/darkcircle.ts sweep --invoice &lt;id&gt;
+node bin/darkcircle.ts audit --format json
+node bin/darkcircle.ts checklist unshield --address 0x0037...8d --amount 5
+DARKCIRCLE_ASSET=WQI node bin/darkcircle.ts pay --recipient 0x0037...8d --amount 1.25</code></pre>
+  <p><strong>Amounts are token amounts</strong>: <code>5</code> means five tokens; base units need a
+  <code>u</code> suffix (<code>5000000000000000000u</code>). The CLI runs one asset per process
+  (<code>DARKCIRCLE_ASSET</code>, default WQUAI); the UI runs both.</p>
+
+  <h2>Operator console</h2>
+  <p><code>pnpm ui</code> serves a local console, dark by default with a light theme behind the
+  sun/moon button. A sidebar switches between <strong>Overview</strong>, <strong>Notes &amp;
+  events</strong>, <strong>Invoices</strong> and <strong>Journal</strong>, and the overview has a
+  pools overview plus modals for <strong>Shield</strong>, <strong>Send</strong>,
+  <strong>Receive</strong>, <strong>Sweep</strong>, <strong>Audit export</strong> and a stand-alone
+  <strong>Checklist</strong>. Each modal is three steps &mdash; details with a live pre-flight
+  checklist, review, result &mdash; and the server re-runs the same checklist on every action, so
+  the page cannot skip a gate.</p>
+  <p>The server binds to loopback only, checks <code>Host</code> and <code>Origin</code>, requires a
+  per-process session token, caps bodies at 64 KiB, serves a CSP that forbids inline script and
+  third-party origins, and never returns keys.</p>
+  <div class="panel callout">
+    <span class="tag">Static hosting</span>
+    <p>On the hosted site there is no local API, so the page shows a "Static preview" banner,
+    switches its actions off and makes no API calls. Run <code>pnpm ui</code> locally for the real
+    console.</p>
+  </div>
+
+  <h2>Voice agent (real Quai)</h2>
+  <p>The <strong>Voice agent</strong> page (sidebar, marked LIVE) turns spoken or typed commands
+  into real Cyprus-1 (or Orchard) transactions that <em>your</em> wallet (Pelagus or Blip) signs
+  after you confirm each one. A red banner says so whenever the page is open.</p>
+  <table>
+    <tr><th>Say</th><th>It does</th></tr>
+    <tr><td>"what's my balance"</td><td>Reads QUAI, WQUAI and WQI balances of your connected wallet</td></tr>
+    <tr><td>"wrap 5 QUAI", "unwrap 2.5 WQUAI"</td><td>Calls WQUAI's <code>deposit()</code> / <code>withdraw()</code></td></tr>
+    <tr><td>"send 10 WQUAI to Acme"</td><td>Transfers to a <strong>saved contact</strong>, never a spoken address</td></tr>
+    <tr><td>"buy the analytics report"</td><td>Reads a saved service's x402 challenge, pays the invoice, collects the resource</td></tr>
+    <tr><td>"confirm 4 1 7", "cancel"</td><td>Confirms or drops the pending plan</td></tr>
+    <tr><td>"help", "contacts", "services"</td><td>Lists what it knows</td></tr>
+  </table>
+  <p>The grammar is deterministic and runs offline &mdash; there is no language model guessing what
+  you meant. Every spend goes: plan (access list + gas estimate, refused early if it would fail) &rarr;
+  read-back with a <strong>3-digit code</strong> (3-minute TTL) &rarr; your wallet signs &rarr;
+  the agent verifies the receipt against the plan. Spending limits are per asset, per action
+  (default 25) and per day (default 100).</p>
+  <p>Speech stays on this machine by default: recordings are transcribed by a local faster-whisper
+  worker (<code>local_files_only=True</code>) and deleted. Shielded payments are refused by voice
+  on purpose, because the pools are not deployed.</p>
+
+  <h2>Durable state</h2>
+  <p>With <code>--data-dir</code> and <code>DARKCIRCLE_STORE_PASSPHRASE</code> the server keeps
+  AES-256-GCM encrypted snapshots (key via scrypt, N = 2^17; atomic writes; newest five kept).
+  Recovery takes the newest snapshot that authenticates <em>and</em> passes coherence checks
+  (Merkle root rebuilt, pool solvency, journal reconciliation, supply equals balances). A key,
+  network or asset mismatch refuses to start rather than starting empty over someone else's store.
+  If the passphrase is lost the snapshots cannot be read.</p>
+
+  <h2>Trust modes</h2>
+  <p>The pool and the payment gateway each run in <code>verified</code> (default; checks proofs and
+  receipts) or <code>trusted-harness</code> (pre-audit behaviour for the adversarial suites only).
+  <code>trusted-harness</code> is never a safe configuration and is reported as a failing blocker
+  by the checklist and a red chip in the UI.</p>
+
+  <div class="footer">
+    <span>Source: <code>x402tumbler/</code> &middot; License: MIT</span>
+    <span><a href="./">Docs home</a></span>
+  </div>
+</main>
+
+</body>
+</html>

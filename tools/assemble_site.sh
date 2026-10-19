@@ -27,6 +27,15 @@ mkdir -p "$OUT/assets/3d"
 cp assets/3d/qrb_chamber.glb "$OUT/assets/3d/"
 cp -r assets/3d/vendor "$OUT/assets/3d/vendor"
 
+# documentation: static HTML guides, no build step
+mkdir -p "$OUT/docs"
+cp -r docs/. "$OUT/docs/"
+
+# hidden terminals (unlisted, noindex): the corporate terminal and its community counterpage
+mkdir -p "$OUT/obsidian" "$OUT/resistance"
+cp -r obsidian/. "$OUT/obsidian/"
+cp -r resistance/. "$OUT/resistance/"
+
 # background music: the portal autoplays whatever ./playlist/ lists (see PLAYLIST in index.html)
 mkdir -p "$OUT/playlist"
 cp -r playlist/. "$OUT/playlist/"
@@ -65,6 +74,10 @@ for f in index.html 404.html 0.png Boltfont.png \
          assets/3d/vendor/three/addons/postprocessing/EffectComposer.js \
          assets/3d/vendor/three/addons/postprocessing/OutputPass.js \
          playlist/Wonfiddyshowcase.mp3 \
+         docs/index.html docs/docs.css docs/getting-started.html docs/portal.html \
+         docs/darkcircle.html docs/circleswap.html docs/darksafe.html \
+         docs/dark-questate.html docs/darkorder.html docs/security.html \
+         obsidian/index.html resistance/index.html \
          q0/0logov3.png q0/Boltfont.png x402tumbler/Boltfont.png multisigows/Boltfont.png \
          darkquestate/0.png darkquestate/Boltfont.png darkorder/0.png darkorder/Boltfont.png \
          x402tumbler/index.html q0/index.html multisigows/index.html darkquestate/index.html \

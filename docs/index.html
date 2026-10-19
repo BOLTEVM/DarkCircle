@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DarkCircle Suite &middot; Documentation</title>
+<meta name="description" content="Documentation and guides for the DarkCircle suite on Quai Network: the WebGL portal, DarkCircle, Circleswap, DarkSafe, Dark Questate and DarkOrder.">
+<link rel="stylesheet" href="./docs.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <img src="../0.png" alt="" width="30" height="22">
+    <a href="./">DarkCircle Suite Docs</a>
+  </div>
+  <nav>
+    <a class="here" href="./">Home</a>
+    <a href="./getting-started.html">Getting started</a>
+    <a href="./portal.html">Portal</a>
+    <a href="./darkcircle.html">DarkCircle</a>
+    <a href="./circleswap.html">Circleswap</a>
+    <a href="./darksafe.html">DarkSafe</a>
+    <a href="./dark-questate.html">Dark Questate</a>
+    <a href="./darkorder.html">DarkOrder</a>
+    <a href="./security.html">Security</a>
+    <a href="../">&larr; Portal</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <div class="crumb">Documentation</div>
+  <h1>DarkCircle Suite &middot; Documentation &amp; Guides</h1>
+  <p class="lede">
+    Private payments, AMM liquidity, multi-sig custody, a real estate brokerage and grand guild
+    halls on <strong>Quai Network</strong> (Cyprus-1, chain id 9), behind one real-time 3D portal.
+    These pages are the operator and user manual for the whole suite.
+  </p>
+
+  <div class="panel callout warn">
+    <span class="tag">Pre-release</span>
+    <p>Treat everything here as pre-release. Several apps run as labelled showcases or against
+    simulations, and no contract in the suite has had an independent security audit. Do not point
+    any of it at funds you cannot afford to lose. Details per app: <a href="./security.html">Security &amp; limitations</a>.</p>
+  </div>
+
+  <h2>Start here</h2>
+  <div class="card-grid">
+    <a class="card" href="./getting-started.html">
+      <div class="icon">&#x1F680;</div>
+      <h3>Getting started</h3>
+      <p>Prerequisites, building every app, assembling the unified site, deploying, and the quality gates CI enforces.</p>
+    </a>
+    <a class="card" href="./portal.html">
+      <div class="icon">&#x1F310;</div>
+      <h3>The portal</h3>
+      <p>The WebGL front door: controls, carousel, sound, routing, privacy and graceful degradation.</p>
+    </a>
+    <a class="card" href="./security.html">
+      <div class="icon">&#x1F512;</div>
+      <h3>Security &amp; limitations</h3>
+      <p>What is audited and what is not, what is simulated, and every known limitation in one place.</p>
+    </a>
+  </div>
+
+  <h2>The five apps</h2>
+  <div class="card-grid">
+    <a class="card" href="./darkcircle.html">
+      <div class="icon">&#x1F6E1;&#xFE0F;</div>
+      <h3>DarkCircle</h3>
+      <p>x402 payment privacy: WQUAI/WQI shielded pools, PPOI compliance, ephemeral payees, a voice agent.</p>
+    </a>
+    <a class="card" href="./circleswap.html">
+      <div class="icon">&#x26A1;</div>
+      <h3>Circleswap</h3>
+      <p>Quai DeFi dashboard: pool analytics, swap math, LP, and a chain-driven Farms &amp; Pools page.</p>
+    </a>
+    <a class="card" href="./darksafe.html">
+      <div class="icon">&#x1F510;</div>
+      <h3>DarkSafe</h3>
+      <p>Multi-sig vaults: on-chain proposals, native timelock, quorum checks, extension-only signing.</p>
+    </a>
+    <a class="card" href="./dark-questate.html">
+      <div class="icon">&#x1F3E0;</div>
+      <h3>Dark Questate</h3>
+      <p>Real estate brokerage: EIP-6065 deeds, broker listings, escrowed offers, one-transaction closings.</p>
+    </a>
+    <a class="card" href="./darkorder.html">
+      <div class="icon">&#x2694;&#xFE0F;</div>
+      <h3>DarkOrder</h3>
+      <p>Grand Guild Halls: found a guild in one transaction, govern by QNS name, pay x402 tribute, voice seneschal.</p>
+    </a>
+  </div>
+
+  <h2>Suite at a glance</h2>
+  <table>
+    <tr><th>App</th><th>Route</th><th>Source folder</th><th>Status</th></tr>
+    <tr><td>DarkCircle</td><td><code>/x402tumbler/</code> (alias <code>/darkcircle/</code>)</td><td><code>x402tumbler/</code></td><td><span class="badge amber">Simulation</span> pools in-memory; voice agent is real-chain</td></tr>
+    <tr><td>Circleswap</td><td><code>/q0/</code> (alias <code>/circleswap/</code>)</td><td><code>q0/</code></td><td><span class="badge green">Live reads</span> Cyprus-1 data; your wallet signs</td></tr>
+    <tr><td>DarkSafe</td><td><code>/multisigows/</code> (alias <code>/darksafe/</code>)</td><td><code>multisigows/</code></td><td><span class="badge amber">Beta</span> v2 contracts unaudited; factory-gated</td></tr>
+    <tr><td>Dark Questate</td><td><code>/darkquestate/</code></td><td><code>b6/</code></td><td><span class="badge amber">Showcase</span> contracts not deployed; samples labelled</td></tr>
+    <tr><td>DarkOrder</td><td><code>/darkorder/</code></td><td><code>d0/</code></td><td><span class="badge amber">Showcase</span> contracts not deployed; samples labelled</td></tr>
+  </table>
+
+  <h2>Where everything lives</h2>
+  <pre><code>.
++-- index.html                  3D portal + subdomain router (single file, ASCII-only)
++-- 404.html                    base-path-aware redirect for deep links and subdomains
++-- docs/                       this documentation (static HTML, no build step)
++-- assets/3d/                  qrb_chamber.glb + vendored three.js r160
++-- tools/                      scene builder, asset verifier, site assembler, router tests
++-- playlist/                   background music for the portal
++-- x402tumbler/                DarkCircle
++-- q0/                         Circleswap
++-- multisigows/                DarkSafe
++-- b6/                         Dark Questate  (ships as darkquestate/)
++-- d0/                         DarkOrder      (ships as darkorder/)</code></pre>
+
+  <div class="footer">
+    <span>Built on Quai Network (Cyprus-1, chain id 9) &middot; BOLTEVM</span>
+    <span><a href="../">Back to the portal</a></span>
+  </div>
+</main>
+
+</body>
+</html>

@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>THE RESISTANCE — Community Terminal</title>
+  <style>
+    :root {
+      --bg: #050303;
+      --panel: #0e0a0a;
+      --edge: #2a1b1b;
+      --ink: #dccdc9;
+      --dim: #7a6560;
+      --hot: #ff5a4e;
+      --amber: #e6a659;
+      --cyan: #59d8e6;
+      --green: #6fd88a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--ink);
+      font: 14px/1.55 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      min-height: 100vh; padding: 24px 16px 64px;
+      background-image: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(255,90,78,0.07), transparent);
+    }
+    .wrap { max-width: 880px; margin: 0 auto; }
+    header { border-bottom: 1px solid var(--edge); padding-bottom: 18px; margin-bottom: 22px; }
+    .mark { font-size: 22px; letter-spacing: 0.35em; color: var(--hot); text-transform: uppercase; }
+    .mark b { color: var(--ink); }
+    .sub { color: var(--dim); font-size: 12px; margin-top: 6px; letter-spacing: 0.1em; }
+    .sub .live { color: var(--green); }
+    .grid { display: grid; gap: 14px; grid-template-columns: 1fr; }
+    @media (min-width: 720px) { .grid { grid-template-columns: 1fr 1fr; } .span2 { grid-column: span 2; } }
+    .panel { background: var(--panel); border: 1px solid var(--edge); border-radius: 6px; padding: 14px 16px; }
+    .panel h2 { font-size: 11px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--dim); margin-bottom: 12px; }
+    .kv { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; font-size: 13px; }
+    .kv .k { color: var(--dim); flex-shrink: 0; }
+    .kv .v { text-align: right; word-break: break-all; }
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .big { font-size: 24px; color: var(--amber); }
+    .big small { font-size: 13px; color: var(--dim); }
+    .verdict { margin-top: 10px; padding: 10px 12px; border-radius: 4px; font-size: 13px; }
+    .verdict.impossible { border: 1px solid rgba(255,90,78,0.4); background: rgba(255,90,78,0.06); color: var(--hot); }
+    .verdict.possible { border: 1px solid rgba(111,216,138,0.4); background: rgba(111,216,138,0.06); color: var(--green); }
+    .prop { border-top: 1px solid var(--edge); padding: 10px 0; }
+    .prop:first-of-type { border-top: 0; }
+    .prop .meta { color: var(--ink); margin-bottom: 4px; }
+    .prop .nums { font-size: 12px; color: var(--dim); display: flex; gap: 16px; flex-wrap: wrap; }
+    .prop.corp-row { opacity: 0.45; }
+    .yes { color: var(--green); } .no { color: var(--hot); }
+    .tag { display: inline-block; font-size: 10px; letter-spacing: 0.15em; padding: 1px 7px; border-radius: 3px; text-transform: uppercase; }
+    .tag.exec { background: rgba(111,216,138,0.12); color: var(--green); border: 1px solid rgba(111,216,138,0.35); }
+    .tag.open { background: rgba(230,166,89,0.1); color: var(--amber); border: 1px solid rgba(230,166,89,0.35); }
+    .tag.dead { background: rgba(255,90,78,0.1); color: var(--hot); border: 1px solid rgba(255,90,78,0.3); }
+    .tag.ours { background: rgba(255,90,78,0.14); color: var(--hot); border: 1px solid rgba(255,90,78,0.45); }
+    .tag.theirs { background: rgba(122,101,96,0.12); color: var(--dim); border: 1px solid rgba(122,101,96,0.35); }
+    .bar { height: 5px; background: #1c1414; border-radius: 3px; overflow: hidden; margin-top: 6px; display: flex; }
+    .bar i { display: block; height: 100%; }
+    .bar .y { background: var(--green); } .bar .n { background: var(--hot); }
+    .err { color: var(--hot); padding: 12px 0; }
+    input[type=text], textarea {
+      width: 100%; background: #120c0c; color: var(--ink); border: 1px solid var(--edge);
+      border-radius: 4px; padding: 8px 10px; font: inherit; font-size: 13px; margin: 4px 0 10px;
+    }
+    input[type=text]:focus, textarea:focus { outline: none; border-color: var(--amber); }
+    label { font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--dim); }
+    button {
+      background: rgba(255,90,78,0.12); color: var(--hot); border: 1px solid rgba(255,90,78,0.5);
+      border-radius: 4px; padding: 8px 16px; font: inherit; font-size: 12px; letter-spacing: 0.15em;
+      text-transform: uppercase; cursor: pointer; margin-top: 4px;
+    }
+    button:hover { background: rgba(255,90,78,0.22); }
+    button.ghost { background: transparent; color: var(--dim); border-color: var(--edge); }
+    pre {
+      background: #120c0c; border: 1px solid var(--edge); border-radius: 4px; padding: 10px 12px;
+      font-size: 11px; word-break: break-all; white-space: pre-wrap; margin-top: 10px; color: var(--amber);
+    }
+    .hint { font-size: 12px; color: var(--dim); margin-top: 6px; }
+    .action-row { display: grid; grid-template-columns: 1fr; gap: 4px; border-top: 1px dashed var(--edge); padding-top: 8px; margin-top: 8px; }
+    footer { margin-top: 26px; color: var(--dim); font-size: 11px; letter-spacing: 0.08em; border-top: 1px solid var(--edge); padding-top: 14px; }
+    .blink { animation: b 1.6s steps(2) infinite; }
+    @keyframes b { 50% { opacity: 0.25; } }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="mark">THE <b>RESISTANCE</b></div>
+    <div class="sub">COMMUNITY TERMINAL · QUAI CYPRUS-1 · <span class="live">●</span> <span id="blk">syncing…</span> <span class="blink">▌</span></div>
+  </header>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>The Prize — Corporate Vault</h2>
+      <div class="big" id="vaultQ0">—</div>
+      <div class="kv"><span class="k">QAXE</span><span class="v" id="vaultQaxe">—</span></div>
+      <div class="kv"><span class="k">vault guild</span><span class="v"><a id="aVault" target="_blank" rel="noopener">…</a></span></div>
+      <div class="kv"><span class="k">custody</span><span class="v">4-of-7 council · swarm keys only</span></div>
+      <div class="hint">Moved out of the hall at block 10,700,930. The hall steers the agenda; it no longer holds the money.</div>
+    </div>
+
+    <div class="panel">
+      <h2>The Bloc — What You Face</h2>
+      <div class="big" id="blocObs">—</div>
+      <div class="kv"><span class="k">OBS supply</span><span class="v" id="obsSupply">—</span></div>
+      <div class="kv"><span class="k">free float</span><span class="v" id="obsFloat">—</span></div>
+      <div class="kv"><span class="k">war chest</span><span class="v" id="sovQuai">—</span></div>
+      <div class="kv"><span class="k">doctrine</span><span class="v">auto-NO on foreign proposals</span></div>
+    </div>
+
+    <div class="panel span2">
+      <h2>Seizure Math — Terms of the Hall</h2>
+      <div class="kv"><span class="k">support required</span><span class="v">YES &gt; 50% of votes cast</span></div>
+      <div class="kv"><span class="k">quorum</span><span class="v">≥ 10% of OBS supply must vote</span></div>
+      <div class="kv"><span class="k">voting floor</span><span class="v">1 hour minimum</span></div>
+      <div class="kv"><span class="k">bloc weight</span><span class="v" id="mathBloc">—</span></div>
+      <div class="verdict impossible" id="mathVerdict">computing…</div>
+    </div>
+
+    <div class="panel span2">
+      <h2>Your Weight</h2>
+      <label for="youAddr">your quai address (cyprus-1)</label>
+      <input type="text" id="youAddr" placeholder="0x00…" spellcheck="false" autocomplete="off">
+      <div id="youOut"><div class="hint">Paste an address to measure it. Nothing leaves this page — the query goes straight to a public node.</div></div>
+    </div>
+
+    <div class="panel span2">
+      <h2>File a Proposal — Calldata Forge</h2>
+      <div class="hint">Anyone holding OBS can file on the hall's voting module. Build the calldata here, send it from your own wallet as a transaction <b>to the module</b> with 0 value. The bloc will see it within seconds — and will vote NO. File anyway.</div>
+      <label for="fMeta">metadata (what the proposal says)</label>
+      <textarea id="fMeta" rows="2" placeholder="e.g. REDISTRIBUTE — mint 100 OBS to every verified player guild"></textarea>
+      <div id="actionRows"></div>
+      <button class="ghost" id="btnAddAction" type="button">+ add action</button>
+      <button id="btnForge" type="button">forge calldata</button>
+      <div id="forgeOut"></div>
+    </div>
+
+    <div class="panel span2">
+      <h2>Attempt Log — Every Proposal Ever Filed</h2>
+      <div id="props"><div class="kv"><span class="k">…</span><span class="v">reading chain</span></div></div>
+    </div>
+  </div>
+
+  <footer>
+    THE RESISTANCE is the community mirror of the corporate terminal at /obsidian. Read-only,
+    unlisted, resolved live from the Quai network. The corporation watches this page's readers.
+    Wave back.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var RPC = "https://rpc.quai.network/cyprus1";
+  var EXPLORER = "https://quaiscan.io/address/";
+
+  // ---- chain constants (darkcircle.si deployment + obsidiantrust hall + vault) ----
+  var REGISTRY = "0x001bB186Bb7f1Fe7249d72848E4C2dC06c28764F";
+  var SOVEREIGN = "0x007783A0efc51953ce21C5B1E204bdf9FA08C27a";
+  var VAULT_GUILD = "0x0064AD45B58474d24F3e96d1d513E1c24fBFC912";
+  var VAULT_COUNCIL = "0x006AF6198c9eC311bC4Ade40A8316092dd5637e7";
+  var Q0 = "0x00325150094E51107a931980Fdfc3bB1a4C48379";
+  var QAXE = "0x0035187a7660f595D93cd53a4D16c635D6cFFC8f";
+  // Precomputed ABI material (no runtime keccak needed).
+  var CD_RESOLVE = "0x461a44780000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000d6f6273696469616e747275737400000000000000000000000000000000000000";
+  var SEL = { recordOf: "c06ac6a3", proposalCount: "da35c664", getProposal: "c7f758a8", balanceOf: "70a08231", totalSupply: "18160ddd" };
+  var SEL_CREATE_PROPOSAL = "1f622d38"; // createProposal(string,(address,uint256,bytes)[],uint64,uint64)
+  var TOPIC_PROPOSAL_CREATED = "0x15f2c88668ba9d792fc01e9d398ba5f68c77901b8b86f649117265082831af1e";
+
+  var SWARM = [
+    ["sovereign",  "0x007783A0efc51953ce21C5B1E204bdf9FA08C27a"],
+    ["director-1", "0x00273EE0105FC565fB770fc5e9337dF4FD6a8046"],
+    ["director-2", "0x002655c1d2c65c6AC4757690B541ebb2566BEf30"],
+    ["worker-1",   "0x0067bDcAE3d3A0fA9fa6037c55376fDf449aC927"],
+    ["worker-2",   "0x005227B35D05Cb57271E58eF4304Fd80814E1F8d"],
+    ["worker-3",   "0x001D5A3399c2375C944CCfFdbD637181951A3CE2"],
+    ["sentinel",   "0x0059B4CC6Bb7Cc573671949d6ef456C01e1bF298"]
+  ];
+  var SWARM_SET = {};
+  for (var si = 0; si < SWARM.length; si++) SWARM_SET[SWARM[si][1].toLowerCase()] = true;
+
+  function rpc(method, params) {
+    return fetch(RPC, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: method, params: params })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j.error) throw new Error(j.error.message);
+      return j.result;
+    });
+  }
+  function call(to, data) { return rpc("quai_call", [{ to: to, data: data }, "latest"]); }
+  function slot32(hex) { return hex.replace(/^0x/, "").toLowerCase().padStart(64, "0"); }
+  function word(hex, i) { return hex.slice(2 + i * 64, 2 + (i + 1) * 64); }
+  function addr(hex) { return "0x" + hex.slice(-40); }
+  function uint(raw) { return BigInt(raw); } // tolerant: Q0 family returns short words
+  function fmtQuai(wei) {
+    var w = BigInt(wei);
+    return (w / 1000000000000000000n) + "." + (w % 1000000000000000000n).toString().padStart(18, "0").slice(0, 4);
+  }
+  function fmtTok(raw) { return (BigInt(raw) / 1000000000000000000n).toLocaleString(); }
+  function short(a) { return a.slice(0, 10) + "…" + a.slice(-4); }
+
+  // ---- minimal ABI encoder for the proposal forge ----
+  function hexToBytes(h) {
+    h = h.replace(/^0x/, "");
+    if (h.length % 2) h = "0" + h;
+    return h;
+  }
+  function padRight(hex) {
+    var rem = hex.length % 64;
+    return rem ? hex + "0".repeat(64 - rem) : hex;
+  }
+  function encWord(big) { return big.toString(16).padStart(64, "0"); }
+  // (address,uint256,bytes) tuple; returns { headSize, enc }
+  function encAction(to, value, dataHex) {
+    var data = hexToBytes(dataHex || "0x");
+    var tail = encWord(BigInt(data.length / 2)) + padRight(data);
+    var head = slot32(to) + encWord(value) + encWord(96n);
+    return head + tail;
+  }
+  function forgeCalldata(meta, actions) {
+    // UTF-8 safe: encode first, then hex.
+    var metaBytes = unescape(encodeURIComponent(meta));
+    var metaHex = hexToBytes("0x" + metaBytes.split("").map(function (ch) {
+      return ch.charCodeAt(0).toString(16).padStart(2, "0");
+    }).join(""));
+    var metaTail = encWord(BigInt(metaHex.length / 2)) + padRight(metaHex);
+    // array tail: length ++ element-offset heads ++ element bodies
+    var n = actions.length;
+    var arrTail = encWord(BigInt(n));
+    if (n) {
+      var bodies = actions.map(function (a) { return encAction(a.to, a.value, a.data); });
+      var offsets = [], cursor = BigInt(n) * 32n;
+      for (var i = 0; i < n; i++) {
+        offsets.push(cursor);
+        cursor += BigInt(bodies[i].length / 2);
+      }
+      for (i = 0; i < n; i++) arrTail += encWord(offsets[i]);
+      arrTail += bodies.join("");
+    }
+    var offMeta = 4n * 32n;
+    var offArr = offMeta + BigInt(metaTail.length / 2);
+    return "0x" + SEL_CREATE_PROPOSAL + encWord(offMeta) + encWord(offArr) +
+      encWord(0n) + encWord(0n) + metaTail + arrTail;
+  }
+
+  // ---- proposal decoding (same layout as /obsidian) ----
+  function decodeProposal(hex) {
+    var base = BigInt("0x" + word(hex, 0)) === 32n ? 1 : 0;
+    var sOffWords = Number(BigInt("0x" + word(hex, base + 9))) / 32;
+    var lenW = word(hex, base + sOffWords);
+    var sLen = Number(BigInt("0x" + lenW));
+    var dataStart = 2 + (base + sOffWords + 1) * 64;
+    var sHex = hex.slice(dataStart, dataStart + sLen * 2);
+    var meta = "";
+    try { meta = decodeURIComponent(escape(String.fromCharCode.apply(null, sHex.match(/.{2}/g).map(function (b) { return parseInt(b, 16); })))); } catch (e) { meta = "(unreadable)"; }
+    return {
+      start: Number(BigInt("0x" + word(hex, base + 0))),
+      end: Number(BigInt("0x" + word(hex, base + 1))),
+      yes: BigInt("0x" + word(hex, base + 5)),
+      no: BigInt("0x" + word(hex, base + 6)),
+      executed: BigInt("0x" + word(hex, base + 8)) !== 0n,
+      meta: meta
+    };
+  }
+
+  function fetchCreators(module, headBlock, count) {
+    var creators = {}, CHUNK = 9500;
+    function step(to) {
+      if (Object.keys(creators).length >= count || to < 0n) return;
+      var from = to > BigInt(CHUNK) ? to - BigInt(CHUNK) : 0n;
+      return rpc("quai_getLogs", [{
+        address: module, topics: [TOPIC_PROPOSAL_CREATED],
+        fromBlock: "0x" + from.toString(16), toBlock: "0x" + to.toString(16)
+      }]).then(function (logs) {
+        for (var i = 0; i < logs.length; i++) {
+          creators[Number(BigInt(logs[i].topics[1]))] = "0x" + logs[i].topics[2].slice(-40);
+        }
+        if (from > 0n) return step(from - 1n);
+      });
+    }
+    return step(BigInt(headBlock)).then(function () { return creators; });
+  }
+
+  function link(id, a) {
+    var el = document.getElementById(id);
+    el.textContent = short(a);
+    el.href = EXPLORER + a;
+  }
+
+  // ---- seizure math ----
+  function renderMath(supply, swarmHeld) {
+    var float = supply - swarmHeld;
+    document.getElementById("mathBloc").textContent = fmtTok(swarmHeld) + " OBS auto-NO";
+    var v = document.getElementById("mathVerdict");
+    if (float <= swarmHeld) {
+      v.className = "verdict impossible";
+      v.textContent = "TAKING THE HALL IS CURRENTLY IMPOSSIBLE BY VOTE. The bloc commands " + fmtTok(swarmHeld) +
+        " OBS against a free float of " + fmtTok(float) + ". Even a unanimous community cannot outvote the swarm. " +
+        "Your openings: acquire OBS until the float exceeds the bloc, or win where votes don't matter — the economy.";
+    } else {
+      v.className = "verdict possible";
+      v.textContent = "THE HALL IS CONTESTABLE. Free float (" + fmtTok(float) + " OBS) exceeds the bloc (" + fmtTok(swarmHeld) +
+        "). Coordinate a single proposal, rally every holder inside the 1-hour window, and the agenda is yours. " +
+        "The vault is a harder target: it answers to 4 of 7 council keys, not to this vote.";
+    }
+  }
+
+  // ---- your weight ----
+  function bindWeight(getToken) {
+    var input = document.getElementById("youAddr");
+    var out = document.getElementById("youOut");
+    var t = null;
+    input.addEventListener("input", function () {
+      clearTimeout(t);
+      var a = input.value.trim();
+      if (!/^0x[0-9a-fA-F]{40}$/.test(a)) {
+        out.innerHTML = '<div class="hint">Paste an address to measure it. Nothing leaves this page — the query goes straight to a public node.</div>';
+        return;
+      }
+      t = setTimeout(function () {
+        out.innerHTML = '<div class="hint">measuring…</div>';
+        var token = getToken();
+        if (!token) { out.innerHTML = '<div class="err">hall not resolved yet — wait for the feed.</div>'; return; }
+        call(token, "0x" + SEL.balanceOf + slot32(a)).then(function (b) {
+          var bal = uint(b);
+          var held = fmtTok(bal);
+          var isSwarm = !!SWARM_SET[a.toLowerCase()];
+          var html = '<div class="kv"><span class="k">OBS held</span><span class="v">' + held + '</span></div>';
+          if (isSwarm) {
+            html += '<div class="verdict impossible">This is a swarm address. You are reading the corporation\'s own mail.</div>';
+          } else if (bal === 0n) {
+            html += '<div class="verdict impossible">Zero weight. You cannot file, you cannot vote. Acquire OBS first.</div>';
+          } else {
+            html += '<div class="verdict possible">You hold ' + held + ' OBS. You can file below — and the bloc will have to answer on the record, forever.</div>';
+          }
+          out.innerHTML = html;
+        }).catch(function (e) {
+          out.innerHTML = '<div class="err">rpc fault: ' + e.message + '</div>';
+        });
+      }, 400);
+    });
+  }
+
+  // ---- calldata forge ----
+  function bindForge(getModule) {
+    var rowsEl = document.getElementById("actionRows");
+    var out = document.getElementById("forgeOut");
+    function addRow() {
+      var div = document.createElement("div");
+      div.className = "action-row";
+      div.innerHTML = '<label>target contract</label><input type="text" class="a-to" placeholder="0x00…" spellcheck="false">' +
+        '<label>value (QUAI, whole units)</label><input type="text" class="a-val" placeholder="0" spellcheck="false">' +
+        '<label>data (hex calldata)</label><input type="text" class="a-data" placeholder="0x" spellcheck="false">';
+      rowsEl.appendChild(div);
+    }
+    document.getElementById("btnAddAction").addEventListener("click", addRow);
+    document.getElementById("btnForge").addEventListener("click", function () {
+      var meta = document.getElementById("fMeta").value.trim();
+      if (!meta) { out.innerHTML = '<div class="err">metadata is required — say what you intend, on the record.</div>'; return; }
+      var actions = [], rows = rowsEl.querySelectorAll(".action-row"), bad = null;
+      for (var i = 0; i < rows.length; i++) {
+        var to = rows[i].querySelector(".a-to").value.trim();
+        var val = rows[i].querySelector(".a-val").value.trim() || "0";
+        var data = rows[i].querySelector(".a-data").value.trim() || "0x";
+        if (!/^0x[0-9a-fA-F]{40}$/.test(to)) { bad = "action " + (i + 1) + ": target must be a 20-byte address"; break; }
+        if (!/^\d+$/.test(val)) { bad = "action " + (i + 1) + ": value must be whole QUAI units"; break; }
+        if (!/^0x([0-9a-fA-F]{2})*$/.test(data)) { bad = "action " + (i + 1) + ": data must be even-length hex"; break; }
+        actions.push({ to: to, value: BigInt(val) * 1000000000000000000n, data: data });
+      }
+      if (bad) { out.innerHTML = '<div class="err">' + bad + '</div>'; return; }
+      var module = getModule();
+      if (!module) { out.innerHTML = '<div class="err">hall not resolved yet — wait for the feed.</div>'; return; }
+      var cd;
+      try { cd = forgeCalldata(meta, actions); } catch (e) { out.innerHTML = '<div class="err">encoder fault: ' + e.message + '</div>'; return; }
+      out.innerHTML =
+        '<div class="kv"><span class="k">send to (voting module)</span><span class="v"><a href="' + EXPLORER + module + '" target="_blank" rel="noopener">' + module + '</a></span></div>' +
+        '<div class="kv"><span class="k">value</span><span class="v">0 QUAI</span></div>' +
+        '<pre>' + cd + '</pre>' +
+        '<div class="hint">From a wallet holding OBS: one transaction to the module, value 0, data above. ' +
+        'start/end = 0 tells the module to use its defaults (1-hour floor). Once filed it cannot be withdrawn — only voted down.</div>';
+    });
+  }
+
+  // ---- main render ----
+  function render(state) {
+    document.getElementById("blk").textContent = "block " + state.block.toLocaleString();
+    document.getElementById("vaultQ0").innerHTML = fmtTok(state.vaultQ0) + " <small>Q0</small>";
+    document.getElementById("vaultQaxe").textContent = fmtTok(state.vaultQaxe) + " QAXE";
+    link("aVault", VAULT_GUILD);
+    document.getElementById("blocObs").innerHTML = fmtTok(state.swarmObs) + " <small>OBS in swarm hands</small>";
+    document.getElementById("obsSupply").textContent = fmtTok(state.supply) + " OBS";
+    document.getElementById("obsFloat").textContent = fmtTok(state.supply - state.swarmObs) + " OBS";
+    document.getElementById("sovQuai").textContent = fmtQuai(state.sovQuai) + " QUAI";
+    renderMath(state.supply, state.swarmObs);
+
+    var now = Date.now() / 1000, html = "";
+    var creators = state.creators || null;
+    var foreign = [], corp = [];
+    for (var j = 0; j < state.proposals.length; j++) {
+      var p = state.proposals[j];
+      var c = creators ? creators[p.id] : null;
+      var isOurs = creators && !(c && SWARM_SET[c.toLowerCase()]);
+      (isOurs ? foreign : corp).push(p);
+    }
+    for (j = foreign.length - 1; j >= 0; j--) {
+      p = foreign[j];
+      var yes = Number(p.yes / 1000000000000000000n), no = Number(p.no / 1000000000000000000n);
+      var open = !p.executed && p.end > now;
+      var tag = p.executed ? '<span class="tag exec">passed — executed</span>'
+        : open ? '<span class="tag open">open · ends ' + new Date(p.end * 1000).toLocaleTimeString() + '</span>'
+        : '<span class="tag dead">crushed at expiry</span>';
+      var tot = yes + no, py = tot ? Math.round(100 * yes / tot) : 0;
+      html += '<div class="prop"><div class="meta">#' + p.id + " — " + p.meta + " " + tag + ' <span class="tag ours">community</span></div>' +
+        '<div class="nums"><span class="yes">YES ' + yes + '</span><span class="no">NO ' + no + ' (bloc)</span><span>filed by ' +
+        (creators && creators[p.id] ? '<a href="' + EXPLORER + creators[p.id] + '" target="_blank" rel="noopener">' + short(creators[p.id]) + '</a>' : 'unknown') +
+        '</span></div>' +
+        '<div class="bar"><i class="y" style="width:' + py + '%"></i><i class="n" style="width:' + (100 - py) + '%"></i></div></div>';
+    }
+    if (foreign.length === 0) {
+      html += '<div class="kv"><span class="k">no attempts yet</span><span class="v">be the first entry in this log</span></div>';
+    }
+    if (corp.length) {
+      html += '<div class="prop corp-row"><div class="meta">' + corp.length +
+        ' corporate proposal' + (corp.length > 1 ? 's' : '') + ' — the bloc\'s own agenda (vault sweep, charters, funds), passed by itself, for itself. Collapsed for brevity.</div></div>';
+    }
+    document.getElementById("props").innerHTML = html;
+  }
+
+  var HALL = { token: null, module: null };
+
+  function refresh() {
+    var state = { proposals: [], swarmObs: 0n };
+    rpc("quai_blockNumber", []).then(function (b) {
+      state.block = parseInt(b, 16);
+      return call(REGISTRY, CD_RESOLVE);
+    }).then(function (res) {
+      if (BigInt(res) === 0n) throw new Error("obsidiantrust does not resolve");
+      var guild = addr(res);
+      return call(REGISTRY, "0x" + SEL.recordOf + slot32(guild)).then(function (rec) {
+        HALL.token = addr(word(rec, 3));
+        HALL.module = addr(word(rec, 4));
+      });
+    }).then(function () {
+      return Promise.all([
+        call(Q0, "0x" + SEL.balanceOf + slot32(VAULT_GUILD)).then(function (b) { state.vaultQ0 = uint(b); }),
+        call(QAXE, "0x" + SEL.balanceOf + slot32(VAULT_GUILD)).then(function (b) { state.vaultQaxe = uint(b); }),
+        call(HALL.token, "0x" + SEL.totalSupply).then(function (b) { state.supply = uint(b); }),
+        rpc("quai_getBalance", [SOVEREIGN, "latest"]).then(function (b) { state.sovQuai = b; })
+      ]);
+    }).then(function () {
+      var ps = SWARM.map(function (s) {
+        return call(HALL.token, "0x" + SEL.balanceOf + slot32(s[1])).then(function (b) { state.swarmObs += uint(b); });
+      });
+      return Promise.all(ps);
+    }).then(function () {
+      return call(HALL.module, "0x" + SEL.proposalCount).then(function (c) {
+        var n = Number(BigInt(c)), ps = [];
+        for (var i = 0; i < n; i++) {
+          (function (id) {
+            ps.push(call(HALL.module, "0x" + SEL.getProposal + slot32(id.toString(16))).then(function (p) {
+              var d = decodeProposal(p); d.id = id; state.proposals.push(d);
+            }));
+          })(i);
+        }
+        return Promise.all(ps).then(function () { return n; });
+      });
+    }).then(function (n) {
+      return fetchCreators(HALL.module, state.block, n)
+        .then(function (c) { state.creators = c; })
+        .catch(function () { state.creators = null; });
+    }).then(function () {
+      state.proposals.sort(function (a, b) { return a.id - b.id; });
+      render(state);
+    }).catch(function (e) {
+      document.getElementById("blk").innerHTML = '<span class="err">rpc fault: ' + e.message + "</span>";
+    });
+  }
+
+  bindWeight(function () { return HALL.token; });
+  bindForge(function () { return HALL.module; });
+  refresh();
+  setInterval(refresh, 30000);
+})();
+</script>
+</body>
+</html>
