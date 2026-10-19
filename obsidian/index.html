@@ -339,7 +339,7 @@
       var c = creators[p.id];
       return !(c && SWARM_SET[c.toLowerCase()]);
     };
-    if (!state.proposals.length) html = '<div class="kv"><span class="k">none</span><span class="v">the agenda is empty</span></div>';
+    var feed = [];
     for (var j = state.proposals.length - 1; j >= 0; j--) {
       var p = state.proposals[j];
       var hostile = isForeign(p);
@@ -351,9 +351,9 @@
         : '<span class="tag dead">expired</span>';
       var origin = creators ? (hostile ? '<span class="tag foreign">foreign</span>' : '<span class="tag corp">corporate</span>') : "";
       var tot = yes + no, py = tot ? Math.round(100 * yes / tot) : 0;
-      html += '<div class="prop"><div class="meta">#' + p.id + " — " + p.meta + " " + tag + " " + origin + '</div>' +
+      feed.push({ ts: p.start, html: '<div class="prop"><div class="meta">#' + p.id + " — " + p.meta + " " + tag + " " + origin + '</div>' +
         '<div class="nums"><span class="yes">YES ' + yes + '</span><span class="no">NO ' + no + "</span><span>participation " + (yes + no) + " / 1000 OBS</span></div>" +
-        '<div class="bar"><i class="y" style="width:' + py + '%"></i><i class="n" style="width:' + (100 - py) + '%"></i></div></div>';
+        '<div class="bar"><i class="y" style="width:' + py + '%"></i><i class="n" style="width:' + (100 - py) + '%"></i></div></div>' });
       if (hostile) {
         var verdict = p.executed
           ? '<span class="no">PASSED — the bloc failed to kill it.</span>'
@@ -364,6 +364,15 @@
           '<div class="verdict">' + verdict + " YES " + yes + " / NO " + no + "</div></div>";
       }
     }
+    for (var k = 0; k < state.deskTrades.length; k++) {
+      var dt = state.deskTrades[k];
+      var dTag = dt.executed ? '<span class="tag exec">executed</span>' : '<span class="tag open">open · ' + dt.approvals + "/4 approvals</span>";
+      feed.push({ ts: dt.createdAt, html: '<div class="prop"><div class="meta">council #' + dt.id + " — " + dt.meta + " " + dTag + ' <span class="tag corp">desk</span></div>' +
+        '<div class="nums"><span>council trade · 4-of-7 multisig · filed ' + new Date(dt.createdAt * 1000).toLocaleString() + "</span></div></div>" });
+    }
+    feed.sort(function (a, b) { return b.ts - a.ts; });
+    for (var m = 0; m < feed.length; m++) html += feed[m].html;
+    if (!html) html = '<div class="kv"><span class="k">none</span><span class="v">the agenda is empty</span></div>';
     document.getElementById("props").innerHTML = html;
 
     var alarmPanel = document.getElementById("alarmPanel");
