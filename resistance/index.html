@@ -510,6 +510,7 @@
       var isOurs = creators && !(c && SWARM_SET[c.toLowerCase()]);
       (isOurs ? foreign : corp).push(p);
     }
+    var feed = [];
     for (j = foreign.length - 1; j >= 0; j--) {
       p = foreign[j];
       var yes = Number(p.yes / 1000000000000000000n), no = Number(p.no / 1000000000000000000n);
@@ -518,12 +519,21 @@
         : open ? '<span class="tag open">open · ends ' + new Date(p.end * 1000).toLocaleTimeString() + '</span>'
         : '<span class="tag dead">crushed at expiry</span>';
       var tot = yes + no, py = tot ? Math.round(100 * yes / tot) : 0;
-      html += '<div class="prop"><div class="meta">#' + p.id + " — " + p.meta + " " + tag + ' <span class="tag ours">community</span></div>' +
+      feed.push({ ts: p.start, html: '<div class="prop"><div class="meta">#' + p.id + " — " + p.meta + " " + tag + ' <span class="tag ours">community</span></div>' +
         '<div class="nums"><span class="yes">YES ' + yes + '</span><span class="no">NO ' + no + ' (bloc)</span><span>filed by ' +
         (creators && creators[p.id] ? '<a href="' + EXPLORER + creators[p.id] + '" target="_blank" rel="noopener">' + short(creators[p.id]) + '</a>' : 'unknown') +
         '</span></div>' +
-        '<div class="bar"><i class="y" style="width:' + py + '%"></i><i class="n" style="width:' + (100 - py) + '%"></i></div></div>';
+        '<div class="bar"><i class="y" style="width:' + py + '%"></i><i class="n" style="width:' + (100 - py) + '%"></i></div></div>' });
     }
+    // The corporation's council trades, exposed inline — the war-relevant entries.
+    for (j = state.deskTrades.length - 1; j >= 0; j--) {
+      var dt = state.deskTrades[j];
+      var dTag = dt.executed ? '<span class="tag exec">executed</span>' : '<span class="tag open">open · ' + dt.approvals + "/4 approvals</span>";
+      feed.push({ ts: dt.createdAt, html: '<div class="prop"><div class="meta">council #' + dt.id + " — " + dt.meta + " " + dTag + ' <span class="tag theirs">corporation · desk</span></div>' +
+        '<div class="nums"><span>their trade, their multisig · filed ' + new Date(dt.createdAt * 1000).toLocaleString() + "</span></div></div>" });
+    }
+    feed.sort(function (a, b) { return b.ts - a.ts; });
+    for (j = 0; j < feed.length; j++) html += feed[j].html;
     if (foreign.length === 0) {
       html += '<div class="kv"><span class="k">no attempts yet</span><span class="v">be the first entry in this log</span></div>';
     }
@@ -537,7 +547,7 @@
   var HALL = { token: null, module: null };
 
   function refresh() {
-    var state = { proposals: [], swarmObs: 0n };
+    var state = { proposals: [], swarmObs: 0n, deskTrades: [] };
     rpc("quai_blockNumber", []).then(function (b) {
       state.block = parseInt(b, 16);
       return call(REGISTRY, CD_RESOLVE);
@@ -556,7 +566,7 @@
         call(HALL.token, "0x" + SEL.totalSupply).then(function (b) { state.supply = uint(b); }),
         rpc("quai_getBalance", [SOVEREIGN, "latest"]).then(function (b) { state.sovQuai = b; }),
         readDeskPrice().then(function (p) { state.deskPrice = p; }),
-        fetchDeskTrades().then(function (t) { state.deskTrades = t; })
+        fetchDeskTrades().then(function (t) { state.deskTrades = t; }).catch(function () { /* tape unavailable this cycle — feed and desk panel show what they have */ })
       ]);
     }).then(function () {
       var ps = SWARM.map(function (s) {
