@@ -171,12 +171,13 @@ On Windows Blender lives at `C:\Program Files\Blender Foundation\Blender 5.2\ble
 1. Verify the 3D asset, check portal sources are pure ASCII, test the redirect router, run the Circleswap unit tests
 2. Refresh the Quainance launchpad snapshot (best effort), then build Circleswap and DarkSafe
 3. Build Dark Questate and DarkOrder, run their tests and their integrity gates (a failure stops the deploy)
-4. `tools/assemble_site.sh _site`
-5. Upload and deploy to GitHub Pages
+4. Check out BOLTEVM/BTAI and static-export the Dark Star Rail frontend rooted at `/bai/` (`PAGES_BASE_PATH=/bai`). The wallet flow needs the `BTAI_PRIVY_APP_ID` Actions secret (a Privy app id is client-side public); the talent API URL comes from the `BTAI_API_BASE_URL` Actions variable
+5. `tools/assemble_site.sh _site`
+6. Upload and deploy to GitHub Pages
 
 `.github/workflows/ci.yml` runs on every push and pull request and is what says a change is safe: Circleswap (types, unit tests, bun tests, the contract suites, production build), DarkSafe (build, types, core / web / verifier / watcher tests), Dark Questate (contract suites, Foundry fuzz and invariant campaigns, forge lint, SDK tests including the end-to-end run on a local Hardhat node, web tests, integrity gate), DarkOrder (contract suites, Foundry fuzz and invariant campaigns, forge lint, Slither, core units covering the voice grammar / x402 challenge / QNS naming, web tests, integrity gate) and the DarkCircle console (types and its 915 tests), each with a production dependency audit. DarkSafe's contract jobs (Slither, Foundry, coverage) are in `multisigows/.github/workflows/ci.yml` and run when that folder is its own repository.
 
-The bundle contains `index.html`, `404.html`, the `.glb`, the vendored three.js, and each app's static build under its route (plus the `circleswap/`, `darksafe/` and `darkcircle/` aliases). Dark Questate ships once, as `darkquestate/`: the `b6/` folder name is never published. DarkOrder ships once, as `darkorder/`: the `d0/` folder name is never published. The `.blend` is source and is not published.
+The bundle contains `index.html`, `404.html`, the `.glb`, the vendored three.js, and each app's static build under its route (plus the `circleswap/`, `darksafe/` and `darkcircle/` aliases). Dark Questate ships once, as `darkquestate/`: the `b6/` folder name is never published. DarkOrder ships once, as `darkorder/`: the `d0/` folder name is never published. Dark Star Rail ships once, as `bai/`: its Next.js export uses absolute `/bai/` asset URLs, so the `darkstarrail/` and `starrail/` aliases are 404-router redirects, not copies. The `.blend` is source and is not published.
 
 ---
 

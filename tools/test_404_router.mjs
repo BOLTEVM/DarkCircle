@@ -20,7 +20,9 @@ const code = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 function run(host, path, search = '', hash = '') {
   let dest = null;
   const window = { location: { hostname: host, pathname: path, search, hash, replace: (u) => { dest = u; } } };
-  new Function('window', code)(window);
+  // the self-redirect guard reports through the DOM instead of navigating
+  const document = { addEventListener: () => {}, getElementById: () => null };
+  new Function('window', 'document', code)(window, document);
   return dest;
 }
 
@@ -69,6 +71,17 @@ const cases = [
   ['rail.example.com', '/anything', '', '', '/bai/'],
   ['talent.example.com', '/anything', '?x=1', '', '/bai/?x=1'],
   ['boltevm-starrail-preview.example.com', '/anything', '', '', '/bai/'],
+  // Self-redirect guard: when the current URL already IS the target (the app is missing from
+  // the deployed bundle), the router must stand down instead of reloading this 404 forever.
+  ['example.com', '/bai/', '', '', null],
+  ['example.com', '/bai/', '?a=1', '#x', null],
+  ['example.com', '/bai', '', '', '/bai/'],
+  ['example.com', '/q0/', '', '', null],
+  ['example.com', '/x402tumbler/', '', '', null],
+  ['example.com', '/darkquestate/', '', '', null],
+  ['example.com', '/darkorder/', '', '', null],
+  ['boltevm.github.io', '/DarkCircle/bai/', '', '', null],
+  ['example.com', '/', '', '', null],
 ];
 
 let failed = 0;

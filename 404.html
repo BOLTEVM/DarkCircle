@@ -22,66 +22,82 @@
         }
       }
 
+      // Never "redirect" to the URL we are already on. Pages serves this file for EVERY missing
+      // path, so when the target app is absent from the deployed bundle an unguarded replace()
+      // would reload this page forever (that was the mobile /bai/ loop). Stand down and say so.
+      function go(target) {
+        if (target !== path + search + hash) {
+          window.location.replace(target);
+          return;
+        }
+        document.addEventListener('DOMContentLoaded', function () {
+          var note = document.getElementById('note');
+          if (note) {
+            note.innerHTML = 'This app is not part of the deployed bundle yet &mdash; back to the <a href="' + base + '" style="color:#7dd3fc;">DarkCircle portal</a>.';
+          }
+        });
+      }
+
       // 1. Subdomain matching
       if (host.startsWith('q0.') || host.startsWith('circleswap.') || host.includes('q0-')) {
-        window.location.replace(base + 'q0/' + search + hash);
+        go(base + 'q0/' + search + hash);
         return;
       }
       if (host.startsWith('darksafe.') || host.startsWith('safe.') || host.startsWith('multisig.') || host.includes('darksafe-')) {
-        window.location.replace(base + 'multisigows/' + search + hash);
+        go(base + 'multisigows/' + search + hash);
         return;
       }
       if (host.startsWith('tumbler.') || host.startsWith('privacy.') || host.startsWith('x402.') || host.includes('tumbler-')) {
-        window.location.replace(base + 'x402tumbler/' + search + hash);
+        go(base + 'x402tumbler/' + search + hash);
         return;
       }
       if (host.startsWith('darkorder.') || host.startsWith('guild.') || host.startsWith('halls.') || host.includes('darkorder-')) {
-        window.location.replace(base + 'darkorder/' + search + hash);
+        go(base + 'darkorder/' + search + hash);
         return;
       }
       if (host.startsWith('questate.') || host.startsWith('darkquestate.') || host.startsWith('realestate.') || host.includes('questate-')) {
-        window.location.replace(base + 'darkquestate/' + search + hash);
+        go(base + 'darkquestate/' + search + hash);
         return;
       }
       if (host.startsWith('darkstarrail.') || host.startsWith('starrail.') || host.startsWith('rail.') || host.startsWith('talent.') || host.includes('starrail-')) {
-        window.location.replace(base + 'bai/' + search + hash);
+        go(base + 'bai/' + search + hash);
         return;
       }
 
       // 2. Sub-path fallback: a deep link into an app that has no such file
       var rest = path.slice(base.length - 1);
       if (/^\/(q0|circleswap)(\/|$)/i.test(rest)) {
-        window.location.replace(base + 'q0/' + search + hash);
+        go(base + 'q0/' + search + hash);
         return;
       }
       if (/^\/(multisigows|darksafe)(\/|$)/i.test(rest)) {
-        window.location.replace(base + 'multisigows/' + search + hash);
+        go(base + 'multisigows/' + search + hash);
         return;
       }
       if (/^\/(x402tumbler|darkcircle)(\/|$)/i.test(rest)) {
-        window.location.replace(base + 'x402tumbler/' + search + hash);
+        go(base + 'x402tumbler/' + search + hash);
         return;
       }
       if (/^\/(darkquestate|questate)(\/|$)/i.test(rest)) {
-        window.location.replace(base + 'darkquestate/' + search + hash);
+        go(base + 'darkquestate/' + search + hash);
         return;
       }
       if (/^\/(darkorder|guildhalls)(\/|$)/i.test(rest)) {
-        window.location.replace(base + 'darkorder/' + search + hash);
+        go(base + 'darkorder/' + search + hash);
         return;
       }
       if (/^\/(bai|darkstarrail|starrail)(\/|$)/i.test(rest)) {
-        window.location.replace(base + 'bai/' + search + hash);
+        go(base + 'bai/' + search + hash);
         return;
       }
 
       // 3. Default: the portal
-      window.location.replace(base + search + hash);
+      go(base + search + hash);
     })();
   </script>
 </head>
 <body style="background:#07090e;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;">
-  <p>Redirecting to DarkCircle Suite...</p>
+  <p id="note">Redirecting to DarkCircle Suite...</p>
   <footer style="position:fixed;left:0;right:0;bottom:14px;text-align:center;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#64748b;">
     <a href="https://boltevm.com" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;">Powered by <img src="Boltfont.png" alt="BOLT" height="18" style="height:18px;width:auto;vertical-align:middle;margin-left:6px;filter:invert(1);opacity:.8;"></a>
   </footer>

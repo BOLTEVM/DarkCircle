@@ -5,7 +5,8 @@
 #
 # One script for CI (.github/workflows/deploy-pages.yml) and for local runs, so what is tested
 # locally is exactly what is deployed. It fails if any navigation target of the portal
-# (index.html -> ./x402tumbler/ ./q0/ ./multisigows/ ./darkquestate/) would be a dead link.
+# (index.html -> ./x402tumbler/ ./q0/ ./multisigows/ ./darkquestate/ ./darkorder/ ./bai/) would
+# be a dead link.
 set -euo pipefail
 
 OUT="${1:-_site}"
@@ -65,6 +66,14 @@ cp -r b6/apps/web/dist/. "$OUT/darkquestate/"
 mkdir -p "$OUT/darkorder"
 cp -r d0/apps/web/dist/. "$OUT/darkorder/"
 
+# Dark Star Rail talent agency (Next.js static export, built from the BOLTEVM/BTAI checkout by
+# deploy-pages.yml with PAGES_BASE_PATH=/bai). The export's asset URLs are absolute under /bai/,
+# so exactly one copy can exist: 404.html sends the darkstarrail/ and starrail/ aliases here.
+# bai/ is gitignored in this repo (it is the live BTAI checkout), so a local assemble needs a
+# local `PAGES_BASE_PATH=/bai pnpm --filter frontend build` in bai/ first.
+mkdir -p "$OUT/bai"
+cp -r bai/apps/frontend/out/. "$OUT/bai/"
+
 # integrity: everything the portal links to or loads must exist in the bundle
 missing=0
 for f in index.html 404.html 0.png Boltfont.png \
@@ -81,7 +90,8 @@ for f in index.html 404.html 0.png Boltfont.png \
          q0/0logov3.png q0/Boltfont.png x402tumbler/Boltfont.png multisigows/Boltfont.png \
          darkquestate/0.png darkquestate/Boltfont.png darkorder/0.png darkorder/Boltfont.png \
          x402tumbler/index.html q0/index.html multisigows/index.html darkquestate/index.html \
-         darkcircle/index.html circleswap/index.html darksafe/index.html darkorder/index.html; do
+         darkcircle/index.html circleswap/index.html darksafe/index.html darkorder/index.html \
+         bai/index.html bai/darkstarrail-logo.png; do
   if [ ! -f "$OUT/$f" ]; then
     echo "MISSING in bundle: $f" >&2
     missing=1

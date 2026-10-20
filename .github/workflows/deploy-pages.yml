@@ -127,6 +127,33 @@ jobs:
         working-directory: b6/packages/contracts
         run: forge test
 
+      # Dark Star Rail lives in its own repository (BOLTEVM/BTAI) and is gitignored here, so the
+      # deploy checks it out fresh and static-exports the Next.js frontend rooted at /bai/.
+      # NEXT_PUBLIC_* values are compile-time public config, not secrets. The wallet flow needs
+      # the BTAI_PRIVY_APP_ID Actions secret (a Privy app id is client-side public); without it
+      # the exported page renders the app's explicit "privy app id required" notice instead of
+      # looping or crashing. BTAI_API_BASE_URL (an Actions variable) points at the hosted talent
+      # API; without it the directory panel reports the API as unavailable.
+      - name: Checkout Dark Star Rail (BOLTEVM/BTAI)
+        uses: actions/checkout@v4
+        with:
+          repository: BOLTEVM/BTAI
+          path: bai
+
+      - name: Build Dark Star Rail frontend (static export for /bai/)
+        working-directory: bai
+        env:
+          PAGES_BASE_PATH: /bai
+          NEXT_PUBLIC_PRIVY_APP_ID: ${{ secrets.BTAI_PRIVY_APP_ID }}
+          NEXT_PUBLIC_API_BASE_URL: ${{ vars.BTAI_API_BASE_URL }}
+          NEXT_PUBLIC_X402_NETWORK: quai
+          NEXT_PUBLIC_TALENT_AGENT_QUAI_ADDRESS: 0x00558035cfFAa4766A7f77cA987650711bDaF7a6
+          NEXT_PUBLIC_QUAI_SETTLEMENT_TOKEN: 0x0049F7cbCa3556C2DfaE62Aafa7015F99de1b8f5
+          NEXT_PUBLIC_QUAI_ORCHARD_SETTLEMENT_TOKEN: 0x0043a6b95A33A5Ac6ece32A4C172AE83390c2C59
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter frontend build
+
       - name: Assemble Unified GitHub Pages Site
         run: bash tools/assemble_site.sh _site
 
