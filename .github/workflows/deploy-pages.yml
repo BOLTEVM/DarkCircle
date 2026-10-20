@@ -154,6 +154,13 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm --filter frontend build
 
+      # The export must be self-contained under /bai/: assets prefixed, logo reachable
+      - name: Verify Dark Star Rail export (base path + logo asset)
+        run: |
+          test -f bai/apps/frontend/out/index.html
+          grep -q '/bai/_next/static' bai/apps/frontend/out/index.html
+          grep -q '/bai/0logov3.png' bai/apps/frontend/out/index.html
+
       - name: Assemble Unified GitHub Pages Site
         run: bash tools/assemble_site.sh _site
 
