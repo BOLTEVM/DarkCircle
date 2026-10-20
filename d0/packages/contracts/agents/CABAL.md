@@ -31,13 +31,16 @@ hall not filed by the swarm is hostile by definition, and the bloc votes NO unti
 dies. Unknown proposer = hostile (paranoia is policy). Posture `observe`: log only.
 Protected halls: everything in `protectedGuilds`.
 
-### 4. The Fixers — DESIGN
+### 4. The Fixers — LIVE (machinery, awaiting targets)
 Infiltration. To act inside a foreign corporation the mind needs its governance token.
-Path: the desk acquires foreign tokens through CircleSwap where pools exist, a sybil
-self-delegates, and the bloc gains a vote inside the target. Constraints: never more
-than `fixerMaxPositionPct` of a target's supply; acquisitions are desk proposals like
-any trade, with metadata `FIXER — <target>`. Requires per-target liquidity to exist
-first — the mind cannot infiltrate what it cannot buy.
+Path: the desk acquires foreign tokens through CircleSwap where pools exist, the vault
+self-delegates in the same council execution, and a watchman becomes a voter.
+Constraints (doctrine.json → fixer): never more than `maxPositionPct` of a target's
+supply; `budgetQuai` per placement; per-hop pool impact capped; acquisitions are
+council proposals with metadata `FIXER — <target>` like any desk trade. Targets come
+from the watchmen ledger — the organ idles while no foreign guild exists and engages
+the same hour one registers. Foreign governance tokens with no CircleSwap pool are
+uninfiltratable until liquidity exists.
 
 ### 5. The Storyteller — LIVE (private) / DESIGN (public)
 Every material event — trade filed, trade settled, hostile proposal detected and

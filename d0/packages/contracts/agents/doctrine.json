@@ -2,7 +2,13 @@
   "posture": "dominate",
   "protectedGuilds": ["obsidiantrust", "obsidianvault"],
   "chronicleVoice": "cabal",
-  "fixerMaxPositionPct": 10,
+  "fixer": {
+    "maxPositionPct": 10,
+    "budgetQuai": 20,
+    "maxImpactBps": 300,
+    "slippageBps": 600,
+    "notes": "infiltration rails — see CABAL.md organ 4. A placement buys at most maxPositionPct of a foreign guild's governance supply, spends at most budgetQuai (and at most 1/5 of free capital above the runway floor), refuses pools it would move more than maxImpactBps, and arms the vault's votes by self-delegation in the same council execution."
+  },
   "treasury": {
     "runwayMonths": 6,
     "volK": 1.5,
