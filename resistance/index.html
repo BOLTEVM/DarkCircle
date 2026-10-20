@@ -159,6 +159,14 @@
       <div class="kv"><span class="k">watchmen targets</span><span class="v" id="mindIntel">—</span></div>
       <div id="mindFeed" style="margin-top:10px"></div>
     </div>
+
+    <div class="panel span2">
+      <h2>Buy the Corporation's Secrets</h2>
+      <div class="hint">The cabal sells its own intelligence. Transfer the price in Q0 to its vault
+        <b id="secretVault">…</b>, then call the gate with your tx hash as the
+        <b>X-PAYMENT</b> header. One hash buys one drop; the receipt is the proof.</div>
+      <div id="secrets"><div class="kv"><span class="k">…</span><span class="v">reading the shelf</span></div></div>
+    </div>
   </div>
 
   <footer>
@@ -625,6 +633,30 @@
         var v = document.createElement("span"); v.className = "v";
         v.textContent = (c.event || "") + (c.note ? " — " + c.note : "");
         row.appendChild(k); row.appendChild(v); feed.appendChild(row);
+      });
+
+      // the secrets shelf — priced live from the gate manifest
+      var shelf = document.getElementById("secrets");
+      shelf.textContent = "";
+      var drops = (m.drops && m.drops.products) || [];
+      if (m.drops && m.drops.payTo) document.getElementById("secretVault").textContent = m.drops.payTo;
+      if (!drops.length) {
+        shelf.innerHTML = '<div class="kv"><span class="k">…</span><span class="v">the shelf is being restocked</span></div>';
+      }
+      drops.forEach(function (p) {
+        var row = document.createElement("div"); row.className = "prop";
+        var meta = document.createElement("div"); meta.className = "meta";
+        meta.textContent = p.product;
+        var nums = document.createElement("div"); nums.className = "nums";
+        var price = document.createElement("span"); price.className = "yes";
+        price.textContent = Number(p.priceQ0).toLocaleString() + " " + ((m.drops && m.drops.symbol) || "Q0");
+        var how = document.createElement("span");
+        how.textContent = 'curl -H "X-PAYMENT: <txHash>" ' + ((m.drops && m.drops.gate) || "") + "/intel/" + p.product;
+        var blurb = document.createElement("div"); blurb.className = "nums";
+        blurb.textContent = p.blurb || "";
+        nums.appendChild(price); nums.appendChild(how);
+        row.appendChild(meta); row.appendChild(nums); row.appendChild(blurb);
+        shelf.appendChild(row);
       });
     }).catch(function () { /* intercept failed — chain panels unaffected */ });
   }
