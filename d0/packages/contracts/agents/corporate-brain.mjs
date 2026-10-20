@@ -30,6 +30,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { Wallet, JsonRpcProvider, QuaiTransaction, Interface, getAddress, Zone, getZoneForAddress, isQiAddress } from 'quais';
 import { writeDrops } from './intel-drops.mjs';
 
@@ -97,6 +98,23 @@ const CORP = {
     symbol: 'OBSC',
     supply: 1_000_000n * 10n ** 18n, // minted to the sovereign once, then distributed as rewards
     payroll: 1_000n * 10n ** 18n,    // flavor grant to each sybil at issuance
+  },
+  // ── Obsidian pit: the desk's VDF orderbook arm (see agents/obsidian-pit.mjs).
+  // Capital path: vault -> DarkSafe pit safe -> pit-1 hot key -> BOLTDEXV2 escrow.
+  // Quoting is gasless (EIP-712 signatures), so the organ runs every quiet tick
+  // without touching the tick's gas budget.
+  pit: {
+    market: '9:Q0-QUAI',
+    engineWs: 'wss://engine-delta.boltevm.com',
+    vault: '0x00664ed083476f770E50B32aD488B15618acd589', // canonical BOLTDEXV2, chain 9
+    q0: '0x00325150094E51107a931980Fdfc3bB1a4C48379',
+    rungsPerSide: 3,
+    innerBps: 30n,                  // first rung sits this far off the reference mid
+    stepBps: 20n,                   // spacing between rungs
+    size: 1500n * 10n ** 18n,       // Q0 per rung
+    keepBps: 25n,                   // a live order within this of a desired rung stays
+    expiryDays: 7,
+    maxOpsPerTick: 8,
   },
   // The vault: council-mode guild whose members are the whole swarm. 4-of-7 approvals move
   // money; the donated community tokens are swept here from the hall and managed by council.
@@ -933,6 +951,199 @@ async function vaultOps(net, sovereign, swarm, ifaces, ts, deployment, opts, sta
 }
 
 // ---------------------------------------------------------------------------
+// PIT — the orderbook organ: a self-minding market maker on the BDelta VDF CLOB
+// ---------------------------------------------------------------------------
+
+// pit-1 is the only key that can sign orders (BOLTDEXV2 is ECDSA-only), so this
+// organ runs the desk's quoting loop: every quiet tick it diffs pit-1's live
+// orders against a ladder computed off the circleswap reference mid, cancels
+// stale rungs and posts missing ones. Signatures are gasless — the organ never
+// touches the tick's gas budget, and a dead engine costs one log line, not a tick.
+
+const PIT_STATE_PATH = path.join(ROOT, 'agents', 'pit-state.json');
+
+function loadPitState() {
+  try { return JSON.parse(fs.readFileSync(PIT_STATE_PATH, 'utf8')); } catch { return null; }
+}
+
+async function loadPitTrader(provider, broadcast) {
+  const st = loadPitState();
+  if (!st?.trader || !st?.safe) return null;
+  if (!broadcast) return { address: st.trader.address, wallet: null, safe: st.safe };
+  const passwords = JSON.parse(fs.readFileSync(path.join(ROOT, 'agents', 'keys', 'passwords.json'), 'utf8'));
+  const wallet = (await Wallet.fromEncryptedJson(
+    fs.readFileSync(path.join(ROOT, 'agents', 'keys', 'pit-1.json'), 'utf8'), passwords['pit-1'])).connect(provider);
+  if (wallet.address !== st.trader.address) fail(`pit-1 keystore unlocks ${wallet.address}, expected ${st.trader.address}`);
+  return { address: st.trader.address, wallet, safe: st.safe };
+}
+
+// ws is not a d0 dependency; borrow bdelta's (the matching engine's own client lib).
+const PIT_ORDER_TYPES = {
+  Order: [
+    { name: 'maker', type: 'address' },
+    { name: 'base', type: 'address' },
+    { name: 'quote', type: 'address' },
+    { name: 'side', type: 'uint8' },
+    { name: 'price', type: 'uint256' },
+    { name: 'amount', type: 'uint256' },
+    { name: 'nonce', type: 'uint256' },
+    { name: 'expiry', type: 'uint64' },
+  ],
+};
+
+class PitEngine {
+  constructor(trader, pit) {
+    this.trader = trader;
+    this.pit = pit;
+    this.pending = new Map();
+    const req = createRequire(path.resolve(ROOT, '..', '..', '..', 'bdelta', 'packages', 'matching-engine', 'package.json'));
+    const WebSocket = req('ws');
+    this.ws = new WebSocket(pit.engineWs);
+    this.ws.on('message', (raw) => {
+      let msg;
+      try { msg = JSON.parse(raw.toString()); } catch { return; }
+      for (const [id, p] of this.pending) {
+        if (p.types.includes(msg.type)) {
+          this.pending.delete(id);
+          clearTimeout(p.timer);
+          p.resolve(msg);
+          return;
+        }
+      }
+    });
+  }
+
+  waitFor(types, ms = 15_000) {
+    const id = Math.random().toString(36).slice(2);
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`engine timeout (${types})`)); }, ms);
+      this.pending.set(id, { types, timer, resolve });
+    });
+  }
+
+  send(o) { this.ws.send(JSON.stringify(o)); }
+  close() { try { this.ws.close(); } catch { /* ignore */ } }
+
+  async connect() {
+    await new Promise((res, rej) => { this.ws.on('open', res); this.ws.on('error', rej); });
+    const login = `Login to BOLTEVM DEX at ${this.trader.address.toLowerCase()}`;
+    const signature = await this.trader.wallet.signMessage(login);
+    const answered = this.waitFor(['IDENTIFIED', 'ERROR']);
+    this.send({ type: 'IDENTIFY', address: this.trader.address, signature });
+    const msg = await answered;
+    if (msg.type === 'ERROR') throw new Error(`engine refused IDENTIFY: ${msg.message}`);
+    this.ordersSnapshot = this.waitFor(['USER_ORDERS_SNAPSHOT'], 15_000).catch(() => ({ orders: [] }));
+  }
+
+  async myOrders() {
+    const snap = await this.ordersSnapshot;
+    return (snap.orders || []).filter((o) => o.status === 'ACTIVE');
+  }
+
+  async place(side, price, amount) {
+    const expiry = BigInt(Math.floor(Date.now() / 1000) + this.pit.expiryDays * 86_400);
+    const value = {
+      maker: this.trader.address, base: this.pit.q0, quote: '0x0000000000000000000000000000000000000000',
+      side, price, amount, nonce: BigInt(Date.now()), expiry,
+    };
+    const domain = { name: 'BOLTEVM-DEX', version: '2', chainId: 9, verifyingContract: this.pit.vault };
+    const signature = await this.trader.wallet.signTypedData(domain, PIT_ORDER_TYPES, value);
+    const answer = this.waitFor(['USER_ORDER_UPDATE', 'ERROR'], 25_000);
+    this.send({
+      type: 'PLACE_ORDER', chainId: 9, marketId: this.pit.market,
+      order: {
+        maker: value.maker, base: value.base, quote: value.quote, side: String(side),
+        price: price.toString(), amount: amount.toString(),
+        nonce: value.nonce.toString(), expiry: expiry.toString(), signature,
+      },
+    });
+    const msg = await answer;
+    if (msg.type === 'ERROR') return { ok: false, reason: msg.message };
+    return { ok: true, key: msg.orderKey };
+  }
+
+  async cancel(orderId) {
+    const answer = this.waitFor(['USER_ORDER_UPDATE', 'ERROR'], 15_000);
+    this.send({ type: 'CANCEL_ORDER', orderId });
+    return (await answer).type !== 'ERROR';
+  }
+}
+
+// The desk's reference mid is the circleswap route price the treasury already
+// tracks (ts.readings). Stale tape = no quoting: a market made off a dead feed
+// is a gift to arbitrageurs.
+async function pitOps(net, sovereign, swarm, ifaces, ts, opts) {
+  const pit = CORP.pit;
+  const st = loadPitState();
+  if (!st?.safe || !st?.trader) return false;
+  const latest = ts.readings?.[ts.readings.length - 1];
+  if (!latest) { console.log('phase PIT: no price tape yet — standing down'); return false; }
+  const ageMs = Date.now() - Number(latest.at);
+  if (ageMs > 3 * 3_600_000) { console.log(`phase PIT: price tape is ${Math.floor(ageMs / 60000)}min old — standing down`); return false; }
+  const mid = BigInt(latest.priceE18);
+  const trader = await loadPitTrader(new JsonRpcProvider(net.pathing, undefined, { usePathing: true }), opts.broadcast);
+  if (!trader?.wallet) return false;
+
+  // Desired ladder: rungs off the mid, bids below, asks above.
+  const desired = [];
+  for (let i = 0; i < pit.rungsPerSide; i++) {
+    const off = pit.innerBps + pit.stepBps * BigInt(i);
+    desired.push({ side: 0, price: (mid * (10_000n - off)) / 10_000n });
+    desired.push({ side: 1, price: (mid * (10_000n + off)) / 10_000n });
+  }
+
+  const engine = new PitEngine(trader, pit);
+  let ops = 0;
+  try {
+    await engine.connect();
+    const live = await engine.myOrders();
+    const kept = new Set();
+    const matches = (o, d) => {
+      const side = o.sideCode ?? (o.side === 'BUY' ? 0 : 1);
+      if (side !== d.side) return false;
+      const p = BigInt(o.price);
+      const lo = (d.price * (10_000n - pit.keepBps)) / 10_000n;
+      const hi = (d.price * (10_000n + pit.keepBps)) / 10_000n;
+      return p >= lo && p <= hi;
+    };
+    // Cancel live orders that match no desired rung.
+    for (const o of live) {
+      const rung = desired.find((d) => matches(o, d) && !kept.has(d));
+      if (rung) { kept.add(rung); continue; }
+      if (ops >= pit.maxOpsPerTick) break;
+      const key = o.orderKey ?? o.id;
+      console.log(`phase PIT: cancel stale ${o.side} @ ${fmtQuai(BigInt(o.price))} (${String(key).slice(0, 24)}…)`);
+      await engine.cancel(key);
+      ops++;
+      await sleep(700);
+    }
+    // Post rungs nothing live covers.
+    for (const d of desired) {
+      if (kept.has(d) || ops >= pit.maxOpsPerTick) continue;
+      const side = d.side === 0 ? 'buy' : 'sell';
+      const r = await engine.place(d.side, d.price, pit.size);
+      ops++;
+      if (r.ok) {
+        console.log(`phase PIT: ${side} ${pit.size / 10n ** 18n} Q0 @ ${fmtQuai(d.price)} booked`);
+      } else {
+        console.log(`phase PIT: ${side} @ ${fmtQuai(d.price)} refused (${r.reason})`);
+      }
+      await sleep(700);
+    }
+    if (ops > 0 && opts.broadcast) {
+      chronicle('pit-requote', { note: `${ops} order ops on ${pit.market}: ladder re-centred on mid ${fmtQuai(mid)}` });
+    } else if (ops === 0) {
+      console.log(`phase PIT: ladder in place around mid ${fmtQuai(mid)} — nothing to do`);
+    }
+  } catch (e) {
+    console.log(`phase PIT: engine round failed (${e?.message ?? e}) — standing down this tick`);
+  } finally {
+    engine.close();
+  }
+  return false; // quoting never blocks the rest of the quiet tick
+}
+
+// ---------------------------------------------------------------------------
 // FIXERS — infiltration machinery (CABAL.md organ 4)
 // ---------------------------------------------------------------------------
 // A watchman becomes a voter the moment the vault holds a target's governance
@@ -1315,6 +1526,8 @@ async function tick(net, deployment, swarm, state, opts) {
   const ts = loadTreasuryState();
   const sovQuai = state.balances.get('sovereign:quai');
   if (await deskOps(net, sovereign, swarm, ifaces, ts, opts, sovQuai)) return;
+  // PIT — gasless orderbook quoting; runs every quiet tick, never blocks the ladder.
+  await pitOps(net, sovereign, swarm, ifaces, ts, opts).catch((e) => console.error(`  pit error: ${e?.message ?? e}`));
   if (await fixers(net, sovereign, swarm, ifaces, ts, opts, runwayFloorOf(ts, CORP.desk.vaultReserveFloor, (loadDoctrine().treasury ?? {}).runwayMonths))) return;
   if (await issue(net, sovereign, sybils, ifaces, ts, deployment, opts, sovQuai)) return;
   if (await vaultOps(net, sovereign, swarm, ifaces, ts, deployment, opts, state)) return;
