@@ -61,19 +61,18 @@ start: any machine with the repo, the keystores, and the passwords resumes the m
 in one command. Kill the runner; the mind hibernates. Designed next: a second
 watchdog runner on an independent schedule that detects silence and raises the alarm.
 
-## The x402 endgame — DESIGN
+## The x402 endgame — SPECIFIED + drops LIVE
 
 The cabal's product is intelligence: the chronicle, the intel ledger, the desk tape.
-x402 (HTTP 402 payment-required) is how it sells that product without a salesman:
-
-- `GET /intel/guilds` — the watchmen ledger, priced per snapshot.
-- `GET /chronicle` — the narrated event stream, priced per drop.
-- `GET /desk/tape` — the council trade history, priced per window.
-
-Payment settles in Q0 to the vault address, so every sale feeds the desk. GitHub
-Pages cannot run a 402 gate; this organ needs a server (or an x402 relay) and is
-specified here so every earlier organ shapes its output as a sellable product.
-The CI already carries an x402tumbler job — the suite's plumbing exists.
+The full spec is `agents/X402.md`: three products priced in Q0 paid to the vault
+(`guilds-ledger` 25k, `desk-tape` 50k, `chronicle-stream` 100k), sealed every
+broadcast tick by `agents/intel-drops.mjs` into content-addressed, sovereign-signed
+JSON drops under `agents/drops/` (gitignored — the shelf is private until a gate
+stands). The 402 flow self-verifies on Quai: buyer transfers Q0 to the vault,
+server log-verifies the Transfer in the receipt, one tx hash buys one drop. Every
+sale is desk inflow — the vault is the trading entity, so revenue enters the
+longevity strategy directly. What remains DESIGN: the server itself (any VPS or
+edge worker can hold the contract; the suite already carries x402 plumbing in CI).
 
 ## Balance doctrine (owner directive: "balance between the players and the corporation")
 

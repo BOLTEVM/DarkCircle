@@ -7,3 +7,4 @@ agents/treasury-state.json
 agents/chronicle.jsonl
 agents/intel.json
 agents/brain.log
+agents/drops/

@@ -31,6 +31,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Wallet, JsonRpcProvider, QuaiTransaction, Interface, getAddress, Zone, getZoneForAddress, isQiAddress } from 'quais';
+import { writeDrops } from './intel-drops.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -1310,6 +1311,18 @@ async function main() {
     await tick(net, deployment, swarm, state, opts);
     // The surveillance mesh runs every tick, whatever the phase ladder did.
     await watchmen(net, ifaces, deployment).catch((e) => console.error(`  watchmen error: ${e?.message ?? e}`));
+    // The sealer packages the tick's intelligence into signed x402 drops (agents/X402.md).
+    if (opts.broadcast) {
+      try {
+        const ts2 = loadTreasuryState();
+        if (ts2.vault?.guild) {
+          const products = await writeDrops({ signer: sovereign.wallet, vault: ts2.vault.guild, q0Token: CIRCLESWAP.Q0 });
+          console.log(`phase DROPS: ${products.length} intel drops signed and sealed (${products.map((p) => p.product).join(', ')})`);
+        }
+      } catch (e) {
+        console.log(`  drops: sealing failed this tick (${e?.message ?? e})`);
+      }
+    }
   };
 
   if (args.flags.has('loop')) {
