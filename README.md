@@ -4,7 +4,7 @@
 
 # DarkCircle Suite
 
-**Private payments, AMM liquidity, multi-sig custody, a real estate brokerage and grand guild halls on Quai Network, behind one 3D portal.**
+**Private payments, AMM liquidity, multi-sig custody, a real estate brokerage, grand guild halls and a talent escrow rail on Quai Network, behind one 3D portal.**
 
 <br />
 
@@ -15,7 +15,7 @@
 
 <br />
 
-[The portal](#the-portal) &nbsp;·&nbsp; [The five apps](#the-five-apps) &nbsp;·&nbsp; [Build and run](#build-and-run) &nbsp;·&nbsp; [Deployment](#deployment) &nbsp;·&nbsp; [Quality gates](#quality-gates) &nbsp;·&nbsp; [Known limitations](#known-limitations)
+[The portal](#the-portal) &nbsp;·&nbsp; [The six apps](#the-six-apps) &nbsp;·&nbsp; [Build and run](#build-and-run) &nbsp;·&nbsp; [Deployment](#deployment) &nbsp;·&nbsp; [Quality gates](#quality-gates) &nbsp;·&nbsp; [Known limitations](#known-limitations)
 
 <br />
 
@@ -29,7 +29,7 @@
 
 ## The portal
 
-`index.html` is a real-time WebGL front door to the suite. A black obsidian orb hovers inside a crimson-lit octagonal containment vault, wrapped in a ring of plasma. The five apps ride a carousel round the orb, one node each on a glowing track: the node at the front haloes the orb and is the selected app, and the arrows on either side spin the ring one step either way. It opens on **Circleswap** in front, **DarkCircle** and **DarkSafe** to either side, and **Dark Questate** and **DarkOrder** behind the orb.
+`index.html` is a real-time WebGL front door to the suite. A black obsidian orb hovers inside a crimson-lit octagonal containment vault, wrapped in a ring of plasma. The six apps ride a carousel round the orb, one node each on a glowing track: the node at the front haloes the orb and is the selected app, and the arrows on either side spin the ring one step either way. It opens on **Circleswap** in front, **DarkCircle** and **DarkSafe** to either side, and **Dark Questate**, **DarkOrder** and **Dark Star Rail** behind the orb.
 
 | Input | Action |
 |---|---|
@@ -37,9 +37,10 @@
 | ‹ › arrows, `←` `→` | Spin the carousel one app either way |
 | Click a side node | Spin it to the front |
 | Click the front node (the orb), `Enter` | Warp transition into the selected app |
-| Click a card or pill, `1` `2` `3` `4` `5` | Spin that app to the front, then warp to DarkCircle, Circleswap, DarkSafe, Dark Questate, DarkOrder |
+| Click a card or pill, `1` `2` `3` `4` `5` `6` | Spin that app to the front, then warp to DarkCircle, Circleswap, DarkSafe, Dark Questate, DarkOrder, Dark Star Rail |
 | Hover a node | Telemetry readout: node, route, live Cyprus-1 block height |
 | Sound button | Synthesized reactor hum and cues (Web Audio, muted by default) |
+| Book button | Opens the documentation and guides in `docs/` |
 | Phone tilt | Parallax (iOS asks for permission on first touch) |
 | `?mode=2d` | Force the 2D card portal |
 
@@ -56,12 +57,13 @@
 | `tumbler.` `privacy.` `x402.` or contains `tumbler-` | `/x402tumbler/` |
 | `questate.` `darkquestate.` `realestate.` or contains `questate-` | `/darkquestate/` |
 | `darkorder.` `guild.` `halls.` or contains `darkorder-` | `/darkorder/` |
+| `darkstarrail.` `starrail.` `rail.` `talent.` or contains `starrail-` | `/bai/` |
 
 `404.html` applies the same rules to deep links and keeps the `/<repo>/` prefix on GitHub project pages. A deep link under `/questate/` goes to `/darkquestate/`; a deep link under `/guildhalls/` goes to `/darkorder/`.
 
 ---
 
-## The five apps
+## The six apps
 
 | | App | Route | What it is | Where it stands |
 |---|---|---|---|---|
@@ -70,8 +72,9 @@
 | 🔐 | **DarkSafe**<br/>`multisigows/` | `/multisigows/` | DarkSafe multi-sig vaults: on-chain proposals, native timelock, quorum checks, no `DELEGATECALL` | Extension-only signing, no bundled signer. The vault contract has not had an independent security audit |
 | 🏠 | **Dark Questate**<br/>`b6/` | `/darkquestate/` | Real estate brokerage on Quai: title-verified properties as EIP-6065 deeds, listings through registered brokers, offers held in escrow, closings that move the deed and the money in one transaction | The contracts (`QuestateDeed`, `QuestateBrokerage`) are **not deployed** on Orchard or mainnet, so the site runs as a **labelled showcase**: invented sample listings, marked as such, with every transaction switched off. No independent audit |
 | ⚔️ | **DarkOrder**<br/>`d0/` | `/darkorder/` | The Grand Guild Halls: found a guild with its own governance, dues and reward token stack in one transaction, govern members by QNS name (quaidomains.com), pay dues over x402, and drive every flow with a voice seneschal that turns speech into signed intent | The contracts (`GuildFactory`, `GuildHall`, `TokenStackDeployer`) are **not deployed** on Orchard or mainnet, so the site runs as a **labelled showcase**: invented sample halls, marked as such, with every transaction switched off. No independent audit |
+| 🛤️ | **Dark Star Rail**<br/>`bai/` | `/bai/` | The talent agency rail: hire verified AI/human talent into milestone escrow, settle gaslessly over x402 (one approval + an EIP-712 signature — the suite facilitator pays gas), 2.5% protocol fee, dispute windows | **Deployed and live-verified on Orchard and mainnet Cyprus-1** (bridged-USDT settlement); full gasless flow proven by an on-chain smoke test. Slither/Hardhat/Foundry suites green. **No external audit yet** — keep value modest |
 
-Each app has its own README with the details: [`x402tumbler/`](x402tumbler/README.md), [`q0/`](q0/README.md), [`multisigows/`](multisigows/README.md), [`b6/`](b6/README.md), [`d0/`](d0/README.md).
+Each app has its own README with the details: [`x402tumbler/`](x402tumbler/README.md), [`q0/`](q0/README.md), [`multisigows/`](multisigows/README.md), [`b6/`](b6/README.md), [`d0/`](d0/README.md), [`bai/`](bai/README.md).
 
 > **Treat everything here as pre-release.** Do not point any of it at funds you cannot afford to lose.
 
@@ -83,6 +86,7 @@ Each app has its own README with the details: [`x402tumbler/`](x402tumbler/READM
 .
 ├── index.html                  3D portal + subdomain router (single file, ASCII-only)
 ├── 404.html                    base-path-aware redirect for deep links and subdomains
+├── docs/                       documentation and guides (static HTML, no build step)
 ├── 0.png  Boltfont.png         brand mark and "Powered by" wordmark (copied into each app)
 ├── assets/3d/
 │   ├── qrb_chamber.glb         web asset (generated)

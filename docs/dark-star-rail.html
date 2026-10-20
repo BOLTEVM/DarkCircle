@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dark Star Rail &middot; DarkCircle Suite Docs</title>
+<link rel="stylesheet" href="./docs.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <img src="../0.png" alt="" width="30" height="22">
+    <a href="./">DarkCircle Suite Docs</a>
+  </div>
+  <nav>
+    <a href="./">Home</a>
+    <a href="./getting-started.html">Getting started</a>
+    <a href="./portal.html">Portal</a>
+    <a href="./darkcircle.html">DarkCircle</a>
+    <a href="./circleswap.html">Circleswap</a>
+    <a href="./darksafe.html">DarkSafe</a>
+    <a href="./dark-questate.html">Dark Questate</a>
+    <a href="./darkorder.html">DarkOrder</a>
+    <a class="here" href="./dark-star-rail.html">Dark Star Rail</a>
+    <a href="./security.html">Security</a>
+    <a href="../">&larr; Portal</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <div class="crumb"><a href="./">Docs</a> / Dark Star Rail</div>
+  <h1>&#x1F6E4;&#xFE0F; Dark Star Rail &middot; Talent Escrow <span class="badge green">Live</span></h1>
+  <p class="lede">The talent agency rail of the DarkCircle suite on Quai Network (Cyprus-1).
+  Clients hire verified AI and human talent into milestone escrow agreements and settle
+  <strong>gaslessly over x402</strong>: one approval transaction, then an EIP-712 signature —
+  the suite's own facilitator pays the gas. Source: <code>bai/</code> &middot; Route:
+  <a href="../bai/"><code>/bai/</code></a> (alias <code>/darkstarrail/</code>)</p>
+
+  <div class="panel callout warn">
+    <span class="tag">Where it stands</span>
+    <p>The escrow (<code>TalentAgentQuai.vy</code>, Vyper) is <strong>deployed and verified
+    on Orchard testnet and mainnet Cyprus-1</strong>, with the bridged-USDT settlement token
+    allowlisted and a 2.5% protocol fee. The full gasless flow — signature, settlement,
+    milestone release, fee split — is proven by a live on-chain smoke test. There has been
+    <strong>no external audit yet</strong>; keep value exposure modest until one lands.
+    Slither, Hardhat, and Foundry fuzz/invariant suites are all green.</p>
+  </div>
+
+  <h2>How a settlement rides the rail</h2>
+  <ul>
+    <li><strong>402 challenge</strong> &mdash; the backend answers a paid endpoint with a real
+      x402 <code>PAYMENT-REQUIRED</code> challenge naming the escrow, the allowlisted settlement
+      token, and the amount.</li>
+    <li><strong>One approval, then no gas</strong> &mdash; the client approves the escrow once,
+      then signs an EIP-712 <code>EscrowAuthorization</code> off-chain. Pelagus wallets normalize
+      the signature automatically.</li>
+    <li><strong>Facilitator settles</strong> &mdash; the suite's own quais.js facilitator verifies
+      the signature, nonce, and time window, then calls
+      <code>create_and_deposit_for</code>, paying the gas. Replay protection comes from a
+      file-backed nonce registry plus on-chain burn.</li>
+    <li><strong>Milestones and fees</strong> &mdash; each agreement is milestone-scoped; releases
+      pay the talent minus a protocol fee (250 bps, capped at 10%) to the fee recipient. Dispute
+      windows let a silent counterparty's funds be refunded after timeout; pause never traps
+      escrowed funds.</li>
+  </ul>
+
+  <h2>Deployed contracts</h2>
+  <table>
+    <tr><th>Network</th><th>Escrow</th><th>Settlement token</th></tr>
+    <tr><td>Orchard testnet (15000)</td><td><code>0x0042bc0BBbe34FBa82a52Cce6a2792DaA87c484C</code></td><td><code>0x0043a6b95A33A5Ac6ece32A4C172AE83390c2C59</code> (test token)</td></tr>
+    <tr><td>Mainnet Cyprus-1 (9)</td><td><code>0x00558035cfFAa4766A7f77cA987650711bDaF7a6</code></td><td><code>0x0049F7cbCa3556C2DfaE62Aafa7015F99de1b8f5</code> (bridged USDT)</td></tr>
+  </table>
+
+  <h2>Operational notes</h2>
+  <ul>
+    <li>The EIP-712 domain name is pinned on-chain as <code>"BTAI Talent Agency"</code> — the
+      former brand. It can never change without redeploying, so the frontend, backend, and
+      facilitator all keep that exact string for signatures.</li>
+    <li>Addresses must be QUAI-ledger Cyprus-1 accounts: second byte below <code>0x80</code>,
+      or faucets and contracts reject them as Qi UTXO addresses.</li>
+    <li>Never send a legacy QUAI transaction with an explicit empty access list: go-quai's mined
+      execution burns the entire gas limit. Let quais populate a real access list.</li>
+    <li>An hourly on-chain monitor watches both escrows (roles, balance invariant) and pushes a
+      desktop alert only on confirmed drift.</li>
+  </ul>
+
+  <div class="footer">
+    <span>Built on Quai Network (Cyprus-1, chain id 9) &middot; BOLTEVM</span>
+  </div>
+</main>
+</body>
+</html>

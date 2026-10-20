@@ -60,6 +60,15 @@ const cases = [
   ['guild.example.com', '/anything', '', '', '/darkorder/'],
   ['halls.example.com', '/anything', '?x=1', '', '/darkorder/?x=1'],
   ['boltevm-darkorder-preview.example.com', '/anything', '', '', '/darkorder/'],
+  // Dark Star Rail: the app folder is bai/ and it really exists; darkstarrail/ and starrail/ are aliases.
+  ['boltevm.github.io', '/DarkCircle/bai/deep/link', '?a=1', '#x', '/DarkCircle/bai/?a=1#x'],
+  ['boltevm.github.io', '/DarkCircle/darkstarrail/x', '', '', '/DarkCircle/bai/'],
+  ['boltevm.github.io', '/starrail/x', '', '', '/bai/'],
+  ['example.com', '/darkstarrail/hire', '?a=1', '#/hire', '/bai/?a=1#/hire'],
+  ['darkstarrail.example.com', '/anything', '', '', '/bai/'],
+  ['rail.example.com', '/anything', '', '', '/bai/'],
+  ['talent.example.com', '/anything', '?x=1', '', '/bai/?x=1'],
+  ['boltevm-starrail-preview.example.com', '/anything', '', '', '/bai/'],
 ];
 
 let failed = 0;
@@ -92,6 +101,9 @@ const portalCases = [
   ['darkorder.example.com', '/', './darkorder/'],
   ['guild.example.com', '/', './darkorder/'],
   ['halls.example.com', '/index.html', './darkorder/'],
+  ['darkstarrail.example.com', '/', './bai/'],
+  ['starrail.example.com', '/', './bai/'],
+  ['talent.example.com', '/index.html', './bai/'],
   ['example.com', '/', null],
 ];
 for (const [host, path, want] of portalCases) {

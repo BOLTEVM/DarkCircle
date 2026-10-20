@@ -160,3 +160,7 @@ desktop.ini
 
 # Airdrop snapshots (public chain data, but generated: build them, do not commit them)
 q0/airdrop/out/
+
+# Dark Star Rail (bai/) is its own repository (BOLTEVM/BTAI) with its own CI —
+# linked into the suite as a live repo, not vendored like the other apps.
+bai/

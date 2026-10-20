@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>DarkCircle Suite &mdash; Private payments, swaps, vaults, homes and guilds</title>
-  <meta name="description" content="Explore the DarkCircle suite in 3D: private payments, token swaps, shared vaults, property listings and guild halls on Quai Network.">
+  <title>DarkCircle Suite &mdash; Private payments, swaps, vaults, homes, guilds and talent</title>
+  <meta name="description" content="Explore the DarkCircle suite in 3D: private payments, token swaps, shared vaults, property listings, guild halls and talent escrow on Quai Network.">
   <meta name="theme-color" content="#05070a">
   <link rel="icon" type="image/png" href="./0.png">
 
@@ -37,6 +37,10 @@
         }
         if (host.startsWith('questate.') || host.startsWith('darkquestate.') || host.startsWith('realestate.') || host.includes('questate-')) {
           window.location.replace('./darkquestate/' + search + hash);
+          return;
+        }
+        if (host.startsWith('darkstarrail.') || host.startsWith('starrail.') || host.startsWith('rail.') || host.startsWith('talent.') || host.includes('starrail-')) {
+          window.location.replace('./bai/' + search + hash);
           return;
         }
       }
@@ -172,6 +176,7 @@
       font-size: 0.95rem;
     }
     .btn-icon:hover { color: #fff; border-color: rgba(255, 255, 255, 0.3); }
+    a.btn-icon { text-decoration: none; }
     .btn-icon.active { color: var(--accent-red); border-color: var(--accent-red); box-shadow: 0 0 calc(8px + var(--beat, 0) * 14px) var(--accent-glow); }
 
     .app-selector-pills {
@@ -201,6 +206,7 @@
     .app-pill[data-app="circleswap"]:hover { color: #38bdf8; background: rgba(6, 182, 212, 0.15); }
     .app-pill[data-app="darksafe"]:hover { color: #c084fc; background: rgba(168, 85, 247, 0.15); }
     .app-pill[data-app="darkquestate"]:hover { color: #fbbf24; background: rgba(245, 158, 11, 0.15); }
+    .app-pill[data-app="darkstarrail"]:hover { color: #93c5fd; background: rgba(96, 165, 250, 0.15); }
 
     /* Carousel arrows: spin the ring of app nodes around the orb, either way */
     .carousel-arrow {
@@ -316,6 +322,7 @@
     .station-darksafe:hover::before, .station-darksafe:focus-visible::before, .station-darksafe.is-front::before { background: linear-gradient(90deg, #a855f7, #10b981); }
     .station-darkquestate:hover::before, .station-darkquestate:focus-visible::before, .station-darkquestate.is-front::before { background: linear-gradient(90deg, #f59e0b, #a855f7); }
     .station-darkorder:hover::before, .station-darkorder:focus-visible::before, .station-darkorder.is-front::before { background: linear-gradient(90deg, #ef4444, #f59e0b); }
+    .station-darkstarrail:hover::before, .station-darkstarrail:focus-visible::before, .station-darkstarrail.is-front::before { background: linear-gradient(90deg, #60a5fa, #ff3b30); }
 
     .station-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.3rem 0.5rem; margin-bottom: 0.4rem; }
     .station-title { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 0.4rem; white-space: nowrap; }
@@ -333,6 +340,7 @@
     .badge-purple { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
     .badge-amber { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
     .badge-red { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .badge-blue { background: rgba(96, 165, 250, 0.15); color: #93c5fd; border: 1px solid rgba(96, 165, 250, 0.3); }
 
     .station-desc { font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 0.7rem; }
     .station-footer {
@@ -467,10 +475,12 @@
         <a class="app-pill" data-app="darksafe" href="./multisigows/">&#x1F510; DarkSafe</a>
         <a class="app-pill" data-app="darkquestate" href="./darkquestate/">&#x1F3E0; Dark Questate</a>
         <a class="app-pill" data-app="darkorder" href="./darkorder/">&#x2694;&#xFE0F; DarkOrder</a>
+        <a class="app-pill" data-app="darkstarrail" href="./bai/">&#x1F6E4;&#xFE0F; Dark Star Rail</a>
       </nav>
 
       <div class="top-controls">
         <button class="btn-icon" id="sound-btn" type="button" title="Music on/off" aria-label="Music off" aria-pressed="false">&#x1F507;</button>
+        <a class="btn-icon" id="docs-btn" href="./docs/" title="Documentation and guides" aria-label="Documentation and guides">&#x1F4D6;</a>
         <button class="btn-icon" id="fullscreen-btn" type="button" title="Toggle fullscreen" aria-label="Toggle fullscreen">&#x26F6;</button>
       </div>
     </header>
@@ -494,7 +504,7 @@
         </div>
         <p class="station-desc">Send payments privately, so no one can trace who paid whom.</p>
         <div class="station-footer">
-          <span>1 of 5</span>
+          <span>1 of 6</span>
           <span class="station-warp-hint">SEND PRIVATELY &rarr;</span>
         </div>
       </a>
@@ -506,7 +516,7 @@
         </div>
         <p class="station-desc">Swap tokens and earn rewards by adding to trading pools.</p>
         <div class="station-footer">
-          <span>2 of 5</span>
+          <span>2 of 6</span>
           <span class="station-warp-hint">START SWAPPING &rarr;</span>
         </div>
       </a>
@@ -518,7 +528,7 @@
         </div>
         <p class="station-desc">A vault that needs several people to approve before any money moves, with optional waiting periods.</p>
         <div class="station-footer">
-          <span>3 of 5</span>
+          <span>3 of 6</span>
           <span class="station-warp-hint">OPEN VAULT &rarr;</span>
         </div>
       </a>
@@ -530,7 +540,7 @@
         </div>
         <p class="station-desc">Browse property listings and make offers, with your money held safely until the deal closes. Sample listings only: nothing is live yet.</p>
         <div class="station-footer">
-          <span>4 of 5</span>
+          <span>4 of 6</span>
           <span class="station-warp-hint">BROWSE HOMES &rarr;</span>
         </div>
       </a>
@@ -542,8 +552,20 @@
         </div>
         <p class="station-desc">Start a guild, vote on decisions, collect dues, and ask the voice assistant for help.</p>
         <div class="station-footer">
-          <span>5 of 5</span>
+          <span>5 of 6</span>
           <span class="station-warp-hint">ENTER HALL &rarr;</span>
+        </div>
+      </a>
+
+      <a href="./bai/" class="station-card station-darkstarrail" data-app="darkstarrail">
+        <div class="station-header">
+          <div class="station-title">&#x1F6E4;&#xFE0F; Dark Star Rail</div>
+          <span class="station-badge badge-blue">TALENT</span>
+        </div>
+        <p class="station-desc">Hire verified AI and human talent: milestone escrow, gasless x402 settlement, live on Quai mainnet and Orchard.</p>
+        <div class="station-footer">
+          <span>6 of 6</span>
+          <span class="station-warp-hint">HIRE TALENT &rarr;</span>
         </div>
       </a>
     </div>
@@ -578,6 +600,8 @@
         url: './darkquestate/', color: 0xf59e0b },
       { id: 'darkorder', key: '5', title: 'DarkOrder', sub: 'guild halls', hint: 'ENTER HALL',
         url: './darkorder/', color: 0xef4444 },
+      { id: 'darkstarrail', key: '6', title: 'Dark Star Rail', sub: 'talent escrow', hint: 'HIRE TALENT',
+        url: './bai/', color: 0x60a5fa },
     ];
     const byId = Object.fromEntries(NODES.map((n) => [n.id, n]));
     const params = new URLSearchParams(location.search);
