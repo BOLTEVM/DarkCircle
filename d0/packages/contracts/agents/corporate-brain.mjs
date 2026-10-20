@@ -927,6 +927,7 @@ async function fixers(net, sovereign, swarm, ifaces, ts, opts, runwayFloor) {
       const held = uintOf(await call(net, ts.fixerInFlight.token, ifaces.erc20.encodeFunctionData('balanceOf', [vault])));
       const rec = ts.fixers[ts.fixerInFlight.token] ??= { name: ts.fixerInFlight.name, held: '0' };
       rec.held = held.toString();
+      rec.armed = true; // placement executed with self-delegation — suffrage may pull levers
       chronicle('fixer-placed', { note: `a watchman became a voter inside ${rec.name} — the vault holds ${held / 10n ** 18n} of its governance token`, target: rec.name });
       ts.fixerInFlight = { proposalId: null, token: null, name: null };
       saveTreasuryState(ts);
@@ -937,6 +938,7 @@ async function fixers(net, sovereign, swarm, ifaces, ts, opts, runwayFloor) {
       const held = uintOf(await call(net, ts.fixerInFlight.token, ifaces.erc20.encodeFunctionData('balanceOf', [vault])));
       const rec = ts.fixers[ts.fixerInFlight.token] ??= { name: ts.fixerInFlight.name, held: '0' };
       rec.held = held.toString();
+      rec.armed = true;
       chronicle('fixer-placed', { note: `a watchman became a voter inside ${rec.name} — the vault holds ${held / 10n ** 18n} of its governance token`, target: rec.name });
       ts.fixerInFlight = { proposalId: null, token: null, name: null };
       saveTreasuryState(ts);
@@ -1008,6 +1010,64 @@ async function fixers(net, sovereign, swarm, ifaces, ts, opts, runwayFloor) {
     chronicle('fixer-placement-filed', { note: metadata, proposalId: id, target: g.name });
     await driveCouncilProposal(net, council, swarm, ifaces, deskOpts, id);
     return true;
+  }
+
+  // SUFFRAGE — a held position is a voice: vote it in the target's own hall.
+  // Doctrine fixer.vote: 'obstruct' (NO on everything open), 'support' (YES),
+  // 'abstain' (hold the position in silence). A suffrage vote is itself a council
+  // proposal — [their module, 0, vote(pid, option, false)] — so the 4-of-7
+  // discipline governs foreign mischief exactly like treasury business. One
+  // filing per tick; chain-verified dedup via voteOf, so nothing is voted twice.
+  const fxv = fx.vote ?? 'obstruct';
+  if (fxv !== 'abstain') {
+    ts.suffrage ??= {};
+    for (const g of targets.slice(0, 3)) {
+      const rec = ts.fixers[g.token];
+      if (!rec || BigInt(rec.held ?? '0') === 0n || !rec.armed) continue;
+      let theirCount = null;
+      try {
+        theirCount = Number(ifaces.voting.decodeFunctionResult('proposalCount',
+          await call(net, g.module, ifaces.voting.encodeFunctionData('proposalCount', [])))[0]);
+      } catch { continue; } // module unreadable — next tick
+      for (let pid = 0; pid < theirCount; pid++) {
+        const key = `${g.module}:${pid}`;
+        if (ts.suffrage[key] !== undefined) continue; // already filed (or settled) by us
+        let pv;
+        try {
+          pv = ifaces.voting.decodeFunctionResult('getProposal',
+            await call(net, g.module, ifaces.voting.encodeFunctionData('getProposal', [pid])))[0];
+        } catch { continue; }
+        if (pv.executed || Number(pv.endDate) * 1000 <= Date.now()) continue;
+        const already = ifaces.voting.decodeFunctionResult('voteOf',
+          await call(net, g.module, ifaces.voting.encodeFunctionData('voteOf', [pid, vault])))[0];
+        if (Number(already) !== 0) { ts.suffrage[key] = -1; continue; } // position already voted
+        const option = fxv === 'support' ? VOTE.YES : VOTE.NO;
+        const theirMeta = (pv.metadata ?? '').slice(0, 80);
+        const metadata = `SUFFRAGE — ${g.name}: the vault votes ${fxv === 'support' ? 'YES' : 'NO'} on their proposal #${pid}${theirMeta ? ` ("${theirMeta}")` : ''} — a fixer pulls a lever.`;
+        const id = Number(ifaces.council.decodeFunctionResult('proposalCount',
+          await councilCall(ifaces.council.encodeFunctionData('proposalCount', [])))[0]);
+        const director = swarm.get(`director-${(id % 2) + 1}`);
+        console.log(`phase SUFFRAGE: ${director.id} files "${metadata}"`);
+        let receipt = null;
+        try {
+          receipt = await act(net, director, {
+            to: council,
+            data: ifaces.council.encodeFunctionData('createProposal', [metadata, [
+              [g.module, 0n, ifaces.voting.encodeFunctionData('vote', [BigInt(pid), option, false])],
+            ]]),
+          }, 500_000n, `council createProposal (SUFFRAGE ${g.name} #${pid})`, deskOpts);
+        } catch (e) {
+          console.log(`  suffrage: filing reverts in simulation (${e?.message ?? e}) — skipping ${g.name} #${pid} this tick`);
+          continue;
+        }
+        if (!opts.broadcast || !receipt) return true; // dry run, or send failed — retry next tick
+        ts.suffrage[key] = id;
+        saveTreasuryState(ts);
+        chronicle('suffrage-cast', { note: metadata, proposalId: id, target: g.name, theirProposal: pid, option: fxv });
+        await driveCouncilProposal(net, council, swarm, ifaces, deskOpts, id);
+        return true; // one lever per tick
+      }
+    }
   }
   return false;
 }

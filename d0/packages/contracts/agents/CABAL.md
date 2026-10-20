@@ -37,7 +37,11 @@ Path: the desk acquires foreign tokens through CircleSwap where pools exist, the
 self-delegates in the same council execution, and a watchman becomes a voter.
 Constraints (doctrine.json → fixer): never more than `maxPositionPct` of a target's
 supply; `budgetQuai` per placement; per-hop pool impact capped; acquisitions are
-council proposals with metadata `FIXER — <target>` like any desk trade. Targets come
+council proposals with metadata `FIXER — <target>` like any desk trade. Suffrage
+closes the loop: once armed, the vault votes its foreign positions per
+`fixer.vote` — `obstruct` (NO on every open proposal in the target hall),
+`support`, or `abstain` — each vote itself a 4-of-7 council proposal, deduplicated
+on chain. Targets come
 from the watchmen ledger — the organ idles while no foreign guild exists and engages
 the same hour one registers. Foreign governance tokens with no CircleSwap pool are
 uninfiltratable until liquidity exists.
