@@ -171,7 +171,7 @@ On Windows Blender lives at `C:\Program Files\Blender Foundation\Blender 5.2\ble
 1. Verify the 3D asset, check portal sources are pure ASCII, test the redirect router, run the Circleswap unit tests
 2. Refresh the Quainance launchpad snapshot (best effort), then build Circleswap and DarkSafe
 3. Build Dark Questate and DarkOrder, run their tests and their integrity gates (a failure stops the deploy)
-4. Check out BOLTEVM/BTAI and static-export the Dark Star Rail frontend rooted at `/bai/` (`PAGES_BASE_PATH=/bai`). The wallet flow needs the `BTAI_PRIVY_APP_ID` Actions secret (a Privy app id is client-side public); the talent API URL comes from the `BTAI_API_BASE_URL` Actions variable
+4. Check out BOLTEVM/BTAI and static-export the Dark Star Rail frontend rooted at `/bai/` (`PAGES_BASE_PATH=/bai`). The Privy app id is committed in the workflow (client-side public by design; the Privy app secret must never enter this static build). The talent API URL comes from the optional `BTAI_API_BASE_URL` Actions variable
 5. `tools/assemble_site.sh _site`
 6. Upload and deploy to GitHub Pages
 
