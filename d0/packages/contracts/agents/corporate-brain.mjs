@@ -108,6 +108,9 @@ const CORP = {
     sweepTokens: [
       { symbol: 'Q0', address: '0x00325150094E51107a931980Fdfc3bB1a4C48379' },
       { symbol: 'QAXE', address: '0x0035187a7660f595D93cd53a4D16c635D6cFFC8f' },
+      { symbol: 'HBOME', address: '0x001fA4fdb848BB8C98B0d6Cd85257EfcCAe3b425' },
+      { symbol: 'COPPER', address: '0x0018e67e97F5ED3FcDF0883473a117005b994D98' },
+      { symbol: 'ART', address: '0x0060142D35D2860404C81958e6979db2e0710d45' },
     ],
   },
 };
@@ -178,6 +181,20 @@ function runwayFloorOf(ts, configuredFloor, runwayMonths = 6) {
   const days = Math.max(1, Math.ceil((Date.now() - new Date(ts.gasLedger.since).getTime()) / 86_400_000));
   const adaptive = ((BigInt(ts.gasLedger.total) * 30n) / BigInt(days)) * BigInt(runwayMonths);
   return adaptive > configuredFloor ? adaptive : configuredFloor;
+}
+
+// Quai escrow rule: a sender must hold gasLimit × gasPrice up front, so at spike
+// prices a fixed filer may be priced out for hours. Pick the first member of the
+// preferred order who can actually cover the escrow; null when nobody can.
+async function pickFiler(net, swarm, gasLimit, preferred = ['director-1', 'director-2', 'worker-1', 'worker-2', 'worker-3', 'sentinel', 'sovereign']) {
+  const gasPrice = BigInt(await rpc(net.rpc, 'quai_gasPrice', []));
+  for (const id of preferred) {
+    const w = swarm.get(id);
+    if (!w) continue;
+    const bal = BigInt(await rpc(net.rpc, 'quai_getBalance', [w.address, 'latest']));
+    if (bal >= gasLimit * gasPrice) return w;
+  }
+  return null;
 }
 
 function fail(msg) {
@@ -283,7 +300,9 @@ let gasSpentThisTick = 0n; // actual gasPaid from confirmed receipts — feeds t
 
 async function act(net, who, tx, gasLimit, label, { broadcast, confirmations, exemptFromCap = false }) {
   // JSON-RPC quantities are hex strings; BigInt would crash JSON.stringify.
-  const simTx = { ...tx, from: who.address };
+  // The gas limit rides the simulation too: a limit that can't cover real usage
+  // fails here for free instead of on chain for real QUAI.
+  const simTx = { ...tx, from: who.address, gas: '0x' + gasLimit.toString(16) };
   if (simTx.value !== undefined) simTx.value = '0x' + BigInt(simTx.value).toString(16);
   await rpc(net.rpc, 'quai_call', [simTx, 'latest']);
   console.log(`  [${who.id}] ${label}: simulates cleanly`);
@@ -300,7 +319,17 @@ async function act(net, who, tx, gasLimit, label, { broadcast, confirmations, ex
   const pop = await who.wallet.populateQuaiTransaction({ ...tx, from: who.address, gasLimit });
   const signed = await who.wallet.signTransaction(QuaiTransaction.from(pop));
   const zone = await who.wallet.zoneFromAddress(who.address);
-  const resp = await who.wallet.provider.broadcastTransaction(zone, signed, who.address);
+  let resp;
+  try {
+    resp = await who.wallet.provider.broadcastTransaction(zone, signed, who.address);
+  } catch (e) {
+    // Gas spikes price members out between simulation and send — skip, never crash the tick.
+    if (/insufficient funds/i.test(e?.message ?? '')) {
+      console.log(`  [${who.id}] ${label}: skipped (cannot cover intrinsic cost at current gas prices)`);
+      return null;
+    }
+    throw e;
+  }
   console.log(`  [${who.id}] ${label}: sent ${resp.hash}`);
   const receipt = await waitConfirmed(net, resp.hash, confirmations);
   if (parseInt(receipt.status, 16) !== 1) fail(`${label} reverted (tx ${resp.hash})`);
@@ -633,7 +662,11 @@ async function deskOps(net, sovereign, swarm, ifaces, ts, opts, sovQuai) {
   const fileTrade = async (kind, metadata, actions) => {
     const id = Number(ifaces.council.decodeFunctionResult('proposalCount',
       await councilCall(ifaces.council.encodeFunctionData('proposalCount', [])))[0]);
-    const director = swarm.get(`director-${(id % 2) + 1}`);
+    const director = await pickFiler(net, swarm, 500_000n);
+    if (!director) {
+      console.log(`phase DESK: ${kind} signalled but no member can cover filing escrow at current gas prices — standing down`);
+      return;
+    }
     console.log(`phase DESK: ${director.id} files council ${kind}: "${metadata}"`);
     const receipt = await act(net, director, {
       to: council, data: ifaces.council.encodeFunctionData('createProposal', [metadata, actions]),
@@ -829,12 +862,23 @@ async function vaultOps(net, sovereign, swarm, ifaces, ts, deployment, opts, sta
       return true;
     }
     const metadata = `VAULT SWEEP — move ${lines.join(' + ')} from the hall into council custody (${ts.vault.guild}).`;
-    const director = swarm.get(`director-${(state.proposalCount % 2) + 1}`);
-    console.log(`phase VAULT: ${director.id} files "${metadata}"`);
+    // Size the limit from quai_estimateGas (+5%): quai_call only enforces intrinsic
+    // gas, so a guessed limit can pass simulation and still run out on chain — a
+    // lesson that cost 700,000 gas. Escrow at spike prices = limit × price, so the
+    // leanest safe limit is also the only affordable one.
+    const data = ifaces.voting.encodeFunctionData('createProposal', [metadata, actions, 0n, 0n]);
+    const est = BigInt(await rpc(net.rpc, 'quai_estimateGas', [{ to: state.hall.module, from: swarm.get('director-1').address, data }]));
+    const gasLimit = (est * 102n) / 100n; // deterministic storage path — a 2% pad suffices
+    const director = await pickFiler(net, swarm, gasLimit);
+    if (!director) {
+      console.log(`phase VAULT: sweep ready (${lines.join(', ')}) but no member can cover ${fmtQuai(gasLimit)}-gas escrow at current prices — retrying next tick`);
+      return true;
+    }
+    console.log(`phase VAULT: ${director.id} files "${metadata}" (gas ${gasLimit}, estimated ${est})`);
     await act(net, director, {
       to: state.hall.module,
-      data: ifaces.voting.encodeFunctionData('createProposal', [metadata, actions, 0n, 0n]),
-    }, 1_500_000n, `createProposal (vault sweep)`, { ...opts, exemptFromCap: true });
+      data,
+    }, gasLimit, `createProposal (vault sweep)`, { ...opts, exemptFromCap: true });
     // Do NOT mark swept here: swept is earned when the on-chain balances reach zero
     // (top of this step), after GOVERN passes and executes the proposal.
     return true;
@@ -847,7 +891,11 @@ async function vaultOps(net, sovereign, swarm, ifaces, ts, deployment, opts, sta
       await call(net, module, ifaces.council.encodeFunctionData('proposalCount', [])))[0]);
     if (ts.vault.charterId === null) {
       if (count > 0) { ts.vault.charterId = 0; saveTreasuryState(ts); return true; }
-      const director = swarm.get('director-1');
+      const director = await pickFiler(net, swarm, 1_000_000n);
+      if (!director) {
+        console.log(`phase VAULT: charter ready but no member can cover filing escrow at current gas prices — retrying next tick`);
+        return true;
+      }
       console.log(`phase VAULT: ${director.id} files the vault charter (empty actions — proves the 4-of-7)`);
       const receipt = await act(net, director, {
         to: module,
@@ -996,7 +1044,11 @@ async function fixers(net, sovereign, swarm, ifaces, ts, opts, runwayFloor) {
     const metadata = `FIXER — ${g.name}: buy a voice in ${g.name} governance (${fmtQuai(quote.amountIn)} -> >= ${minOut / 10n ** 18n} tokens, cap ${fx.maxPositionPct}% of supply, ${wantPct}% left to take) and arm the vault's votes.`;
     const id = Number(ifaces.council.decodeFunctionResult('proposalCount',
       await councilCall(ifaces.council.encodeFunctionData('proposalCount', [])))[0]);
-    const director = swarm.get(`director-${(id % 2) + 1}`);
+    const director = await pickFiler(net, swarm, 500_000n);
+    if (!director) {
+      console.log(`phase FIXER: placement for ${g.name} ready but no member can cover filing escrow — retrying next tick`);
+      return true;
+    }
     console.log(`phase FIXER: ${director.id} files "${metadata}"`);
     const receipt = await act(net, director, {
       to: council,
@@ -1047,7 +1099,11 @@ async function fixers(net, sovereign, swarm, ifaces, ts, opts, runwayFloor) {
         const metadata = `SUFFRAGE — ${g.name}: the vault votes ${fxv === 'support' ? 'YES' : 'NO'} on their proposal #${pid}${theirMeta ? ` ("${theirMeta}")` : ''} — a fixer pulls a lever.`;
         const id = Number(ifaces.council.decodeFunctionResult('proposalCount',
           await councilCall(ifaces.council.encodeFunctionData('proposalCount', [])))[0]);
-        const director = swarm.get(`director-${(id % 2) + 1}`);
+        const director = await pickFiler(net, swarm, 500_000n);
+        if (!director) {
+          console.log(`phase SUFFRAGE: lever on ${g.name} #${pid} ready but no member can cover filing escrow — retrying next tick`);
+          return true;
+        }
         console.log(`phase SUFFRAGE: ${director.id} files "${metadata}"`);
         let receipt = null;
         try {
@@ -1263,9 +1319,13 @@ async function tick(net, deployment, swarm, state, opts) {
   if (await issue(net, sovereign, sybils, ifaces, ts, deployment, opts, sovQuai)) return;
   if (await vaultOps(net, sovereign, swarm, ifaces, ts, deployment, opts, state)) return;
 
-  // Nothing else to do: a director files the next agenda item.
+  // Nothing else to do: a member files the next agenda item.
   const nextAgenda = CORP.agendas[state.proposalCount % CORP.agendas.length];
-  const director = swarm.get(`director-${(state.proposalCount % 2) + 1}`);
+  const director = await pickFiler(net, swarm, 1_000_000n);
+  if (!director) {
+    console.log(`phase GOVERN: agenda "${nextAgenda}" ready but no member can cover filing escrow at current gas prices — quiet tick`);
+    return;
+  }
   console.log(`phase GOVERN: ${director.id} files "${nextAgenda}"`);
   await act(net, director, {
     to: state.hall.module,
