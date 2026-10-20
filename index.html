@@ -580,6 +580,126 @@
     </footer>
   </div>
 
+  <script>
+    // Boot guardian (classic script, ES5 on purpose: it must still run where the module below
+    // cannot). The 3D engine only starts in a module with import-map support, and even there a
+    // stalled scene download or a hung GPU would leave "Loading the 3D scene" up forever. This is
+    // the net underneath: anything that keeps the 3D engine from booting lands on the 2D portal,
+    // and when the module never ran at all, the portal's arrows, dots and keys are wired here too.
+    (function () {
+      var doc = document;
+      var root = doc.documentElement;
+      var activated = false;
+
+      // The module wires the carousel itself whenever it runs; this is the same carousel in
+      // miniature for browsers where it never did. Idempotent: if the module got there first
+      // (carousel-on is present) none of this runs.
+      function wire2d() {
+        var stations = doc.getElementById('portal-stations');
+        if (!stations || stations.classList.contains('carousel-on')) return;
+        var cards = doc.querySelectorAll('.station-card');
+        if (!cards.length) return;
+        var dotsEl = doc.getElementById('carousel-dots');
+        var cur = 0;
+        var dots = [];
+        function show(i) {
+          cur = ((i % cards.length) + cards.length) % cards.length;
+          for (var k = 0; k < cards.length; k++) {
+            var on = k === cur;
+            cards[k].classList.toggle('is-front', on);
+            if (dots[k]) {
+              dots[k].classList.toggle('active', on);
+              dots[k].setAttribute('aria-current', on ? 'true' : 'false');
+            }
+          }
+        }
+        function open(i) {
+          var href = cards[i] && cards[i].getAttribute('href');
+          if (href) window.location.href = href;
+        }
+        if (dotsEl) {
+          for (var d = 0; d < cards.length; d++) {
+            (function (idx) {
+              var dot = doc.createElement('button');
+              dot.type = 'button';
+              dot.className = 'dot';
+              var title = cards[idx].querySelector('.station-title');
+              dot.setAttribute('aria-label', title ? title.textContent : 'App ' + (idx + 1));
+              dot.addEventListener('click', function () { show(idx); });
+              dotsEl.appendChild(dot);
+              dots.push(dot);
+            })(d);
+          }
+        }
+        var prev = doc.getElementById('carousel-prev');
+        var next = doc.getElementById('carousel-next');
+        if (prev) prev.addEventListener('click', function () { show(cur - 1); });
+        if (next) next.addEventListener('click', function () { show(cur + 1); });
+        window.addEventListener('keydown', function (e) {
+          if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+          var tag = e.target && e.target.tagName;
+          if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag || '')) return;
+          if (e.key === 'ArrowLeft') { e.preventDefault(); show(cur - 1); return; }
+          if (e.key === 'ArrowRight') { e.preventDefault(); show(cur + 1); return; }
+          if (e.key === 'Enter' && (e.target === doc.body || e.target === root)) { open(cur); return; }
+          var n = parseInt(e.key, 10);
+          if (n >= 1 && n <= cards.length) open(n - 1);
+        });
+        stations.classList.add('carousel-on');
+        show(0);
+      }
+
+      function activate() {
+        if (activated) return;
+        activated = true;
+        root.classList.add('no-webgl');         // the existing CSS hides the loader and shows the 2D portal
+        wire2d();
+        var tel = doc.getElementById('telemetry');
+        if (tel) tel.textContent = 'Use the arrows to browse the apps \u00B7 tap the card to open one';
+        var keys = doc.querySelector('.bottom-bar .keys');
+        if (keys) keys.textContent = '\u2190 \u2192 to browse \u00B7 Enter to open';
+      }
+
+      // No module support at all (very old browsers): the engine below will never even parse,
+      // so fall back now instead of waiting for the watchdog.
+      try {
+        if (!('noModule' in doc.createElement('script'))) { activate(); return; }
+      } catch (e) { activate(); return; }
+
+      // Import maps unsupported (iOS Safari before 16.4, older mobile browsers): the module still
+      // runs and its own error path finishes the 2D portal, but its three.js imports can never
+      // resolve, so hide the loader now instead of when that failure surfaces.
+      try {
+        if (typeof HTMLScriptElement !== 'undefined' && typeof HTMLScriptElement.supports === 'function' &&
+            !HTMLScriptElement.supports('importmap')) {
+          root.classList.add('no-webgl');
+        }
+      } catch (e) { /* older engine: the watchdog below decides */ }
+
+      // Watchdog: the engine signals success by retiring the loader, and its error path sets
+      // no-webgl. Anything else (a stalled GLB download, hung GPU init, a module that died before
+      // its catch was installed) still ends on the 2D portal. A download that is reporting
+      // progress is given more time, but not unlimited time.
+      var retries = 0;
+      function settled() {
+        if (root.classList.contains('no-webgl')) return true;
+        var boot = doc.getElementById('boot');
+        return !boot || boot.classList.contains('done');
+      }
+      function check() {
+        if (activated || settled()) return;
+        var boot = doc.getElementById('boot');
+        if (retries < 2 && boot && /\d+%/.test(boot.textContent || '')) {
+          retries++;
+          setTimeout(check, 6000);
+          return;
+        }
+        activate();
+      }
+      setTimeout(check, 8000);
+    })();
+  </script>
+
   <script type="module">
     // ------------------------------------------------------------------------------
     // Layout contract with assets/3d/qrb_chamber.glb (built by tools/build_qrb_scene.py):
@@ -1518,6 +1638,8 @@
       window.addEventListener('resize', fitCamera);
 
       renderer.setAnimationLoop(() => {
+        // the boot guardian can force the 2D portal while the scene was still streaming in
+        if (document.documentElement.classList.contains('no-webgl')) { renderer.setAnimationLoop(null); return; }
         const rawDt = clock.getDelta();
         const dt = Math.min(rawDt, 0.1);
         const t = clock.elapsedTime;
