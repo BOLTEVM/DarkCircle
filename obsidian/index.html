@@ -115,6 +115,14 @@
       <h2>Governance Feed</h2>
       <div id="props"><div class="kv"><span class="k">…</span><span class="v">reading chain</span></div></div>
     </div>
+
+    <div class="panel span2">
+      <h2>Cabal Mind — Off-Chain</h2>
+      <div class="kv"><span class="k">doctrine posture</span><span class="v" id="mindPosture">—</span></div>
+      <div class="kv"><span class="k">desk center / premium</span><span class="v" id="mindDesk">—</span></div>
+      <div class="kv"><span class="k">watchmen targets</span><span class="v" id="mindIntel">—</span></div>
+      <div id="mindFeed" style="margin-top:10px"></div>
+    </div>
   </div>
 
   <footer>
@@ -446,6 +454,37 @@
     });
   }
 
+  // ---- cabal mind: off-chain brain state streamed from the droplet ----
+  var MIND_API = "https://verify.darkcircle.si/api/mind.json";
+  function refreshMind() {
+    fetch(MIND_API).then(function (r) { return r.json(); }).then(function (m) {
+      document.getElementById("mindPosture").textContent = (m.posture || "?").toUpperCase() +
+        " — protected: " + (m.protectedGuilds || []).join(", ");
+      var d = m.desk || {};
+      document.getElementById("mindDesk").textContent =
+        (d.ladderCenter != null ? Number(d.ladderCenter).toFixed(7) : "—") +
+        (d.premium != null ? " · x" + Number(d.premium).toFixed(3) : "");
+      document.getElementById("mindIntel").textContent =
+        (m.intel && m.intel.count != null) ? m.intel.count + " guilds under watch" : "—";
+      var feed = document.getElementById("mindFeed");
+      feed.textContent = "";
+      var events = (m.chronicle || []).slice(-10).reverse();
+      if (!events.length) {
+        feed.innerHTML = '<div class="kv"><span class="k">…</span><span class="v">mind silent</span></div>';
+      }
+      events.forEach(function (c) {
+        var row = document.createElement("div"); row.className = "kv";
+        var k = document.createElement("span"); k.className = "k";
+        k.textContent = (c.at || "").replace("T", " ").slice(0, 19) + "Z";
+        var v = document.createElement("span"); v.className = "v";
+        v.textContent = (c.event || "") + (c.note ? " — " + c.note : "");
+        row.appendChild(k); row.appendChild(v); feed.appendChild(row);
+      });
+    }).catch(function () { /* mind unreachable — chain panels unaffected */ });
+  }
+
+  refreshMind();
+  setInterval(refreshMind, 30000);
   refresh();
   setInterval(refresh, 30000);
 })();

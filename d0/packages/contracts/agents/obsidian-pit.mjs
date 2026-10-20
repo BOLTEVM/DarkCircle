@@ -38,7 +38,7 @@ import {
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
-const DARKSAFE_ROOT = path.resolve(ROOT, '..', '..', '..', 'multisigows', 'packages', 'contracts');
+const DARKSAFE_ROOT = process.env.DARKSAFE_ROOT || path.resolve(ROOT, '..', '..', '..', 'multisigows', 'packages', 'contracts');
 
 const NETWORKS = {
   orchard: { chainId: 15000n, rpc: 'https://orchard.rpc.quai.network/cyprus1', confirmations: 6 },
@@ -145,7 +145,7 @@ async function loadSwarm(manifest, provider, broadcast) {
   for (const id of manifest.identities) {
     let wallet = null;
     if (broadcast) {
-      wallet = (await Wallet.fromEncryptedJson(fs.readFileSync(path.join(ROOT, id.keystore), 'utf8'), passwords[id.id])).connect(provider);
+      wallet = (await Wallet.fromEncryptedJson(fs.readFileSync(path.join(ROOT, ...id.keystore.split(/[\\/]/)), 'utf8'), passwords[id.id])).connect(provider);
       if (wallet.address !== id.address) fail(`keystore ${id.id} unlocks ${wallet.address}, expected ${id.address}`);
     }
     swarm.set(id.id, { ...id, wallet });

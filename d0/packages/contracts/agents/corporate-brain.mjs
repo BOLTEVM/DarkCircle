@@ -280,7 +280,7 @@ async function loadSwarm(manifest, provider, broadcast) {
   for (const id of manifest.identities) {
     let wallet = null;
     if (broadcast) {
-      const ks = path.join(ROOT, id.keystore);
+      const ks = path.join(ROOT, ...id.keystore.split(/[\\/]/));
       wallet = (await Wallet.fromEncryptedJson(fs.readFileSync(ks, 'utf8'), passwords[id.id])).connect(provider);
       if (wallet.address !== id.address) fail(`keystore ${id.id} unlocks ${wallet.address}, expected ${id.address}`);
     }

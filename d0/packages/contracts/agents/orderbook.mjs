@@ -31,8 +31,15 @@ import {
   Wallet, JsonRpcProvider, QuaiTransaction, Interface, getAddress, parseUnits, formatUnits,
 } from 'quais';
 
-const require = createRequire(path.resolve(process.cwd(), '..', '..', '..', 'bdelta', 'packages', 'matching-engine', 'package.json'));
-const WebSocket = require('ws');
+// ws resolution: prefer the matching-engine workspace checkout (dev machine),
+// fall back to the brain's own node_modules (droplet runtime).
+let WebSocket;
+try {
+  const wsRequire = createRequire(path.resolve(process.cwd(), '..', '..', '..', 'bdelta', 'packages', 'matching-engine', 'package.json'));
+  WebSocket = wsRequire('ws');
+} catch {
+  WebSocket = createRequire(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'package.json'))('ws');
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -89,7 +96,7 @@ function parseArgs(argv) {
     const a = argv[i];
     if (!a.startsWith('--')) { out._.push(a); continue; }
     const key = a.slice(2);
-    if (['broadcast', 'i-understand-unaudited'].includes(key)) out.flags.add(key);
+    if (['broadcast', 'i-understand-unaudited', 'init'].includes(key)) out.flags.add(key);
     else if (['quai', 'q0', 'side', 'price', 'amount', 'depth', 'id', 'expiry-days'].includes(key)) out[key] = argv[++i];
     else fail(`unknown option ${a}`);
   }
@@ -378,16 +385,126 @@ async function cmdLadder(engine) {
   for (const a of LADDER.asks) { await placeOne(engine, 'sell', a.price, a.amount, LADDER.expiryDays); await sleep(700); }
 }
 
+// ---------------------------------------------------------------------------
+// Keepalive — the desk's self-maintaining posture. Records the engineered
+// ladder (center + premium over the CircleSwap reference) in ladder-state.json
+// and re-plants only when something actually breaks: missing levels, expiry
+// within 24h, or the reference drifting more than DRIFT_TRIGGER_PCT (the
+// premium is preserved on re-center). Without --broadcast it is a dry run.
+// ---------------------------------------------------------------------------
+const LADDER_STATE_PATH = path.join(ROOT, 'agents', 'ladder-state.json');
+const KEEPALIVE = { bandBps: [30, 50, 70], amount: '1500', expiryDays: 7, driftTriggerPct: 5, expiryFloorSecs: 86_400 };
+
+const loadLadderState = () => { try { return JSON.parse(fs.readFileSync(LADDER_STATE_PATH, 'utf8')); } catch { return null; } };
+const saveLadderState = (st) => fs.writeFileSync(LADDER_STATE_PATH, JSON.stringify(st, null, 2) + '\n');
+
+function circleRef() {
+  try {
+    const ts = JSON.parse(fs.readFileSync(path.join(ROOT, 'agents', 'treasury-state.json'), 'utf8'));
+    const readings = ts.readings;
+    if (!readings?.length) return null;
+    return Number(formatUnits(BigInt(readings[readings.length - 1].priceE18), 18));
+  } catch { return null; }
+}
+
+function ownMid(orders) {
+  const px = (o) => Number(formatUnits(BigInt(o.price), 18));
+  const isBid = (o) => o.side === 'BUY' || o.side === 'buy' || String(o.side) === '0';
+  const bids = orders.filter(isBid).map(px);
+  const asks = orders.filter((o) => !isBid(o)).map(px);
+  if (!bids.length || !asks.length) return null;
+  return (Math.max(...bids) + Math.min(...asks)) / 2;
+}
+
+async function cmdKeepalive(engine, { init, broadcast }) {
+  const mine = await engine.myOrders();
+  const ref = circleRef();
+  let st = loadLadderState();
+  const now = Date.now();
+  const keysOf = (orders) => orders.map((o) => o.orderKey ?? o.id).filter(Boolean);
+  const emit = (o) => console.log(`KEEPALIVE_JSON ${JSON.stringify(o)}`);
+
+  if (init || (!st && mine.length)) {
+    const mid = ownMid(mine);
+    if (!mid) fail('keepalive --init needs at least one open bid and one open ask to read the desk posture');
+    const expiries = mine.map((o) => Number(o.expiry ?? 0)).filter((e) => e > 0);
+    st = {
+      center: mid, circleRef: ref, premium: ref ? mid / ref : null,
+      orderKeys: keysOf(mine), placedAt: new Date(now).toISOString(),
+      expiryAt: expiries.length ? Math.min(...expiries) : null,
+    };
+    saveLadderState(st);
+    chronicle('pit-keepalive-init', { note: `posture recorded: center ${mid.toFixed(7)}${st.premium ? `, premium x${st.premium.toFixed(3)} vs CircleSwap` : ''}` });
+    console.log(`  posture recorded — center ${mid.toFixed(7)}${st.premium ? ` (x${st.premium.toFixed(3)} vs CircleSwap ${ref})` : ''}, ${st.orderKeys.length} orders`);
+    emit({ action: 'init', orders: mine.length, center: mid });
+    return;
+  }
+  if (!st) {
+    console.log('  no posture on record and no open orders — run ladder first, then keepalive --init');
+    emit({ action: 'none', reason: 'no-posture', orders: 0 });
+    return;
+  }
+
+  const reasons = [];
+  if (mine.length < 6) reasons.push(`only ${mine.length}/6 levels open`);
+  const minExpiry = Math.min(...mine.map((o) => Number(o.expiry ?? 0)).filter((e) => e > 0));
+  if (Number.isFinite(minExpiry) && minExpiry * 1000 - now < KEEPALIVE.expiryFloorSecs * 1000) reasons.push('expiry within 24h');
+  let newCenter = st.center;
+  if (ref && st.circleRef && Math.abs(ref / st.circleRef - 1) * 100 > KEEPALIVE.driftTriggerPct) {
+    newCenter = st.premium ? ref * st.premium : st.center * (ref / st.circleRef);
+    reasons.push(`CircleSwap ref moved ${((ref / st.circleRef - 1) * 100).toFixed(1)}% — re-centering ${st.center.toFixed(7)} -> ${newCenter.toFixed(7)}`);
+  }
+
+  if (!reasons.length) {
+    const drift = ref && st.circleRef ? `${((ref / st.circleRef - 1) * 100).toFixed(2)}%` : 'n/a';
+    console.log(`  ladder healthy — ${mine.length}/6 levels, center ${st.center.toFixed(7)}, ref drift ${drift}`);
+    chronicle('pit-keepalive', { note: `healthy — ${mine.length}/6 levels, ref drift ${drift}` });
+    emit({ action: 'none', orders: mine.length, center: st.center, circleRef: ref, drift });
+    return;
+  }
+
+  const bids = KEEPALIVE.bandBps.map((b) => ({ price: (newCenter * (1 - b / 10_000)).toFixed(18), amount: KEEPALIVE.amount }));
+  const asks = KEEPALIVE.bandBps.map((b) => ({ price: (newCenter * (1 + b / 10_000)).toFixed(18), amount: KEEPALIVE.amount }));
+  console.log(`  keepalive action needed: ${reasons.join('; ')}`);
+  if (!broadcast) {
+    console.log('  DRY RUN — pass --broadcast --i-understand-unaudited to execute');
+    for (const o of mine) console.log(`    would cancel ${String(o.orderKey ?? o.id ?? '').slice(0, 24)}…`);
+    for (const b of bids) console.log(`    would bid ${b.amount} @ ${b.price}`);
+    for (const a of asks) console.log(`    would ask ${a.amount} @ ${a.price}`);
+    emit({ action: 'dry-run', reasons, orders: mine.length, center: newCenter });
+    return;
+  }
+
+  for (const o of mine) {
+    const key = o.orderKey ?? o.id;
+    if (!key) continue;
+    console.log((await engine.cancel(key)) ? `  cancelled ${String(key).slice(0, 24)}…` : `  cancel refused ${String(key).slice(0, 24)}…`);
+    await sleep(500);
+  }
+  const newKeys = [];
+  for (const b of bids) { const r = await placeOne(engine, 'buy', b.price, b.amount, KEEPALIVE.expiryDays); if (r.ok && r.key) newKeys.push(r.key); await sleep(700); }
+  for (const a of asks) { const r = await placeOne(engine, 'sell', a.price, a.amount, KEEPALIVE.expiryDays); if (r.ok && r.key) newKeys.push(r.key); await sleep(700); }
+  st = {
+    center: newCenter, circleRef: ref ?? st.circleRef,
+    premium: st.premium ?? (ref ? newCenter / ref : null),
+    orderKeys: newKeys, placedAt: new Date().toISOString(),
+    expiryAt: Math.floor(now / 1000) + KEEPALIVE.expiryDays * 86_400,
+  };
+  saveLadderState(st);
+  chronicle('pit-keepalive-replant', { note: `${reasons.join('; ')} -> re-planted ${newKeys.length}/6 around ${newCenter.toFixed(7)}` });
+  emit({ action: 'replant', reasons, orders: newKeys.length, center: newCenter });
+}
+
 const args = parseArgs(process.argv.slice(2));
 const cmd = args._[0];
-if (!cmd || !['balance', 'deposit', 'withdraw-request', 'withdraw', 'book', 'orders', 'place', 'ladder', 'cancel'].includes(cmd)) {
-  fail('usage: orderbook.mjs <balance|deposit|withdraw-request|withdraw|book|orders|place|ladder|cancel> [options]');
+if (!cmd || !['balance', 'deposit', 'withdraw-request', 'withdraw', 'book', 'orders', 'place', 'ladder', 'cancel', 'keepalive'].includes(cmd)) {
+  fail('usage: orderbook.mjs <balance|deposit|withdraw-request|withdraw|book|orders|place|ladder|cancel|keepalive> [options]');
 }
 const broadcast = args.flags.has('broadcast');
 if (broadcast && !args.flags.has('i-understand-unaudited')) fail('broadcast requires --i-understand-unaudited');
 
 const provider = new JsonRpcProvider(RPC, CHAIN_ID);
-const needsWallet = broadcast || ['place', 'ladder', 'cancel', 'orders', 'book'].includes(cmd);
+const needsWallet = broadcast || ['place', 'ladder', 'cancel', 'orders', 'book', 'keepalive'].includes(cmd);
 const trader = await loadTrader(provider, needsWallet);
 
 if (cmd === 'balance') { await cmdBalance(trader); process.exit(0); }
@@ -408,6 +525,7 @@ try {
   else if (cmd === 'orders') await cmdOrders(engine);
   else if (cmd === 'place') await cmdPlace(engine, args);
   else if (cmd === 'ladder') await cmdLadder(engine);
+  else if (cmd === 'keepalive') await cmdKeepalive(engine, { init: args.flags.has('init'), broadcast });
   else if (cmd === 'cancel') {
     if (!args.id) fail('cancel needs --id <orderKey>');
     console.log((await engine.cancel(args.id)) ? '  cancelled' : '  cancel refused');
