@@ -131,6 +131,6 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`cabal 402 gate on :${PORT} — catalog at /intel/catalog (rpc ${RPC})`);
+server.listen(PORT, '127.0.0.1', () => {
+  console.log(`cabal 402 gate on 127.0.0.1:${PORT} — catalog at /intel/catalog (rpc ${RPC})`);
 });
