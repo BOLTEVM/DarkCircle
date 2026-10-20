@@ -1,0 +1,33 @@
+{
+  "guild": null,
+  "module": null,
+  "trader": {
+    "address": "0x002e596a173EE491E415b0844155CeE0dC5A6743",
+    "keystore": "agents/keys/pit-1.json",
+    "createdAt": "2026-10-20T03:50:30.690Z"
+  },
+  "migrations": [
+    {
+      "proposalId": 2,
+      "quai": "100",
+      "q0": "100000",
+      "at": "2026-10-20T04:22:03.151Z"
+    }
+  ],
+  "tranches": [
+    {
+      "txHash": "0xdd46e7cb5b3e6694a2ad5c2e267d6f89e3f7abb9f67621c78ea0921ffed55431",
+      "asset": "QUAI",
+      "amount": "40",
+      "at": "2026-10-20T04:26:57.421Z"
+    },
+    {
+      "txHash": "0x129cb44a1f2d422be929ebbcc3b57b1467d465d016d8248d4b9fed648132131c",
+      "asset": "Q0",
+      "amount": "60000",
+      "at": "2026-10-20T04:58:02.946Z"
+    }
+  ],
+  "safe": "0x002B80AeE7880759d96a9978F30a928C553849d8",
+  "salt": "0x47497ee7ed9187820a88fb2b7bda089ca902af59a8106e414976f2bff912db11"
+}
