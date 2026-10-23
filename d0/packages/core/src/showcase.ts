@@ -1,41 +1,53 @@
-import { buildGuildProfile } from './profile.js';
 import type { GuildRecord, GuildSummary, VotingProposalView } from './guilds.js';
 
 /**
- * Showcase content for when the protocol is not deployed on the selected network. Every
- * address below is in-zone in form only (0x00 prefix, second byte below 0x80) but reserved
- * and unspendable-looking, so a sample guild can never be mistaken for, or collide with, a
- * real Cyprus-1 guild. The UI labels everything from this file "Showcase" and switches all
- * transactions off.
+ * Showcase content for when the protocol is not deployed on the selected network (today that
+ * means every network except Quai mainnet). Instead of inventing sample halls, the showcase
+ * mirrors the two real Cyprus-1 halls of the DarkOrder — same handles, same contract
+ * addresses, same charter text as on chain — so the site reads truthfully even where it
+ * cannot talk to the chain. The UI labels everything from this file "Showcase" and switches
+ * all transactions off.
+ *
+ * The records below are the live mainnet registry page() result (block 10672507 onward);
+ * treasuries are a snapshot from 2026-10-22 and drift on chain.
  */
 
-const sample = (n: number) => `0x00${n.toString(16).padStart(38, '0')}`;
-
 export const SHOWCASE_GUILDS: GuildRecord[] = [
-  { name: 'emberhold', guild: sample(0xe1be2), token: sample(0xe1be3), module: sample(0xe1be4), mode: 'token' },
-  { name: 'ironcouncil', guild: sample(0xc0ec1), token: null, module: sample(0xc0ec2), mode: 'council' },
-  { name: 'veilkeepers', guild: sample(0x3e11), token: sample(0x3e12), module: sample(0x3e13), mode: 'token' },
+  {
+    name: 'obsidiantrust',
+    guild: '0x00126b1D310025Cd94F844994669c0B6a8930743',
+    token: '0x000C326ed9125ca1AE86e1Bb67f0797e61FD1733',
+    module: '0x0069C5A4c3729FCcC312B864F29e1f84AA9f913c',
+    mode: 'token',
+  },
+  {
+    name: 'obsidianvault',
+    guild: '0x0064AD45B58474d24F3e96d1d513E1c24fBFC912',
+    token: null,
+    module: '0x006AF6198c9eC311bC4Ade40A8316092dd5637e7',
+    mode: 'council',
+  },
 ];
 
+/** The charters exactly as the halls carry them on chain (plain-text metadata). */
 const LORE: Record<string, string> = {
-  emberhold: buildGuildProfile({
-    description: 'Keepers of the crimson flame. Treasury decisions by token vote, 50% support, 20% turnout.',
-    avatar: null,
-    links: [{ label: 'The Ember Charter', url: 'https://boltevm.com/darkorder' }],
-  }),
-  ironcouncil: buildGuildProfile({
-    description: 'Five keys, three to turn. A council guild guarding the suite multisig bridge.',
-    avatar: null,
-    links: [{ label: 'DarkSafe', url: 'https://boltevm.com/darksafe' }],
-  }),
-  veilkeepers: 'A quiet order. Proposals appear at dusk; abstentions are counted and respected.',
+  obsidiantrust:
+    'OBSIDIAN TRUST — corporate steward of the darkcircle skyline. Every tower a share, every share a vote.',
+  obsidianvault:
+    'OBSIDIAN VAULT — 4-of-7 council treasury of the Obsidian Trust. Community-donated assets under corporate custody.',
+};
+
+/** Treasury snapshot (wei), 2026-10-22: the trust pays its gas from the founder, the vault holds donated QUAI. */
+const TREASURY: Record<string, bigint> = {
+  obsidiantrust: 0n,
+  obsidianvault: 419_669_600_910_311_284_733n,
 };
 
 export function showcaseSummary(record: GuildRecord): GuildSummary {
   return {
     ...record,
     metadata: LORE[record.name] ?? 'A hall of the DarkOrder.',
-    treasury: record.name === 'ironcouncil' ? 12_500n * 10n ** 18n : 3_200n * 10n ** 18n,
+    treasury: TREASURY[record.name] ?? 0n,
   };
 }
 
@@ -53,6 +65,6 @@ export function showcaseProposal(guild: string, id: number): VotingProposalView 
     no: 9_800n * 10n ** 18n,
     abstain: 1_100n * 10n ** 18n,
     executed: false,
-    metadata: id === 0 ? 'Fund the beacon relay for three more cycles' : 'Admit the Ashen Delegates to the outer hall',
+    metadata: id === 0 ? 'Fund the skyline beacon relay for three more cycles' : 'Admit the night-shift delegates to the outer hall',
   };
 }

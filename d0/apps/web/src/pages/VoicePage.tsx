@@ -120,7 +120,7 @@ export const VoicePage: React.FC = () => {
             say(`The floor of ${name}.`);
             navigate({ name: 'guild', guild: name });
           } else {
-            say('Which hall? Say for example "open emberhold" first.');
+            say('Which hall? Say for example "open obsidiantrust" first.');
           }
           return;
         }
@@ -173,7 +173,7 @@ export const VoicePage: React.FC = () => {
           }
           const name = intent.guild ?? getCurrentGuild()?.name;
           if (!name) {
-            say('Open a hall first, or name it: "my roles in emberhold".');
+            say('Open a hall first, or name it: "my roles in obsidiantrust".');
             return;
           }
           const { guild, nearby } = matchGuild(name, directory.guilds);

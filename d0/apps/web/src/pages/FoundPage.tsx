@@ -177,14 +177,14 @@ export const FoundPage: React.FC = () => {
           help="1-64 chars: a-z, 0-9, hyphen, underscore. This is the directory key; identity names live on quaidomains.com."
           value={draft.name}
           onChange={(e) => set({ name: e.target.value.toLowerCase() })}
-          placeholder="emberhold"
+          placeholder="obsidiantrust"
         />
         <TextArea
           label="Charter (metadata)"
           help="Text, or a pointer to a longer document. Written on chain; changeable later only by a passed proposal."
           value={draft.metadata}
           onChange={(e) => set({ metadata: e.target.value })}
-          placeholder="Keepers of the crimson flame…"
+          placeholder="Stewards of the skyline…"
         />
         {draft.mode === 'token' ? (
           <>

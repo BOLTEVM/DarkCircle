@@ -134,5 +134,9 @@ against the known-token registry (`tokens.ts`); a challenge that misstates them 
 
 ## Status
 
-Neither mainnet nor Orchard has a deployment yet (`deployments.ts` is null on both), so the
-site runs as a **showcase**: sample guilds, clearly labelled, every transaction switched off.
+Mainnet (Cyprus-1) has a deployment, recorded in `deployments.ts` (2026-10-18; the deploy
+record is `packages/contracts/deployments/mainnet.json` and the verification manifest lives in
+the suite's `jsonverifiers/`): the site reads the two real halls — **obsidiantrust** (token
+hall, Obsidian Share) and **obsidianvault** (4-of-7 council treasury) — straight from the
+chain. Orchard has no deployment yet, so there the site runs as a **showcase**: it mirrors
+the same two real halls, clearly labelled, with every transaction switched off.

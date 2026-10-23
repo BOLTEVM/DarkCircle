@@ -7,15 +7,15 @@ describe('the site', () => {
     render(<App />);
     expect(await screen.findByText('The Grand Guild Halls')).toBeInTheDocument();
     expect(screen.getAllByText(/Showcase/i).length).toBeGreaterThan(0);
-    expect(screen.getByText('emberhold')).toBeInTheDocument();
-    expect(screen.getByText('ironcouncil')).toBeInTheDocument();
+    expect(screen.getByText('obsidiantrust')).toBeInTheDocument();
+    expect(screen.getByText('obsidianvault')).toBeInTheDocument();
   });
 
   it('shows guild metadata on the cards, not hex strings', async () => {
     render(<App />);
     // The charter text from the showcase profiles is what a visitor reads…
-    expect(await screen.findByText(/Keepers of the crimson flame/)).toBeInTheDocument();
-    expect(screen.getByText(/Five keys, three to turn/)).toBeInTheDocument();
+    expect(await screen.findByText(/corporate steward of the darkcircle skyline/)).toBeInTheDocument();
+    expect(screen.getByText(/4-of-7 council treasury of the Obsidian Trust/)).toBeInTheDocument();
     // …with the treasury alongside…
     expect(screen.getAllByText(/QUAI/).length).toBeGreaterThan(0);
     // …and no raw contract address anywhere on the frontpage.

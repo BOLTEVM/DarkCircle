@@ -100,7 +100,7 @@ export const HallsPage: React.FC = () => {
               label="Search the halls"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="emberhold, ironcouncil…"
+              placeholder="obsidiantrust, obsidianvault…"
               className="[&>label]:sr-only"
             />
           </div>
