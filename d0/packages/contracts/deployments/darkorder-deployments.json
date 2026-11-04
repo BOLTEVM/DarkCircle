@@ -1,0 +1,16 @@
+{
+ "mainnet": {
+  "version": 1,
+  "factory": "0x00701eF6Ef13c1950a78eF763C463B490dc10dBB",
+  "registry": "0x001bB186Bb7f1Fe7249d72848E4C2dC06c28764F",
+  "fromBlock": 10672528,
+  "deployedAt": "2026-10-18T01:20:53.000Z"
+ },
+ "orchard": {
+  "version": 2,
+  "factory": "0x003791B7F5e4dC4b578d26CBe6422994dB0f6bF3",
+  "registry": "0x0070FDb76eb5Dd74cd7CdDeFFe56820792B1CCaE",
+  "fromBlock": 8088312,
+  "deployedAt": "2026-10-24T17:26:20.053Z"
+ }
+}

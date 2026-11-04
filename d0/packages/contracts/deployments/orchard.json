@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "network": "orchard",
+  "chainId": 15000,
+  "deployedAt": "2026-10-24T17:26:20.053Z",
+  "deployer": "0x0026a4b3f0E8b1E97a1a67C08CdF7259d995419f",
+  "registry": {
+    "address": "0x0070FDb76eb5Dd74cd7CdDeFFe56820792B1CCaE",
+    "txHash": "0x00760074540c34cb6dd446813e68bed7fb193476d17599537aa8a32c80094c8d",
+    "blockNumber": 8088297,
+    "gasUsed": "1489136"
+  },
+  "tokenStack": {
+    "address": "0x0043Fa07AF7d589c1F8EF2a1Dc1d934590795f4c",
+    "txHash": "0x0000007189bd79f4097027a79e179117c1dd155f57129cb60c6d14e912ccec88",
+    "blockNumber": 8088305,
+    "gasUsed": "4597531"
+  },
+  "factory": {
+    "address": "0x003791B7F5e4dC4b578d26CBe6422994dB0f6bF3",
+    "txHash": "0x00780058cf8c603cb5d1c9e4f9946cdacf1d9cbf91076b07e83f4729f3fa8fb6",
+    "blockNumber": 8088312,
+    "gasUsed": "3481789"
+  },
+  "wire": {
+    "txHash": "0x00290025ade6312e49ddd52af68022cccfcb1596a88a42844735669e552530c3",
+    "nonce": 16,
+    "blockNumber": 8088319
+  },
+  "reservations": [],
+  "registryCodeHash": "0x320acb0c8df60eb98b0871884f56bd4d663c8d15c6f6080e912eb2385aa4bd7a",
+  "tokenStackCodeHash": "0x6aa3b3fbdfa895fc0ec04849e45c1d46b480c09bc8f38d6c36f544b238ab5446",
+  "factoryCodeHash": "0x0835c88aaa0ab73c4d16b503491827b0d706c30cd25a7e7c51cd3b7aaa74406b",
+  "registryBuildHash": "0xc7ad1677cce8f194f206ec3d759706a7c11cf4357816e420277a6cb4c26d40d3",
+  "tokenStackBuildHash": "0x6aa3b3fbdfa895fc0ec04849e45c1d46b480c09bc8f38d6c36f544b238ab5446",
+  "factoryBuildHash": "0x4bce857aefd4dfc2fdd27dac5e6a1a3a770c6068f74e8aea1353b890e5871c8f",
+  "legacy": []
+}
