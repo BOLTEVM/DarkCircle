@@ -5,17 +5,24 @@
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
+    "node:dante": "hardhat node --port 8546",
+    "deploy:dante:local": "hardhat run --network dante-local scripts/deploy-dante-local.ts",
     "deploy:quai": "ts-node --transpile-only scripts/deploy-quai.ts",
+    "deploy:wager-vault": "ts-node --transpile-only scripts/deploy-wager-vault.ts",
     "upload:artwork": "ts-node --transpile-only scripts/upload-artwork.ts",
     "probe:amm": "ts-node --transpile-only scripts/probe-amm.ts",
     "governance": "ts-node --transpile-only scripts/governance.ts",
     "inspect:farm": "ts-node --transpile-only scripts/inspect-farm.ts",
     "verify:bundle": "ts-node --transpile-only scripts/verification-bundle.ts",
+    "audit:dante": "ts-node --transpile-only scripts/prepare-dante-audit.ts",
+    "rehearse:dante:cyprus1": "hardhat run scripts/rehearse-dante-cyprus1.ts",
     "test:forge": "forge test",
     "test:forge:deep": "forge test --profile deep",
     "slither": "slither . --config-file slither.config.json",
     "export:artifacts": "ts-node --transpile-only scripts/export-browser-artifacts.ts",
-    "check:layout": "ts-node --transpile-only scripts/check-storage-layout.ts"
+    "check:layout": "ts-node --transpile-only scripts/check-storage-layout.ts",
+    "deploy:dante:staking": "ts-node --transpile-only scripts/deploy-dante-staking.ts",
+    "rehearse:dante:staking": "hardhat run scripts/rehearse-dante-cyprus1.ts"
   },
   "dependencies": {
     "@openzeppelin/contracts": "5.6.1",
