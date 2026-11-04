@@ -104,6 +104,8 @@ export default function DeployPage({ walletAddress, onConnect, pools, onOpenLiqu
         MASTERCHEF: activeAddress('MASTERCHEF'),
         AMM_FACTORY: activeAddress('AMM_FACTORY'),
         AMM_ROUTER: activeAddress('AMM_ROUTER'),
+        LIQUID_STAKING: DEPLOYED.LIQUID_STAKING,
+        STQUAI: DEPLOYED.STQUAI,
         ARTWORK_URI: DEPLOYED.ARTWORK_URI ?? local?.values.ARTWORK_URI ?? artwork?.uri ?? null
       };
       return renderDeployedTs(values);

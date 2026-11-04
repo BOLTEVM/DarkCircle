@@ -1,4 +1,4 @@
-import { NETWORKS, type Deployment, type NetworkConfig } from '@darkorder/core';
+import { LATEST_PROTOCOL_VERSION, NETWORKS, type Deployment, type NetworkConfig, type ProtocolVersion } from '@darkorder/core';
 
 /** Asset prefix for files in public/ (the build uses a relative base). */
 export const ASSET_BASE: string = import.meta.env.BASE_URL;
@@ -16,11 +16,17 @@ export function localNetwork(): NetworkConfig {
   return LOCAL_ENABLED && rpc ? { ...NETWORKS.local, rpcUrl: rpc } : NETWORKS.local;
 }
 
+function versionOf(raw: unknown, fallback: ProtocolVersion): ProtocolVersion {
+  const n = Number(raw);
+  return n === 1 || n === 2 ? n : fallback;
+}
+
 export function localDeployment(): Deployment | null {
   if (!LOCAL_ENABLED) return null;
   const factory = import.meta.env.VITE_LOCAL_FACTORY as string | undefined;
   const registry = import.meta.env.VITE_LOCAL_REGISTRY as string | undefined;
-  return factory && registry ? { factory, registry } : null;
+  const version = versionOf(import.meta.env.VITE_LOCAL_VERSION, LATEST_PROTOCOL_VERSION);
+  return factory && registry ? { version, factory, registry } : null;
 }
 
 export function readStored(key: string): string | null {
@@ -57,11 +63,12 @@ export function savedDeployment(network: string): Deployment | null {
   const raw = readStored(SAVED_DEPLOYMENT_PREFIX + network);
   if (!raw) return null;
   try {
-    const v = JSON.parse(raw) as { factory?: unknown; registry?: unknown; fromBlock?: unknown };
+    const v = JSON.parse(raw) as { factory?: unknown; registry?: unknown; fromBlock?: unknown; version?: unknown };
     if (typeof v?.factory !== 'string' || typeof v?.registry !== 'string') return null;
     if (!ADDRESS_RE.test(v.factory) || !ADDRESS_RE.test(v.registry)) return null;
     const fromBlock = Number.isSafeInteger(v.fromBlock) && (v.fromBlock as number) >= 0 ? (v.fromBlock as number) : undefined;
-    return { factory: v.factory, registry: v.registry, fromBlock };
+    // Saved before versions existed means a v1 deployment.
+    return { version: versionOf(v.version, 1), factory: v.factory, registry: v.registry, fromBlock };
   } catch {
     return null;
   }

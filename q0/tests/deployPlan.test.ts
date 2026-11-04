@@ -171,7 +171,7 @@ describe('creation data and address grinding', () => {
 });
 
 describe('deployed.ts record', () => {
-    const values = { QRB: OTHER, QRB_NFT: null, MASTERCHEF: null, AMM_FACTORY: null, AMM_ROUTER: null, ARTWORK_URI: URI };
+    const values = { QRB: OTHER, QRB_NFT: null, MASTERCHEF: null, AMM_FACTORY: null, AMM_ROUTER: null, LIQUID_STAKING: null, STQUAI: OTHER, ARTWORK_URI: URI };
 
     test.skipIf(!haveArtifacts)('is identical to the CLI script output', () => {
         expect(renderDeployedTs(values)).toBe(cliRenderDeployedTs(values));
@@ -192,6 +192,8 @@ describe('deployed.ts record', () => {
             MASTERCHEF: field('MASTERCHEF'),
             AMM_FACTORY: field('AMM_FACTORY'),
             AMM_ROUTER: field('AMM_ROUTER'),
+            LIQUID_STAKING: field('LIQUID_STAKING'),
+            STQUAI: field('STQUAI'),
             ARTWORK_URI: field('ARTWORK_URI')
         };
         expect(renderDeployedTs(held)).toBe(file);

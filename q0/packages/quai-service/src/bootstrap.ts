@@ -16,7 +16,9 @@ export { EIP1967_IMPLEMENTATION_SLOT, EIP1967_BEACON_SLOT, EIP1967_ADMIN_SLOT } 
 export const LOCAL_DEPLOYMENTS_KEY = 'q0.deployments.v1';
 const RPC = 'https://rpc.quai.network/cyprus1';
 
-type AddressKey = Exclude<keyof DeployedAddresses, 'ARTWORK_URI'>;
+// The liquid-staking pair has no browser deploy flow and no compiled-code entry to check against, so its
+// addresses come only from the generated deployed.ts and are never taken from storage.
+type AddressKey = Exclude<keyof DeployedAddresses, 'ARTWORK_URI' | 'LIQUID_STAKING' | 'STQUAI'>;
 const CONTRACT_OF: Record<AddressKey, keyof typeof CIRCLESWAP_RUNTIME_BYTES> = {
     QRB: 'Qrb',
     QRB_NFT: 'QrbArtifactNFT',

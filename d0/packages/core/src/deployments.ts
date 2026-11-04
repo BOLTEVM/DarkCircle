@@ -12,9 +12,10 @@ import type { NetworkName } from './config.js';
  * listing those halls (labelled "v1") and lets their members keep proposing, voting, approving
  * and executing there — moving a v1 treasury to its v2 hall is itself a v1 proposal.
  *
- * Mainnet runs v1 today (Cyprus-1, 2026-10-18; see packages/contracts/deployments/mainnet.json and
- * the quaiscan-verifiable manifest in the suite's jsonverifiers/). Orchard has no deployment yet:
- * there the site runs as a showcase — sample content, clearly labelled, every transaction disabled.
+ * Mainnet runs v2 (v1 from 2026-10-18 kept as legacy; see packages/contracts/deployments/mainnet.json,
+ * mainnet.v1.json and the quaiscan-verifiable manifest in the suite's jsonverifiers/). Orchard runs v2
+ * (deployments/orchard.json). A network with no entry runs as a showcase — sample content, clearly
+ * labelled, every transaction disabled.
  */
 export type ProtocolVersion = 1 | 2;
 

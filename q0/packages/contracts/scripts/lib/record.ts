@@ -8,6 +8,9 @@ export interface DeployedRecordValues {
     MASTERCHEF: string | null;
     AMM_FACTORY: string | null;
     AMM_ROUTER: string | null;
+    /** QUAI liquid-staking vault and its receipt token (deployed by deploy-dante-staking.ts, carried through here). */
+    LIQUID_STAKING?: string | null;
+    STQUAI?: string | null;
     /** Arweave URI the contracts were deployed with. */
     ARTWORK_URI: string | null;
 }
@@ -17,8 +20,8 @@ export function renderDeployedTs(addresses: DeployedRecordValues): string {
     // These values are written into a source file that ships in the app, so nothing but a plain address or
     // Arweave URI may pass: no quotes, no newlines, nothing that could alter the module.
     const addr = /^0x[0-9a-fA-F]{40}$/;
-    for (const key of ["QRB", "QRB_NFT", "MASTERCHEF", "AMM_FACTORY", "AMM_ROUTER"] as const) {
-        const v = addresses[key];
+    for (const key of ["QRB", "QRB_NFT", "MASTERCHEF", "AMM_FACTORY", "AMM_ROUTER", "LIQUID_STAKING", "STQUAI"] as const) {
+        const v = addresses[key] ?? null;
         if (v !== null && !addr.test(v)) throw new Error(`Refusing to write ${key}: "${v}" is not a full 20-byte address`);
     }
     const uri = addresses.ARTWORK_URI;
@@ -40,6 +43,9 @@ export interface DeployedAddresses {
     /** Circleswap AMM factory and router. */
     AMM_FACTORY: string | null;
     AMM_ROUTER: string | null;
+    /** QUAI liquid-staking vault and its receipt token. */
+    LIQUID_STAKING: string | null;
+    STQUAI: string | null;
     /** Arweave URI the contracts were deployed with. */
     ARTWORK_URI: string | null;
 }
@@ -50,6 +56,8 @@ export const DEPLOYED: DeployedAddresses = {
     MASTERCHEF: ${q(addresses.MASTERCHEF)},
     AMM_FACTORY: ${q(addresses.AMM_FACTORY)},
     AMM_ROUTER: ${q(addresses.AMM_ROUTER)},
+    LIQUID_STAKING: ${q(addresses.LIQUID_STAKING ?? null)},
+    STQUAI: ${q(addresses.STQUAI ?? null)},
     ARTWORK_URI: ${q(addresses.ARTWORK_URI)}
 };
 `;

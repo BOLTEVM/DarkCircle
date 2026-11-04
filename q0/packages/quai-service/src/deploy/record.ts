@@ -8,12 +8,14 @@ import type { FlowProgress } from './progress';
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const ARWEAVE = /^(ar:\/\/|https:\/\/arweave\.net\/)[A-Za-z0-9_-]{43}$/;
 const ADDRESS_KEYS = ['QRB', 'QRB_NFT', 'MASTERCHEF', 'AMM_FACTORY', 'AMM_ROUTER'] as const;
+// Written to deployed.ts but never produced by a browser flow: carried through from what is already recorded.
+const RECORD_KEYS = [...ADDRESS_KEYS, 'LIQUID_STAKING', 'STQUAI'] as const;
 
 export function renderDeployedTs(values: DeployedAddresses): string {
     // These values are written into a source file that ships in the app, so nothing but a plain address or
     // Arweave URI may pass: no quotes, no newlines, nothing that could alter the module.
-    for (const key of ADDRESS_KEYS) {
-        const v = values[key];
+    for (const key of RECORD_KEYS) {
+        const v = values[key] ?? null;
         if (v !== null && !ADDRESS.test(v)) throw new Error(`Refusing to write ${key}: "${v}" is not a full 20-byte address`);
     }
     const uri = values.ARTWORK_URI;
@@ -33,6 +35,9 @@ export interface DeployedAddresses {
     /** Circleswap AMM factory and router. */
     AMM_FACTORY: string | null;
     AMM_ROUTER: string | null;
+    /** QUAI liquid-staking vault and its receipt token. */
+    LIQUID_STAKING: string | null;
+    STQUAI: string | null;
     /** Arweave URI the contracts were deployed with. */
     ARTWORK_URI: string | null;
 }
@@ -43,6 +48,8 @@ export const DEPLOYED: DeployedAddresses = {
     MASTERCHEF: ${q(values.MASTERCHEF)},
     AMM_FACTORY: ${q(values.AMM_FACTORY)},
     AMM_ROUTER: ${q(values.AMM_ROUTER)},
+    LIQUID_STAKING: ${q(values.LIQUID_STAKING ?? null)},
+    STQUAI: ${q(values.STQUAI ?? null)},
     ARTWORK_URI: ${q(values.ARTWORK_URI)}
 };
 `;
