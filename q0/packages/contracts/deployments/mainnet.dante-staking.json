@@ -1,0 +1,42 @@
+{
+  "network": "mainnet",
+  "chainId": 9,
+  "deployedAt": "2026-11-04T22:10:03.589Z",
+  "deployer": "0x0026a4b3f0E8b1E97a1a67C08CdF7259d995419f",
+  "owner": "0x002B80AeE7880759d96a9978F30a928C553849d8",
+  "facilitator": "0x002e596a173EE491E415b0844155CeE0dC5A6743",
+  "wquai": "0x006C3e2AaAE5DB1bCd11A1a097cE572312EADdBB",
+  "withdrawalDelaySeconds": "86400",
+  "seed": "1000000000000",
+  "strategy": "0x0045ECe049e708b28409bc0f3EcA72642F99Bc3f",
+  "liquidStaking": "0x004eF4600F538eAef5Ba834E05c497A8f30c1941",
+  "stquai": "0x002A93ad9369f660Ec8130795C041A83065114Dd",
+  "steps": {
+    "danteStrategy": {
+      "done": true,
+      "txHash": "0x00430016a2a225dee071e6567b3f418ddf1a4ec36a9f7966db411e5cf470ab00",
+      "blockNumber": 10973901,
+      "gasUsed": "885219",
+      "address": "0x0045ECe049e708b28409bc0f3EcA72642F99Bc3f"
+    },
+    "liquidStaking": {
+      "done": true,
+      "txHash": "0x006a004c90f0123f28b46174fbead23e3ee8b42b1c0afda81f7df12af46ea3a0",
+      "blockNumber": 10973905,
+      "gasUsed": "3917797",
+      "address": "0x004eF4600F538eAef5Ba834E05c497A8f30c1941"
+    },
+    "bindDante": {
+      "done": true,
+      "txHash": "0x00110042785d66da64db552c8c6830abc9d975923bcc3f687ef67e4a82eae4bd",
+      "blockNumber": 10973908,
+      "gasUsed": "52142"
+    },
+    "handoffDante": {
+      "done": true,
+      "txHash": "0x001300421d5e5c8d99760faaa00c85bfd4fd0008324b0e1b9d279c57483132aa",
+      "blockNumber": 10973915,
+      "gasUsed": "48514"
+    }
+  }
+}

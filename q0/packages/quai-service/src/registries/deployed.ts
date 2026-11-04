@@ -12,6 +12,9 @@ export interface DeployedAddresses {
     /** Circleswap AMM factory and router. */
     AMM_FACTORY: string | null;
     AMM_ROUTER: string | null;
+    /** QUAI liquid-staking vault and its receipt token. */
+    LIQUID_STAKING: string | null;
+    STQUAI: string | null;
     /** Arweave URI the contracts were deployed with. */
     ARTWORK_URI: string | null;
 }
@@ -22,5 +25,7 @@ export const DEPLOYED: DeployedAddresses = {
     MASTERCHEF: '0x0061bAC19852dfA0c4AF18d65FCaa9A585e14B86',
     AMM_FACTORY: '0x001563Cc61F495eBF0D7d73Fd054Bc7eE245DD24',
     AMM_ROUTER: '0x00591827868F2989Bb34DbCf71Ff5c48574d4D25',
+    LIQUID_STAKING: '0x004eF4600F538eAef5Ba834E05c497A8f30c1941',
+    STQUAI: '0x002A93ad9369f660Ec8130795C041A83065114Dd',
     ARTWORK_URI: 'ar://MbJXaZJwc0PjrCK2iwBblrR6m0aAYIUJ7xsIIpQpHQk'
 };
