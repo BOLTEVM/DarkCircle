@@ -1,0 +1,21 @@
+{
+  "kind": "darkcircle-frozen-circuit-source",
+  "circuit": {
+    "file": "unshield.circom",
+    "sha256": "fe3a25a69d3a5b29478d1a4a861e36280a2e0049d7e664f01ce7372e4c93d2b8"
+  },
+  "toolchain": {
+    "circom2": "0.2.23",
+    "circomlib": "2.0.5"
+  },
+  "expected": {
+    "r1csSha256": "1687738ec20ee5298c6f0fefc8ea8ceef8c528b0be9f592cfe0ea6ea4ec34779",
+    "constraints": 25921,
+    "publicInputs": 10,
+    "privateInputs": 41
+  },
+  "spec": {
+    "file": "unshieldVerifier.ts",
+    "role": "executable specification C1-C8 (reference only)"
+  }
+}

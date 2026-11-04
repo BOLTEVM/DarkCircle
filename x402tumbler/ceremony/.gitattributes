@@ -1,0 +1,2 @@
+# Ceremony source hashes are defined over LF-normalized bytes.
+frozen/* text eol=lf
