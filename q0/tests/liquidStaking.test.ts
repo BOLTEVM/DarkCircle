@@ -1,8 +1,8 @@
 // QUAI liquid staking: share maths, realised yield, and the vault snapshot decoder. Run: bun test tests/liquidStaking.test.ts
 import { test } from 'bun:test';
 import assert from 'node:assert/strict';
-import { annualizedRateYield, liquidStakingRateE18, previewLiquidStakingDeposit, previewLiquidStakingRedeem } from '../packages/quai-service/src/liquidStakingMath';
-import { readLiquidStakingRateAt, readLiquidStakingSnapshot } from '../packages/quai-service/src/liquidStaking';
+import { annualizedRateYield, liquidStakingRateE18, previewLiquidStakingDeposit, previewLiquidStakingRedeem, quaiForStQuai, stQuaiForQuai } from '../packages/quai-service/src/liquidStakingMath';
+import { readLiquidStakingRate, readLiquidStakingRateAt, readLiquidStakingSnapshot } from '../packages/quai-service/src/liquidStaking';
 import { keccak256Bytes } from '../packages/quai-service/src/keccak';
 import type { BatchCall, BatchResult } from '../packages/quai-service/src/pairs';
 
@@ -92,4 +92,26 @@ test('a historical rate point carries the block timestamp and refuses a malforme
   assert.deepEqual(p, { blockNumber: 10973905, timestamp: 0x6aebace9, rateE18: E18 });
   const broken = async (): Promise<BatchResult[]> => [ok(word(E18)), ok({})];
   await assert.rejects(readLiquidStakingRateAt(broken, VAULT, 10973905), /Could not read block/);
+});
+
+test('pool seeding at the vault rate: stQUAI <-> QUAI both round down and invert each other within a wei', () => {
+  const rate = 1_099_999_999_999_999_999n;
+  assert.equal(quaiForStQuai(10n * E18, E18), 10n * E18);
+  assert.equal(quaiForStQuai(10n * E18, rate), 10_999_999_999_999_999_990n);
+  const st = stQuaiForQuai(11n * E18, rate);
+  assert.equal(st, 10_000_000_000_000_000_009n);
+  assert.ok(quaiForStQuai(st, rate) <= 11n * E18 && 11n * E18 - quaiForStQuai(st, rate) <= 1n);
+  assert.throws(() => quaiForStQuai(E18, 0n), /Invalid/);
+  assert.throws(() => stQuaiForQuai(-1n, E18), /Invalid/);
+});
+
+test('the current rate is the vault previewRedeem of 1 stQUAI at latest, and an unreadable answer is an error', async () => {
+  const batch = async (calls: BatchCall[]): Promise<BatchResult[]> => {
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].params, [{ to: VAULT, data: sig('previewRedeem(uint256)') + word(E18).slice(2) }, 'latest']);
+    return [ok(word(1_050_000_000_000_000_000n))];
+  };
+  assert.equal(await readLiquidStakingRate(batch, VAULT), 1_050_000_000_000_000_000n);
+  await assert.rejects(readLiquidStakingRate(async () => [{ ok: false, error: 'reverted' } as BatchResult], VAULT), /stQUAI redemption rate/);
+  await assert.rejects(readLiquidStakingRate(batch, '0x1234'), /20-byte/);
 });

@@ -208,6 +208,13 @@ export async function readLiquidStakingRateAt(batch: BatchFn, vault: string, blo
     return { blockNumber, timestamp: blockTimestamp(block, `block ${blockNumber}`), rateE18: uint(rate, `rate at block ${blockNumber}`) };
 }
 
+/** The vault's current redemption rate: QUAI value of 1 stQUAI (1e18 base units), from its own previewRedeem. */
+export async function readLiquidStakingRate(batch: BatchFn, vault: string): Promise<bigint> {
+    addressWord(vault);
+    const [rate] = await batch([call(vault, SEL.previewRedeem + word(10n ** 18n))]);
+    return uint(rate, 'stQUAI redemption rate');
+}
+
 export interface LiquidWithdrawalRequest {
     id: bigint;
     receiver: string;

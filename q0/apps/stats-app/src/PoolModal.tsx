@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Droplets, AlertTriangle, ExternalLink } from 'lucide-react';
 import {
   DEXES,
+  DEPLOYED,
   TOKEN_REGISTRY,
   isDexLive,
   requireDex,
@@ -27,7 +28,11 @@ import {
   prepareContractCall,
   waitForReceipt,
   parseUnits,
-  formatUnits
+  formatUnits,
+  createBatch,
+  readLiquidStakingRate,
+  quaiForStQuai,
+  stQuaiForQuai
 } from 'quai-service';
 import { sendWalletTransaction, getQuaiProvider } from './providerUtils';
 import PoolYieldLine from './PoolYieldLine';
@@ -35,6 +40,7 @@ import { ModalBody, ModalFooter, ModalHeader, ModalShell } from './ModalShell';
 
 // Circleswap first: it is our own AMM, so these are the pools we can create and own the whole path of.
 const PRESETS: { label: string; dex: DexId; a: string; b: string }[] = [
+  { label: 'stQUAI / QUAI · Circleswap', dex: 'CIRCLESWAP', a: 'stQUAI', b: 'QUAI' },
   { label: 'QRB / Q0 · Circleswap', dex: 'CIRCLESWAP', a: 'QRB', b: 'Q0' },
   { label: 'QRB / QUAI · Circleswap', dex: 'CIRCLESWAP', a: 'QRB', b: 'QUAI' },
   { label: 'BDELTA / Q0 · Circleswap', dex: 'CIRCLESWAP', a: 'BDELTA', b: 'Q0' },
@@ -63,6 +69,14 @@ interface Props {
   onClose: () => void;
   /** Called after a successful deposit or withdrawal so the app can re-read pools and balances. */
   onDone: () => void;
+  /** Pair to open on instead of the default (e.g. stQUAI / QUAI from the Staking tab). */
+  initialPair?: PoolPreset;
+}
+
+export interface PoolPreset {
+  dex: DexId;
+  a: string;
+  b: string;
 }
 
 const box: React.CSSProperties = {
@@ -106,14 +120,16 @@ const chip: React.CSSProperties = {
   padding: '0 0.35rem'
 };
 
+const rateBatch = createBatch();
+
 const lpName = (dex: DexId) => (dex === 'CIRCLESWAP' ? 'CSLP' : 'LP');
 
-export default function PoolModal({ walletAddress, rawBalances, pools, lpBalances, onConnect, onClose, onDone }: Props) {
+export default function PoolModal({ walletAddress, rawBalances, pools, lpBalances, onConnect, onClose, onDone, initialPair }: Props) {
   const poolTokens = Object.values(TOKEN_REGISTRY).filter(t => t.deployed !== false);
   const [mode, setMode] = useState<Mode>('ADD');
-  const [dex, setDex] = useState<DexId>(isDexLive('CIRCLESWAP') ? 'CIRCLESWAP' : 'QUAISWAP');
-  const [symA, setSymA] = useState('BDELTA');
-  const [symB, setSymB] = useState('Q0');
+  const [dex, setDex] = useState<DexId>(initialPair && isDexLive(initialPair.dex) ? initialPair.dex : isDexLive('CIRCLESWAP') ? 'CIRCLESWAP' : 'QUAISWAP');
+  const [symA, setSymA] = useState(initialPair?.a ?? 'BDELTA');
+  const [symB, setSymB] = useState(initialPair?.b ?? 'Q0');
   const [amtA, setAmtA] = useState('');
   const [amtB, setAmtB] = useState('');
   const [slippage, setSlippage] = useState(1);
@@ -196,6 +212,25 @@ export default function PoolModal({ walletAddress, rawBalances, pools, lpBalance
   }, [reserves, symA, pairSymA, nativeQuai]);
   const poolHasLiquidity = !!resAB && resAB.a > 0n && resAB.b > 0n;
 
+  // stQUAI against (W)QUAI has a reference price: the vault redeems 1 stQUAI for its rate in QUAI. Read it so the form
+  // can show it and seed a new pool there, instead of leaving the first depositor to guess.
+  const stQuaiSide: 'A' | 'B' | null =
+    pairSymA === 'stQUAI' && pairSymB === 'WQUAI' ? 'A' : pairSymB === 'stQUAI' && pairSymA === 'WQUAI' ? 'B' : null;
+  const [vaultRate, setVaultRate] = useState<bigint | null>(null);
+  const [vaultRateError, setVaultRateError] = useState(false);
+  useEffect(() => {
+    let live = true;
+    setVaultRateError(false);
+    const vault = DEPLOYED.LIQUID_STAKING;
+    if (!stQuaiSide || !vault) return;
+    readLiquidStakingRate(rateBatch, vault)
+      .then(r => live && setVaultRate(r))
+      .catch(() => live && setVaultRateError(true));
+    return () => {
+      live = false;
+    };
+  }, [stQuaiSide, refresh]);
+
   const parse = (v: string): bigint | null => {
     if (!v) return null;
     try {
@@ -221,6 +256,14 @@ export default function PoolModal({ walletAddress, rawBalances, pools, lpBalance
       const y = parse(v);
       setAmtA(y && y > 0n ? formatUnits(quoteLiquidityB(y, resAB.b, resAB.a), 18, 18) : '');
     }
+  };
+
+  // Sets the QUAI side from the stQUAI side (or the reverse when only QUAI is entered) at the vault rate.
+  const fillAtVaultRate = () => {
+    if (!stQuaiSide || !vaultRate) return;
+    const [stAmt, quaiAmt, setSt, setQuai] = stQuaiSide === 'A' ? [a, b, setAmtA, setAmtB] : [b, a, setAmtB, setAmtA];
+    if (stAmt && stAmt > 0n) setQuai(formatUnits(quaiForStQuai(stAmt, vaultRate), 18, 18));
+    else if (quaiAmt && quaiAmt > 0n) setSt(formatUnits(stQuaiForQuai(quaiAmt, vaultRate), 18, 18));
   };
 
   const balOf = (sym: string) => (rawBalances[sym] === undefined ? undefined : BigInt(rawBalances[sym]));
@@ -526,7 +569,7 @@ export default function PoolModal({ walletAddress, rawBalances, pools, lpBalance
                   type="button"
                   onClick={() => applyPreset(p)}
                   disabled={busy || !enabled}
-                  title={!live ? `${DEXES[p.dex].label} is not deployed yet` : !tokensReady ? 'QRB is not deployed yet' : undefined}
+                  title={!live ? `${DEXES[p.dex].label} is not deployed yet` : !tokensReady ? `${TOKEN_REGISTRY[p.a]?.deployed === false ? p.a : p.b} is not deployed yet` : undefined}
                   style={{ ...select, fontSize: '0.72rem', cursor: enabled ? 'pointer' : 'not-allowed', opacity: enabled ? 1 : 0.45, borderColor: dex === p.dex && symA === p.a && symB === p.b ? 'var(--accent-plasma)' : 'var(--panel-border)' }}
                 >
                   {p.label}
@@ -586,6 +629,10 @@ export default function PoolModal({ walletAddress, rawBalances, pools, lpBalance
             {(symA === 'QRB' || symB === 'QRB') ? (
               <div style={{ marginTop: '0.4rem', color: 'var(--accent-amber, #f59e0b)' }}>
                 QRB is the fixed 1.0-supply genesis token. Seed QRB / Q0 at the intended market ratio; do not use MAX unless you mean to commit that entire QRB balance. The resulting route can continue through Q0 → BDELTA on Circleswap and then BDELTA / WQUAI on Quainance.
+              </div>
+            ) : stQuaiSide ? (
+              <div style={{ marginTop: '0.4rem' }}>
+                stQUAI / WQUAI is the liquid exit for stakers: a swap here settles at once, while redeeming through the vault waits out its withdrawal delay.
               </div>
             ) : (
               <div style={{ marginTop: '0.4rem' }}>
@@ -755,6 +802,53 @@ export default function PoolModal({ walletAddress, rawBalances, pools, lpBalance
             <span style={muted}>You hold no {lp} in this pool.</span>
           )}
         </div>
+
+        {mode === 'ADD' && stQuaiSide && dexLive && !pairLoading && (
+          <div style={{ ...box, marginBottom: '0.75rem', fontSize: '0.8rem', display: 'grid', gap: '0.35rem' }}>
+            {vaultRate !== null ? (
+              <>
+                <div style={row}>
+                  <span style={muted}>Vault redemption rate</span>
+                  <span style={valueCell}>1 stQUAI = {formatUnits(vaultRate, 18, 6)} QUAI</span>
+                </div>
+                {poolHasLiquidity && resAB && (() => {
+                  const [st, quai] = stQuaiSide === 'A' ? [resAB.a, resAB.b] : [resAB.b, resAB.a];
+                  const poolPrice = Number(quai) / Number(st);
+                  const vsVault = (poolPrice / (Number(vaultRate) / 1e18) - 1) * 100;
+                  return (
+                    <div style={row}>
+                      <span style={muted}>Pool price</span>
+                      <span style={valueCell}>
+                        1 stQUAI = {poolPrice.toPrecision(6)} QUAI ({vsVault >= 0 ? '+' : ''}{vsVault.toFixed(2)}% vs vault)
+                      </span>
+                    </div>
+                  );
+                })()}
+                {!poolHasLiquidity && (
+                  <>
+                    <span style={{ ...muted, fontSize: '0.72rem', lineHeight: 1.45 }}>
+                      stQUAI always redeems through the staking vault at this rate (after its withdrawal delay), so seed the pool close to it.
+                      Enter either amount and fill the other side at the vault rate.
+                    </span>
+                    <button
+                      type="button"
+                      className="cs-touch"
+                      disabled={busy || !((a && a > 0n) || (b && b > 0n))}
+                      onClick={fillAtVaultRate}
+                      style={{ ...chip, justifySelf: 'start', padding: '0.25rem 0.7rem' }}
+                    >
+                      Fill at vault rate
+                    </button>
+                  </>
+                )}
+              </>
+            ) : vaultRateError ? (
+              <span style={{ color: 'var(--accent-amber, #f59e0b)' }}>Could not read the staking vault's rate; check it on the Staking tab before seeding.</span>
+            ) : (
+              <span style={muted}>Reading the staking vault's rate…</span>
+            )}
+          </div>
+        )}
 
         {mode === 'ADD' && dexLive && !exists && !sameToken && !pairLoading && (
           <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.35)', borderRadius: '12px', padding: '0.6rem 0.8rem', fontSize: '0.75rem', color: 'var(--accent-amber, #f59e0b)', marginBottom: '0.75rem' }}>

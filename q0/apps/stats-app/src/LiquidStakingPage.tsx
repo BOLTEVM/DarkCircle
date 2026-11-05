@@ -30,6 +30,8 @@ interface Props {
   pools: PoolInfo[];
   poolReserves: Record<string, LPReserves>;
   onConnect: () => void | Promise<void>;
+  /** Opens the Create Pool / Add liquidity modal on stQUAI / QUAI. */
+  onOpenLiquidity: () => void;
   onDone: () => void;
 }
 
@@ -48,7 +50,7 @@ const display = (value: bigint | null | undefined, decimals = 6): string =>
   value === null || value === undefined ? '—' : formatUnits(value, 18, decimals);
 const deadline = () => BigInt(Math.floor(Date.now() / 1000) + DEADLINE_SECONDS);
 
-export default function LiquidStakingPage({ walletAddress, pools, poolReserves, onConnect, onDone }: Props) {
+export default function LiquidStakingPage({ walletAddress, pools, poolReserves, onConnect, onOpenLiquidity, onDone }: Props) {
   const vault = DEPLOYED.LIQUID_STAKING;
   const { snapshot, requests, status, yieldInfo, yieldError, error: readError, updatedAt, refreshing, refresh } = useLiquidStaking(vault, walletAddress);
   const [mode, setMode] = useState<'DEPOSIT' | 'WITHDRAW'>('DEPOSIT');
@@ -78,7 +80,7 @@ export default function LiquidStakingPage({ walletAddress, pools, poolReserves, 
 
   const market = useMemo(() => {
     if (!snapshot) return { pool: null, rate: null as bigint | null };
-    const pool = pools.find(p => p.dex === 'CIRCLESWAP' && p.tokens.includes('STQUAI') && p.tokens.includes('WQUAI')) ?? null;
+    const pool = pools.find(p => p.dex === 'CIRCLESWAP' && p.tokens.includes('stQUAI') && p.tokens.includes('WQUAI')) ?? null;
     if (!pool) return { pool, rate: null };
     const reserves = poolReserves[pool.pair.toLowerCase()];
     if (!reserves) return { pool, rate: null };
@@ -282,7 +284,10 @@ export default function LiquidStakingPage({ walletAddress, pools, poolReserves, 
           <div className="liquid-staking-detail"><span>AMM spot rate</span><strong>{market.rate ? `${display(market.rate, 8)} WQUAI` : 'No liquid pool quote'}</strong></div>
           <div className="liquid-staking-detail"><span>Protocol redemption rate</span><strong>{protocolRate ? `${display(protocolRate, 8)} QUAI` : '—'}</strong></div>
           <div className="liquid-staking-detail"><span>AMM premium / discount</span><strong>{marketPremium === null ? '—' : `${marketPremium >= 0 ? '+' : ''}${marketPremium.toFixed(2)}%`}</strong></div>
-          <p className="liquid-staking-help">{market.pool ? 'The AMM rate is a spot quote before fees and price impact, not an instant redemption guarantee.' : 'There is no stQUAI / WQUAI pool yet, so the protocol withdrawal is the only exit.'} Protocol withdrawals follow the cooldown on the left.</p>
+          <p className="liquid-staking-help">{market.pool ? 'The AMM rate is a spot quote before fees and price impact, not an instant redemption guarantee.' : 'There is no stQUAI / WQUAI pool yet, so the protocol withdrawal is the only exit. Anyone can create one on Circleswap.'} Protocol withdrawals follow the cooldown on the left.</p>
+          <button type="button" style={{ ...smallBtn, marginTop: '0.25rem' }} onClick={onOpenLiquidity}>
+            {market.pool ? 'Add stQUAI liquidity' : 'Create stQUAI / QUAI pool'}
+          </button>
           <div style={{ marginTop: '1rem', borderTop: '1px solid var(--panel-border)', paddingTop: '0.85rem' }}>
             <div className="liquid-staking-detail"><span>Fixed claims outstanding</span><strong>{display(snapshot?.claimLiabilities, 4)} QUAI</strong></div>
             <div className="liquid-staking-detail"><span>Processed claim liquidity</span><strong>{display(snapshot?.processedLiabilities, 4)} QUAI</strong></div>

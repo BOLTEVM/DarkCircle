@@ -16,6 +16,8 @@ import {
     quoteRoute,
     CIRCLESWAP_MAX_POOLS,
     DEPLOYED,
+    TOKEN_REGISTRY,
+    getTokenBySymbol,
     type PoolInfo,
     type LPReserves
 } from '../packages/quai-service/src/index';
@@ -150,6 +152,18 @@ describe('Circleswap pool discovery and position reads (stubbed chain)', () => {
             expect(found.pools.map(p => p.tokens)).toEqual([['BDELTA', 'Q0'], ['Q0', 'WQUAI'], ['WQUAI', 'BDELTA']]);
             expect(found.pools.every(p => p.dex === 'CIRCLESWAP')).toBe(true);
             expect(found.pools[0].pair.toLowerCase()).toBe(pairAt(0).toLowerCase());
+        });
+    });
+
+    test('an stQUAI pool is discovered under the stQUAI symbol and gets a direct swap route', async () => {
+        await withCircleswapLive(async () => {
+            stubChain([['stQUAI', 'WQUAI'], ['Q0', 'WQUAI']]);
+            const found = await discoverCircleswapPools();
+            expect(found.unlisted).toBe(0);
+            expect(found.pools.map(p => p.tokens)).toEqual([['stQUAI', 'WQUAI'], ['Q0', 'WQUAI']]);
+            const ids = buildCircleswapRoutes(found.pools).map(r => r.path.join('>'));
+            expect(ids).toContain('stQUAI>WQUAI');
+            expect(ids).toContain('Q0>WQUAI>stQUAI');
         });
     });
 
@@ -332,5 +346,21 @@ describe('removing liquidity', () => {
         expect(removeLiquidityMins(1000n, 2000n, 0)).toEqual([1000n, 2000n]);
         expect(removeLiquidityMins(1000n, 2000n, NaN)).toEqual([990n, 1980n]); // NaN falls back to 1%
         expect(removeLiquidityMins(1000n, 2000n, 500)).toEqual([500n, 1000n]); // clamped to 50%
+    });
+});
+
+describe('the token registry', () => {
+    test('every curated entry is keyed by its exact symbol, because the app looks tokens up by symbol', () => {
+        for (const [key, t] of Object.entries(TOKEN_REGISTRY)) if (!t.discovered) expect(t.symbol).toBe(key);
+    });
+
+    test('stQUAI is the deployed staking receipt token, poolable on Circleswap', () => {
+        const st = TOKEN_REGISTRY.stQUAI;
+        expect(st.address).toBe(DEPLOYED.STQUAI!);
+        expect(st.deployed).toBe(true);
+        expect(st.decimals).toBe(18);
+        expect(getTokenBySymbol('stQUAI')).toBe(st);
+        expect(getTokenBySymbol('q0')).toBe(TOKEN_REGISTRY.Q0);
+        expect(tokenAddress('stQUAI')).toBe(DEPLOYED.STQUAI!);
     });
 });

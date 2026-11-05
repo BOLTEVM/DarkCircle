@@ -57,6 +57,15 @@ export const TOKEN_REGISTRY: Record<string, TokenInfo> = {
         address: '0x006C3e2AaAE5DB1bCd11A1a097cE572312EADdBB',
         description: 'Wrapped Native Quai for AMM Routing'
     },
+    // Keyed by its exact symbol, like every entry: the app passes symbols around as registry keys.
+    stQUAI: {
+        symbol: 'stQUAI',
+        name: 'Staked QUAI',
+        decimals: 18,
+        address: DEPLOYED.STQUAI ?? '0x0000000000000000000000000000000000000001',
+        deployed: DEPLOYED.STQUAI !== null,
+        description: 'Liquid share of the QUAI staking vault; its QUAI value follows the vault redemption rate'
+    },
     BOSS: {
         symbol: 'BOSS',
         name: 'Quai Boss',
@@ -140,7 +149,7 @@ export const TOKEN_REGISTRY: Record<string, TokenInfo> = {
 export const REGISTERED_TOKENS = Object.values(TOKEN_REGISTRY);
 
 export function getTokenBySymbol(symbol: string): TokenInfo | undefined {
-    return TOKEN_REGISTRY[symbol.toUpperCase()];
+    return TOKEN_REGISTRY[symbol] ?? TOKEN_REGISTRY[symbol.toUpperCase()];
 }
 
 export function getTokenByAddress(address: string): TokenInfo | undefined {

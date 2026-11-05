@@ -66,7 +66,7 @@ import {
   TokenTransferV2,
   QuainanceTVL
 } from 'quai-service';
-import PoolModal from './PoolModal';
+import PoolModal, { type PoolPreset } from './PoolModal';
 import PairsPage from './PairsPage';
 import TokenPicker from './TokenPicker';
 import TokenBubble, { type TokenBubbleMetadata } from './TokenBubble';
@@ -212,6 +212,7 @@ export default function App() {
   const [pair, setPair] = useState<{ from: string; to: string }>({ from: 'Q0', to: 'WQUAI' });
   const [forcedRouteId, setForcedRouteId] = useState<string | null>(null);
   const [poolModalOpen, setPoolModalOpen] = useState<boolean>(false);
+  const [poolModalPreset, setPoolModalPreset] = useState<PoolPreset | undefined>(undefined);
   const [customTokens, setCustomTokens] = useState(() => readImportedTokens());
   const [importTokenOpen, setImportTokenOpen] = useState(false);
   const [importPrefill, setImportPrefill] = useState<string | undefined>(undefined);
@@ -1086,6 +1087,10 @@ export default function App() {
             pools={allPools}
             poolReserves={poolReserves}
             onConnect={connectWallet}
+            onOpenLiquidity={() => {
+              setPoolModalPreset({ dex: 'CIRCLESWAP', a: 'stQUAI', b: 'QUAI' });
+              setPoolModalOpen(true);
+            }}
             onDone={() => {
               fetchData(true);
               if (walletAddress) loadWalletBalances(walletAddress);
@@ -1833,7 +1838,11 @@ export default function App() {
           pools={allPools}
           lpBalances={lpBalances}
           onConnect={connectWallet}
-          onClose={() => setPoolModalOpen(false)}
+          initialPair={poolModalPreset}
+          onClose={() => {
+            setPoolModalOpen(false);
+            setPoolModalPreset(undefined);
+          }}
           onDone={() => {
             fetchData(true);
             if (walletAddress) loadWalletBalances(walletAddress);
