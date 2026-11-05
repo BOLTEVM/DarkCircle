@@ -597,6 +597,8 @@ describe("deploy tooling", function () {
       MASTERCHEF: "0x004AFDb66677D177B759356D2367AeA3A79Fe58b",
       AMM_FACTORY: "0x0007E61D3C1fa9d3A8dA1e0F9d4E6e56C1a9c8B2",
       AMM_ROUTER: "0x003Ce6685Ff0C6b5F0bd6a0c93e9c2D2f3b7A1C4",
+      LIQUID_STAKING: "0x004eF4600F538eAef5Ba834E05c497A8f30c1941",
+      STQUAI: "0x002A93ad9369f660Ec8130795C041A83065114Dd",
       ARTWORK_URI: ARWEAVE_URI
     };
 
@@ -618,6 +620,7 @@ describe("deploy tooling", function () {
         { ...addrs, MASTERCHEF: "not an address" },
         { ...addrs, AMM_FACTORY: "0x0007E61D3C1fa9d3A8dA1e0F9d4E6e56C1a9c8B" }, // 39 digits
         { ...addrs, AMM_ROUTER: "0x003Ce6685Ff0C6b5F0bd6a0c93e9c2D2f3b7A1C4\"; DEPLOYED.QRB = null; //" },
+        { ...addrs, STQUAI: "0x002A93ad9369f660Ec8130795C041A83065114Dd'; DEPLOYED.QRB = null; //" },
         { ...addrs, ARTWORK_URI: "https://raw.githubusercontent.com/BOLTEVM/Q0/main/QgoGIF.gif" },
         { ...addrs, ARTWORK_URI: ARWEAVE_URI + "'\nDEPLOYED.QRB = null" }
       ];
