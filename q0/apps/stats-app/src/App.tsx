@@ -89,6 +89,7 @@ import { loadBalances, loadSwapLiquidity } from './swapLiquidity';
 
 // The deploy tooling carries the contracts' creation bytecode and the quais SDK; it loads only when opened.
 const DeployPage = lazy(() => import('./DeployPage'));
+const LiquidStakingPage = lazy(() => import('./LiquidStakingPage'));
 import { 
   getQuaiProvider, 
   getCyprus1Address, 
@@ -116,9 +117,12 @@ const DEPLOY_BOOTSTRAP_OPEN = deployTabVisible({
   anythingDeployed: DEPLOYED.MASTERCHEF !== null || DEPLOYED.AMM_FACTORY !== null
 });
 
-const getTabFromHash = (deployAllowed: boolean = false): 'SWAP' | 'FARMS' | 'QRB' | 'ANALYTICS' | 'PAIRS' | 'DEPLOY' => {
+type AppTab = 'SWAP' | 'STAKING' | 'FARMS' | 'QRB' | 'ANALYTICS' | 'PAIRS' | 'DEPLOY';
+
+const getTabFromHash = (deployAllowed: boolean = false): AppTab => {
   const hash = typeof window !== 'undefined' ? window.location.hash.toLowerCase() : '';
   if (hash === '#deploy') return deployAllowed ? 'DEPLOY' : 'SWAP';
+  if (hash === '#staking') return 'STAKING';
   if (hash === '#farms') return 'FARMS';
   if (hash === '#qrb') return 'QRB';
   if (hash === '#analytics') return 'ANALYTICS';
@@ -129,7 +133,7 @@ const getTabFromHash = (deployAllowed: boolean = false): 'SWAP' | 'FARMS' | 'QRB
 
 export default function App() {
   // Navigation State
-  const [activeTab, setActiveTab] = useState<'SWAP' | 'FARMS' | 'QRB' | 'ANALYTICS' | 'PAIRS' | 'DEPLOY'>(() => getTabFromHash(DEPLOY_BOOTSTRAP_OPEN));
+  const [activeTab, setActiveTab] = useState<AppTab>(() => getTabFromHash(DEPLOY_BOOTSTRAP_OPEN));
   // Wallet first: the administrator check below needs it. (Declared here so the hash handler can read the result.)
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const { isAdmin } = useAdministrator(walletAddress);
@@ -159,7 +163,7 @@ export default function App() {
     }
   }, [deployVisible, activeTab]);
 
-  const navigateToTab = (tab: 'SWAP' | 'FARMS' | 'QRB' | 'ANALYTICS' | 'PAIRS' | 'DEPLOY') => {
+  const navigateToTab = (tab: AppTab) => {
     setActiveTab(tab);
     if (typeof window !== 'undefined') {
       window.location.hash = '#' + tab.toLowerCase();
@@ -1002,6 +1006,7 @@ export default function App() {
         onNavigate={navigateToTab}
         items={[
           { id: 'SWAP', label: 'Swap', icon: <ArrowUpDown size={16} /> },
+          { id: 'STAKING', label: 'Liquid Staking', icon: <Coins size={16} /> },
           { id: 'FARMS', label: 'Farms & Pools', icon: <TrendingUp size={16} /> },
           { id: 'QRB', label: 'Qrb Genesis', icon: <Sparkles size={16} /> },
           { id: 'ANALYTICS', label: 'Analytics & Ledger', icon: <Activity size={16} /> },
@@ -1071,6 +1076,22 @@ export default function App() {
             }}
           />
         </>
+      )}
+
+      {/* QUAI liquid staking: lazy, with live vault reads. */}
+      {activeTab === 'STAKING' && (
+        <Suspense fallback={<div style={{ padding: '2rem', textAlign: 'center' }}>Loading liquid staking…</div>}>
+          <LiquidStakingPage
+            walletAddress={walletAddress}
+            pools={allPools}
+            poolReserves={poolReserves}
+            onConnect={connectWallet}
+            onDone={() => {
+              fetchData(true);
+              if (walletAddress) loadWalletBalances(walletAddress);
+            }}
+          />
+        </Suspense>
       )}
 
       {/* TAB 6: DEPLOYMENT (lazy: carries the contracts' bytecode; administrator only) */}

@@ -6,6 +6,8 @@ export * from './registries/qrb';
 export * from './registries/deployed';
 export * from './units';
 export * from './liquidity';
+export * from './liquidStakingMath';
+export * from './liquidStaking';
 export * from './qrbStatus';
 export * from './circleswap';
 export * from './pairs';

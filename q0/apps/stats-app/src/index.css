@@ -2944,3 +2944,204 @@ tr:hover td {
     color: var(--text-dim);
   }
 }
+
+/* QUAI liquid staking */
+.liquid-staking-shell {
+  max-width: 1080px;
+  margin: 0 auto 3rem;
+}
+.liquid-staking-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.liquid-staking-heading .section-title {
+  margin-bottom: 0.35rem;
+}
+.liquid-staking-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+.liquid-staking-stats .glass-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 1rem;
+}
+.liquid-staking-stats span,
+.liquid-staking-stats small {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+.liquid-staking-stats strong {
+  overflow-wrap: anywhere;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+}
+.liquid-staking-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 1.25rem;
+}
+.liquid-staking-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.liquid-staking-tabs button {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.04);
+  cursor: pointer;
+  font-weight: 700;
+}
+.liquid-staking-tabs button[aria-selected="true"] {
+  border-color: var(--accent-neon);
+  color: var(--accent-neon);
+  background: rgba(0,242,254,0.08);
+}
+.liquid-staking-amount {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.liquid-staking-amount input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: var(--text-main);
+  background: transparent;
+  font: inherit;
+  font-size: 1.45rem;
+}
+.liquid-staking-amount select {
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 0.45rem;
+  color: var(--text-main);
+  background: #171a2d;
+  font-weight: 700;
+}
+.liquid-staking-help {
+  margin: 0.55rem 0 0.85rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+.liquid-staking-slippage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.85rem 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+.liquid-staking-slippage input {
+  width: 58px;
+  margin-right: 0.3rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 0.25rem;
+  color: var(--text-main);
+  background: rgba(255,255,255,0.05);
+  text-align: center;
+}
+.liquid-staking-primary {
+  width: 100%;
+}
+.liquid-staking-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.85rem;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+}
+.liquid-staking-detail {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-size: 0.78rem;
+}
+.liquid-staking-detail > span {
+  color: var(--text-muted);
+}
+.liquid-staking-detail > strong {
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+.liquid-staking-requests {
+  display: grid;
+  gap: 0.55rem;
+}
+.liquid-staking-request {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: rgba(0,0,0,0.2);
+}
+.liquid-staking-request > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.liquid-staking-request span {
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+.liquid-staking-footnote {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin-top: 1rem;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+.liquid-staking-footnote svg {
+  flex: 0 0 auto;
+  margin-top: 0.1rem;
+}
+@media (max-width: 900px) {
+  .liquid-staking-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .liquid-staking-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 560px) {
+  .liquid-staking-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .liquid-staking-request {
+    grid-template-columns: 1fr;
+  }
+  .liquid-staking-request button {
+    justify-content: center;
+  }
+}
