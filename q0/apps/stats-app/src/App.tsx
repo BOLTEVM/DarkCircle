@@ -51,6 +51,13 @@ import {
   getLatestBlockNumber,
   getTokenBalance,
   getAllowance,
+  createBatch,
+  readLiquidStakingSnapshot,
+  encodeSwapExactTokensForTokens,
+  encodeSwapExactETHForTokens,
+  encodeSwapExactTokensForETH,
+  parseSwapRecipient,
+  recipientForSegment,
   quaiRpcCall,
   getTokenDetailV2,
   getQuainanceTVL,
@@ -281,8 +288,22 @@ export default function App() {
   const [nativeQuaiSide, setNativeQuaiSide] = useState<'FROM' | 'TO' | null>(null);
   const [swapAmountIn, setSwapAmountIn] = useState<string>('');
   const [slippage, setSlippage] = useState<number>(1.0);
+  // "Receive to another wallet": the swap's output can be paid to an address other than the one that signs.
+  const [sendToOther, setSendToOther] = useState<boolean>(false);
+  const [recipientInput, setRecipientInput] = useState<string>('');
+  /** The person has checked the exact address shown. Required before anything is paid to someone else, and asked afresh each time. */
+  const [recipientAck, setRecipientAck] = useState<boolean>(false);
+  /** What the chain says is at the recipient address. Keyed by that address, so a result can never be read for a different one. */
+  const [recipientCode, setRecipientCode] = useState<{ address: string; result: 'contract' | 'eoa' | 'failed' } | null>(null);
+  /** Every pair and pair token any DEX factory reports (including pairs the app does not route through), and the staking strategy. */
+  const [factoryContracts, setFactoryContracts] = useState<{ address: string; label: string }[]>([]);
+  const [stakingContracts, setStakingContracts] = useState<{ address: string; label: string }[]>([]);
+  // Where the last confirmed swap paid out, when that was not the connected wallet. Set only once the payment has confirmed.
+  const [swapPaidTo, setSwapPaidTo] = useState<string | null>(null);
   const [swapLoading, setSwapLoading] = useState<boolean>(false);
   const [swapTxHash, setSwapTxHash] = useState<string | null>(null);
+  /** The transaction named by swapTxHash has a successful receipt. */
+  const [swapTxConfirmed, setSwapTxConfirmed] = useState<boolean>(false);
   const [swapError, setSwapError] = useState<string | null>(null);
 
   // Atomic router swap progress state ('IDLE' | 'APPROVING' | 'SWAPPING')
@@ -293,47 +314,11 @@ export default function App() {
   // Top Holders
   const [topHolders, setTopHolders] = useState<{address: string, balance: string, pct: string}[]>([]);
 
-  // ABI Helpers for Router
-  const encodeRouterSwap = (
-    amountIn: bigint,
-    amountOutMin: bigint,
-    path: string[],
-    to: string,
-    deadline: bigint
-  ): string => {
-    const pad = (n: bigint | number, bits = 32) =>
-      BigInt(n).toString(16).padStart(bits * 2, '0');
-    const padAddr = (addr: string) =>
-      addr.replace('0x', '').toLowerCase().padStart(64, '0');
-
-    const pathOffset = BigInt(0xa0);
-    const pathLen = BigInt(path.length);
-    const pathEncoded = path.map(padAddr).join('');
-
-    return (
-      '0x38ed1739' +
-      pad(amountIn) +
-      pad(amountOutMin) +
-      pad(pathOffset) +
-      padAddr(to) +
-      pad(deadline) +
-      pad(pathLen) +
-      pathEncoded
-    );
-  };
-
-  // Native QUAI uses the router's WQUAI boundary. Never encode the zero address as an ERC-20 path token.
-  const encodeRouterSwapExactETH = (amountOutMin: bigint, path: string[], to: string, deadline: bigint): string => {
-    const pad = (n: bigint | number, bits = 32) => BigInt(n).toString(16).padStart(bits * 2, '0');
-    const padAddr = (addr: string) => addr.replace('0x', '').toLowerCase().padStart(64, '0');
-    return '0x7ff36ab5' + pad(amountOutMin) + pad(0x80) + padAddr(to) + pad(deadline) + pad(path.length) + path.map(padAddr).join('');
-  };
-
-  const encodeRouterSwapExactTokensForETH = (amountIn: bigint, amountOutMin: bigint, path: string[], to: string, deadline: bigint): string => {
-    const pad = (n: bigint | number, bits = 32) => BigInt(n).toString(16).padStart(bits * 2, '0');
-    const padAddr = (addr: string) => addr.replace('0x', '').toLowerCase().padStart(64, '0');
-    return '0x18cbafe5' + pad(amountIn) + pad(amountOutMin) + pad(0xa0) + padAddr(to) + pad(deadline) + pad(path.length) + path.map(padAddr).join('');
-  };
+  // Router swap calldata (quai-service/src/swapEncoding.ts). The recipient is validated there as well as on the page, so a
+  // malformed address can never be packed into the wrong slot.
+  const encodeRouterSwap = encodeSwapExactTokensForTokens;
+  const encodeRouterSwapExactETH = encodeSwapExactETHForTokens;
+  const encodeRouterSwapExactTokensForETH = encodeSwapExactTokensForETH;
 
   const encodeApprove = (spender: string, amount: bigint): string => {
     const cleanSpender = spender.replace('0x', '').toLowerCase().padStart(64, '0');
@@ -388,6 +373,11 @@ export default function App() {
       setDexState(liquidity.dexState);
       setGasPriceWei(liquidity.gasPriceWei);
       setSkippedPools(liquidity.skippedPools);
+      setFactoryContracts(liquidity.snapshots.flatMap(s => [
+        { address: s.pair, label: 'a liquidity pool' },
+        { address: s.token0.address, label: `the ${s.token0.symbol} token contract` },
+        { address: s.token1.address, label: `the ${s.token1.symbol} token contract` }
+      ]));
       setLpWquai(liquidity.reserves[CONTRACTS.LP_WQUAI.toLowerCase()] ?? null);
       setLpBoss(liquidity.reserves[CONTRACTS.LP_BOSS.toLowerCase()] ?? null);
       snapshots = liquidity.snapshots.filter(p => QUAINANCE_DEX_IDS.includes(p.dex));
@@ -685,6 +675,86 @@ export default function App() {
   const needsUnverifiedAck = !!quote && unverifiedInRoute.length > 0;
   const needsAck = needsImpactAck || needsUnverifiedAck;
 
+  // Where the output goes. Anything that would swallow it (a token, router, factory, pool, vault or farm contract) is refused, along
+  // with a mistyped, wrong-zone, Qi or burn address (see quai-service/src/swapRecipient.ts).
+  const recipientBlocked = useMemo(() => {
+    const list: { address: string; label: string }[] = [];
+    const add = (address: string | null | undefined, label: string) => { if (address) list.push({ address, label }); };
+    for (const token of tokenCatalog) if (token.deployed !== false && !token.isNative) add(token.address, `the ${token.symbol} token contract`);
+    for (const [key, token] of Object.entries(TOKEN_REGISTRY)) if (token.deployed !== false && !token.isNative) add(token.address, `the ${tokenLabel(key)} token contract`);
+    for (const dex of Object.values(DEXES)) {
+      add(dex.router, `the ${dex.label} router`);
+      add(dex.factory, `the ${dex.label} factory`);
+    }
+    for (const pool of allPools) add(pool.pair, 'a liquidity pool');
+    for (const pool of POOL_REGISTRY) add(pool.pair, 'a liquidity pool'); // even when its DEX is switched off
+    for (const c of factoryContracts) add(c.address, c.label);
+    for (const c of stakingContracts) add(c.address, c.label);
+    add(DEPLOYED.MASTERCHEF, 'the farm contract');
+    add(DEPLOYED.QRB, 'the Qrb token contract');
+    add(DEPLOYED.QRB_NFT, 'the Qrb artifact NFT contract');
+    add(DEPLOYED.AMM_FACTORY, 'the Circleswap factory');
+    add(DEPLOYED.AMM_ROUTER, 'the Circleswap router');
+    add(DEPLOYED.LIQUID_STAKING, 'the liquid-staking vault');
+    add(DEPLOYED.STQUAI, 'the stQUAI token contract');
+    return list;
+  }, [tokenCatalog, allPools, factoryContracts, stakingContracts]);
+  const recipientCheck = sendToOther ? parseSwapRecipient(recipientInput, { sender: walletAddress, blocked: recipientBlocked }) : null;
+  /** The recipient when it is not the connected wallet; null for an ordinary swap (box off, or the wallet's own address). */
+  const customRecipient = recipientCheck && recipientCheck.ok && !recipientCheck.isSelf ? recipientCheck.address : null;
+  /** Something was typed and it cannot be used. (An empty field blocks the swap too, but is not yet an error to shout about.) */
+  const recipientInvalid = sendToOther && recipientInput.trim() !== '' && !!recipientCheck && !recipientCheck.ok;
+  const codeResult = customRecipient && recipientCode && recipientCode.address === customRecipient ? recipientCode.result : null;
+  const recipientIsContract = codeResult === 'contract';
+  /** The chain could not be asked (as opposed to answering "not a contract"). */
+  const recipientCodeFailed = codeResult === 'failed';
+  /** The contract check for this exact address has not come back yet: the swap waits for it, so its warning is never missed. */
+  const recipientChecking = customRecipient !== null && codeResult === null;
+  const recipientBlocksSwap = sendToOther && (!recipientCheck || !recipientCheck.ok || (customRecipient !== null && (!recipientAck || recipientChecking)));
+
+  // A smart-contract recipient is allowed (a multisig or a vault is a fine place to receive), but worth a warning. The address is
+  // passed checksummed: quai_getCode refuses any other case.
+  useEffect(() => {
+    if (!customRecipient) return;
+    let alive = true;
+    quaiRpcCall('quai_getCode', [customRecipient, 'latest'])
+      .then((code: unknown) => { if (alive) setRecipientCode({ address: customRecipient, result: typeof code === 'string' && code !== '0x' ? 'contract' : 'eoa' }); })
+      .catch(() => { if (alive) setRecipientCode({ address: customRecipient, result: 'failed' }); });
+    return () => { alive = false; };
+  }, [customRecipient]);
+
+  // The liquid-staking vault hands every deposit to its strategy, which cannot return a WQUAI sent to it: never a place to receive.
+  useEffect(() => {
+    const vault = DEPLOYED.LIQUID_STAKING;
+    if (!vault) return;
+    let alive = true;
+    readLiquidStakingSnapshot(createBatch(), vault)
+      .then(s => { if (alive) setStakingContracts([{ address: s.strategy, label: 'the liquid-staking strategy' }]); })
+      .catch(() => { /* the contract check and the confirmation still apply */ });
+    return () => { alive = false; };
+  }, []);
+
+  // The recipient is fixed for a swap that is already being signed: executeSwap has captured it, so changing the box now would only
+  // make the page say something the transaction does not do.
+  const swapBusy = swapLoading || pendingSwapStep !== 'IDLE';
+
+  const handleRecipientChange = (val: string) => {
+    if (swapBusy) return;
+    setRecipientInput(val);
+    setRecipientAck(false);
+    setSwapError(null);
+    setSwapTxHash(null);
+  };
+
+  const toggleSendToOther = (on: boolean) => {
+    if (swapBusy) return;
+    setSendToOther(on);
+    setRecipientAck(false);
+    if (!on) setRecipientInput('');
+    setSwapError(null);
+    setSwapTxHash(null);
+  };
+
   const swapAmountOut = quote ? formatBaseUnits(quote.amountOut, toTokenDecimals, 6) : '';
   const minReceived = quote ? formatBaseUnits(quote.minimumReceived, toTokenDecimals, 6) : '0';
   const priceImpact = quote ? quote.priceImpactPct.toFixed(2) + '%' : '0.00%';
@@ -724,6 +794,9 @@ export default function App() {
       connectWallet();
       return;
     }
+    // The last swap's receipt banner is not this swap's: a refusal below must not show it under a new error.
+    setSwapTxHash(null);
+    setSwapPaidTo(null);
     if (amountParseError) {
       setSwapError(amountParseError);
       return;
@@ -744,10 +817,28 @@ export default function App() {
       setSwapError('Tick the box to confirm you understand the risk before swapping.');
       return;
     }
+    // Re-checked here, not just in the button state: the output is irreversible once it is paid to someone else.
+    if (sendToOther) {
+      if (!recipientCheck || !recipientCheck.ok) {
+        setSwapError(recipientCheck && !recipientCheck.ok ? recipientCheck.error : 'Enter the wallet address that should receive the assets.');
+        return;
+      }
+      if (customRecipient && recipientChecking) {
+        setSwapError('Still checking the recipient address. Try again in a moment.');
+        return;
+      }
+      if (customRecipient && !recipientAck) {
+        setSwapError('Tick the box to confirm the recipient address is right: assets sent to a wrong address cannot be recovered.');
+        return;
+      }
+    }
+    /** Who the final step pays: the chosen recipient, or the signing wallet for an ordinary swap. */
+    const recipient = customRecipient ?? walletAddress;
 
     setSwapLoading(true);
     setSwapError(null);
     setSwapTxHash(null);
+    setSwapPaidTo(null);
 
     const provider = getQuaiProvider();
     if (!provider) {
@@ -758,6 +849,10 @@ export default function App() {
 
     const legs = active.legs;
     let completedSteps = 0;
+    /** The transaction that pays the recipient has been sent to the network (whether or not it has confirmed). */
+    let recipientTxSent = false;
+    /** The final step has been sent (whoever it pays). If it then fails to confirm in time, it may still land. */
+    let lastLegSent = false;
     try {
       // The DEX contracts must still be the ones this app was written for: a swap is never signed against code that changed.
       const dexIds = [...new Set(legs.flatMap(leg => (leg.kind === 'AMM' ? [leg.dex] : [])))];
@@ -830,17 +925,23 @@ export default function App() {
 
         setPendingSwapStep('SWAPPING');
         const path = leg.path.map(tokenAddress);
+        // Earlier steps must pay the wallet (the next step spends that balance); only the last pays the chosen recipient.
+        const payTo = recipientForSegment(index, legs.length, walletAddress, recipient);
         const data = nativeInput
-          ? encodeRouterSwapExactETH(minimumOut, path, walletAddress, deadline)
+          ? encodeRouterSwapExactETH(minimumOut, path, payTo, deadline)
           : nativeOutput
-            ? encodeRouterSwapExactTokensForETH(carried, minimumOut, path, walletAddress, deadline)
-            : encodeRouterSwap(carried, minimumOut, path, walletAddress, deadline);
+            ? encodeRouterSwapExactTokensForETH(carried, minimumOut, path, payTo, deadline)
+            : encodeRouterSwap(carried, minimumOut, path, payTo, deadline);
         // On Cyprus-1 a reverted transaction burns its whole gas limit, so each step is simulated against the now-approved
         // allowance first; if it would revert (slippage, dust pool, stale price) nothing is sent.
         const prepared = await prepareContractCall(walletAddress, legDex.router, data, 1.5, undefined, nativeInput ? carried : 0n);
         const swapTx = await sendWalletTransaction(provider, prepared.tx);
         setSwapTxHash(swapTx);
+        setSwapTxConfirmed(false);
+        if (last) lastLegSent = true;
+        if (last && customRecipient) recipientTxSent = true;
         await waitForTransaction(swapTx);
+        setSwapTxConfirmed(true);
         completedSteps++;
 
         if (!last) {
@@ -852,6 +953,9 @@ export default function App() {
 
       setPendingSwapStep('IDLE');
       setSwapAmountIn('');
+      // Said only now, after the last step's receipt: a reverted or timed-out swap has not paid anyone.
+      if (customRecipient) setSwapPaidTo(customRecipient);
+      setRecipientAck(false); // the next swap to someone else is confirmed afresh
       loadWalletBalances(walletAddress);
       setTimeout(() => loadWalletBalances(walletAddress), 2000);
       setTimeout(() => {
@@ -862,10 +966,19 @@ export default function App() {
     } catch (e: any) {
       console.error("[Swap] Failed:", e);
       const detail = parseSwapError(e);
-      setSwapError(legs.length > 1 && completedSteps > 0
-        ? `${completedSteps} of ${legs.length} steps confirmed. The rest was not completed; the token from the finished steps is in your wallet. ${detail}`
-        : detail);
+      const timedOut = /not mined within/i.test(String(e?.message ?? e));
+      if (lastLegSent && timedOut) {
+        // The last step is in the network and may still confirm, spending what the earlier steps produced and paying out.
+        setSwapError(`The last step was sent but has not confirmed yet, and it may still go through${customRecipient ? `, paying ${customRecipient}` : ''}. Check the transaction on the explorer before you try again. ${detail}`);
+      } else {
+        setSwapError(legs.length > 1 && completedSteps > 0
+          ? `${completedSteps} of ${legs.length} steps confirmed. The rest was not completed; the token from the finished steps is in your wallet. ${detail}`
+          : detail);
+      }
       setPendingSwapStep('IDLE');
+      // A payment to someone else was sent but not confirmed (it may still land after a timeout): trying again must be a fresh
+      // decision, not a one-click resend that could pay the recipient twice.
+      if (recipientTxSent) setRecipientAck(false);
     } finally {
       setSwapLoading(false);
     }
@@ -1230,8 +1343,8 @@ export default function App() {
             {/* Input Out */}
             <div className="swap-input-group uniswap-token-input">
               <div className="swap-input-header">
-                <span>You receive</span>
-                {walletAddress && (
+                <span>{customRecipient ? 'Recipient receives' : 'You receive'}</span>
+                {walletAddress && !customRecipient && (
                   <span>
                     Balance: {getBalanceForToken(toSymbol)}
                   </span>
@@ -1250,6 +1363,88 @@ export default function App() {
               <div className="swap-usd" aria-live="polite">{usdText(swapAmountOut, toSymbol)}</div>
             </div>
 
+            {/* Receive to another wallet: pay the output to an address other than the connected wallet */}
+            <div className="swap-recipient">
+              <label className="swap-recipient-toggle">
+                <input
+                  type="checkbox"
+                  checked={sendToOther}
+                  disabled={swapBusy}
+                  onChange={e => toggleSendToOther(e.target.checked)}
+                />
+                <span>Receive {tokenLabel(toSymbol)} to another wallet</span>
+              </label>
+              {sendToOther && (
+                <div className="swap-input-group swap-recipient-group">
+                  <div className="swap-input-header">
+                    <label htmlFor="swap-recipient-input">Recipient</label>
+                    {walletAddress && (
+                      <button type="button" className="swap-recipient-self" disabled={swapBusy} onClick={() => handleRecipientChange(walletAddress)}>Use my wallet</button>
+                    )}
+                  </div>
+                  <input
+                    id="swap-recipient-input"
+                    type="text"
+                    className={`swap-recipient-field${recipientInvalid ? ' is-invalid' : ''}`}
+                    placeholder="Wallet Address"
+                    spellCheck={false}
+                    autoComplete="off"
+                    autoCapitalize="off"
+                    value={recipientInput}
+                    disabled={swapBusy}
+                    aria-invalid={recipientInvalid}
+                    aria-describedby="swap-recipient-note"
+                    onChange={e => handleRecipientChange(e.target.value)}
+                  />
+                  <div id="swap-recipient-note" className="swap-recipient-note">
+                    {recipientInvalid && recipientCheck && !recipientCheck.ok && (
+                      <div className="swap-recipient-line is-invalid" role="alert">{recipientCheck.error}</div>
+                    )}
+                    {!recipientInvalid && recipientInput.trim() === '' && (
+                      <div className="swap-recipient-line">Paste the Cyprus-1 Quai address that should receive the {tokenLabel(toSymbol)}.</div>
+                    )}
+                    {recipientCheck && recipientCheck.ok && recipientCheck.isSelf && (
+                      <div className="swap-recipient-line">This is the wallet you are swapping from, so the swap behaves like any other.</div>
+                    )}
+                    {customRecipient && recipientCheck && recipientCheck.ok && (
+                      <>
+                        <div className={`swap-recipient-line ${recipientCheck.checksum === 'verified' ? 'is-ok' : 'is-warning'}`}>
+                          {recipientCheck.checksum === 'verified'
+                            ? 'Address checksum verified.'
+                            : 'This address has no upper/lower-case checksum, so a typo cannot be detected. Compare it with the address you were given, character by character.'}
+                        </div>
+                        {recipientChecking && (
+                          <div className="swap-recipient-line" role="status">Checking whether this address is a smart contract…</div>
+                        )}
+                        {recipientIsContract && (
+                          <div id="swap-recipient-contract" className="swap-recipient-line is-warning" role="status">
+                            This address is a smart contract. Only continue if it can receive and move {tokenLabel(toSymbol)} (a multisig or vault, for example): anything it cannot move is stuck there.
+                          </div>
+                        )}
+                        {recipientCodeFailed && (
+                          <div id="swap-recipient-contract" className="swap-recipient-line is-warning" role="status">
+                            Could not check whether this address is a smart contract (the network did not answer). The swap is not blocked: check the address carefully.
+                          </div>
+                        )}
+                        <label className="swap-recipient-ack">
+                          <input
+                            type="checkbox"
+                            checked={recipientAck}
+                            onChange={e => setRecipientAck(e.target.checked)}
+                            disabled={swapBusy || recipientChecking}
+                            aria-describedby={recipientIsContract || recipientCodeFailed ? 'swap-recipient-contract' : undefined}
+                          />
+                          <span>
+                            I have checked this address: <span className="swap-recipient-addr">{customRecipient}</span>. Assets sent to the wrong address cannot be recovered.
+                          </span>
+                        </label>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Detail Sheet */}
             <div id="swap-settings" className="swap-details">
               <div className="swap-detail-row">
@@ -1263,9 +1458,15 @@ export default function App() {
                 }`}>{priceImpact}</span>
               </div>
               <div className="swap-detail-row">
-                <span className="swap-detail-label">You get at least</span>
+                <span className="swap-detail-label">{customRecipient ? 'Recipient gets at least' : 'You get at least'}</span>
                 <span className="swap-detail-value">{minReceived} {tokenLabel(toSymbol)}</span>
               </div>
+              {customRecipient && (
+                <div className="swap-detail-row">
+                  <span className="swap-detail-label">Recipient</span>
+                  <span className="swap-detail-value" style={{ fontFamily: 'monospace' }} title={customRecipient}>{formatAddr(customRecipient)}</span>
+                </div>
+              )}
               <div className="swap-detail-row" style={{ alignItems: 'center' }}>
                 <span className="swap-detail-label" title="How far the price may move against you before the swap is cancelled">Allowed price change</span>
                 <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
@@ -1333,9 +1534,12 @@ export default function App() {
 
             {/* Messages */}
             {swapTxHash && (
-              <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.8rem', color: 'var(--success)', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={swapError
+                ? { background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.8rem', color: 'var(--accent-amber, #f59e0b)', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
+                : { background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.8rem', color: 'var(--success)', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <strong>Swap Successful!</strong>
+                  <strong>{swapError ? (swapTxConfirmed ? 'Last confirmed transaction' : 'Transaction not confirmed') : pendingSwapStep !== 'IDLE' ? 'Swap submitted, waiting for confirmation…' : 'Swap Successful!'}</strong>
+                  {swapPaidTo && <div style={{ fontFamily: 'monospace', fontSize: '0.7rem', wordBreak: 'break-all' }}>Output sent to {swapPaidTo}</div>}
                   <div style={{ fontFamily: 'monospace', fontSize: '0.7rem' }}>Tx: {formatAddr(swapTxHash)}</div>
                 </div>
                 <a href={`https://quaiscan.io/tx/${swapTxHash}`} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-neon)' }}>
@@ -1365,7 +1569,7 @@ export default function App() {
             )}
 
             {swapError && (
-              <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.8rem', color: 'var(--error)', marginBottom: '1rem' }}>
+              <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.8rem', color: 'var(--error)', marginBottom: '1rem', overflowWrap: 'anywhere' }}>
                 {swapError}
               </div>
             )}
@@ -1374,7 +1578,7 @@ export default function App() {
             <button 
               className="btn-primary btn-swap-submit" 
               onClick={executeSwap}
-              disabled={swapLoading || pendingSwapStep !== 'IDLE' || (!!walletAddress && (!active || insufficientBalance || !!amountParseError || (needsAck && !impactAck)))}
+              disabled={swapLoading || pendingSwapStep !== 'IDLE' || (!!walletAddress && (!active || insufficientBalance || !!amountParseError || recipientBlocksSwap || (needsAck && !impactAck)))}
               style={{ justifyContent: 'center', background: 'linear-gradient(135deg, var(--accent-plasma) 0%, #8a2be2 100%)', color: '#fff' }}
             >
               {pendingSwapStep === 'APPROVING'
@@ -1387,6 +1591,14 @@ export default function App() {
                 ? 'No way to swap this pair yet'
                 : insufficientBalance
                 ? `Insufficient ${tokenLabel(fromSymbol)} balance`
+                : recipientBlocksSwap && !customRecipient
+                ? 'Enter a valid recipient address'
+                : recipientChecking
+                ? 'Checking the address…'
+                : recipientBlocksSwap
+                ? 'Confirm the recipient address'
+                : customRecipient
+                ? 'Confirm Swap & Send'
                 : 'Confirm Swap'}
             </button>
                 <div className="swap-route-footer">

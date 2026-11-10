@@ -14,6 +14,8 @@ export * from './pairs';
 export * from './routing';
 export * from './aggregate';
 export * from './keccak';
+export * from './swapRecipient';
+export * from './swapEncoding';
 export * from './dexIntegrity';
 export * from './curves';
 export * from './venues';

@@ -3145,3 +3145,105 @@ tr:hover td {
     justify-content: center;
   }
 }
+
+/* Swap recipient: optional "Receive to another wallet" field under "You receive" */
+.swap-recipient {
+  margin-bottom: 0.75rem;
+}
+.swap-recipient-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 0.5rem;
+}
+.swap-recipient-toggle input {
+  accent-color: var(--accent-plasma);
+}
+.swap-recipient-toggle input:not(:disabled) {
+  cursor: pointer;
+}
+.swap-recipient-group {
+  margin-bottom: 0;
+}
+.swap-recipient-self {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  color: var(--accent-plasma);
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 0.35rem;
+}
+.swap-recipient-field {
+  width: 100%;
+  box-sizing: border-box;
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  color: inherit;
+  font-family: monospace;
+  /* 16px at least: a smaller field makes iOS Safari zoom the whole page in when it is focused or pasted into. */
+  font-size: max(16px, 0.85rem);
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+/* The surrounding group already lights up on focus (--accent-neon): one highlight, not two. */
+.swap-recipient-field:focus {
+  border-color: var(--accent-neon);
+}
+.swap-recipient-field:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.swap-recipient-field.is-invalid {
+  border-color: var(--error);
+}
+.swap-recipient-self:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.swap-recipient-toggle:has(input:disabled),
+.swap-recipient-ack:has(input:disabled) {
+  cursor: not-allowed;
+}
+.swap-recipient-note {
+  margin-top: 0.45rem;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+.swap-recipient-line + .swap-recipient-line {
+  margin-top: 0.3rem;
+}
+.swap-recipient-line.is-invalid {
+  color: var(--error);
+}
+.swap-recipient-line.is-warning {
+  color: var(--warning);
+}
+.swap-recipient-line.is-ok {
+  color: var(--success);
+}
+/* The acknowledgement is the last check before money leaves: it names the exact address. */
+.swap-recipient-ack {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+  color: var(--text-main);
+  cursor: pointer;
+}
+.swap-recipient-ack input {
+  margin-top: 0.2rem;
+  accent-color: var(--accent-plasma);
+}
+.swap-recipient-addr {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  word-break: break-all;
+}
